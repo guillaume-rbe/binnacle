@@ -167,6 +167,7 @@ class WifiP2pGroupManager(
         }
     }
 
+    @RequiresApi(Build.VERSION_CODES.Q)
     private fun groupConfig(credentials: WifiP2pCredentials, frequencyMHz: Int?): WifiP2pConfig {
         val builder = WifiP2pConfig.Builder()
             .setNetworkName(credentials.ssid)
@@ -186,7 +187,7 @@ class WifiP2pGroupManager(
     @Suppress("DEPRECATION")
     private fun connectedStation5GhzFrequency(): Int? = try {
         val info = appContext.getSystemService(WifiManager::class.java)?.connectionInfo
-        if (info == null || info.networkId == -1) null else info.frequency.takeIf { is5Ghz(it) }
+        if (info == null || info.networkId == -1) null else info.frequency.takeIf { sharableStationFrequency(it) }
     } catch (failure: RuntimeException) {
         Log.w(TAG, "Could not read the Wi-Fi station frequency", failure)
         null
@@ -549,6 +550,14 @@ class WifiP2pGroupManager(
 
     private fun is5Ghz(frequencyMHz: Int): Boolean = frequencyMHz in 5150..5895
 
+    /**
+     * A 5 GHz station channel the group may share. DFS channels (5260-5720 MHz) need radar
+     * clearance before a group owner may start there: the request can be accepted and then never
+     * form, which only fails at the start-up timeout. Use any 5 GHz channel instead.
+     */
+    private fun sharableStationFrequency(frequencyMHz: Int): Boolean =
+        is5Ghz(frequencyMHz) && frequencyMHz !in DFS_FREQUENCIES_MHZ
+
     private class StartAttempt {
         var channel: WifiP2pManager.Channel? = null
         var thread: HandlerThread? = null
@@ -565,6 +574,7 @@ class WifiP2pGroupManager(
         const val NANOS_PER_MILLISECOND = 1_000_000L
         const val REMOVE_GROUP_TIMEOUT_MILLIS = 2_000L
         val REQUEST_POLL_NANOS: Long = TimeUnit.MILLISECONDS.toNanos(500)
+        val DFS_FREQUENCIES_MHZ = 5260..5720
     }
 }
 

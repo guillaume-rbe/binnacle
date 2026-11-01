@@ -3,9 +3,6 @@ package com.shilapi.xcertplay.media
 import android.media.AudioRecord
 import android.media.MediaRecorder
 import android.media.audiofx.AcousticEchoCanceler
-import android.media.audiofx.AudioEffect
-import android.media.audiofx.AutomaticGainControl
-import android.media.audiofx.NoiseSuppressor
 import android.util.Log
 import java.io.Closeable
 import kotlin.math.PI
@@ -15,15 +12,17 @@ import kotlin.math.sqrt
 
 /**
  * Call-only voice clean-up for head units whose microphone sits in the dash, away from the
- * driver: a high-pass filter that removes road rumble and automatic gain ([Pcm16VoiceAgc]) on top
- * of the user's microphone gain. The MIC source is kept: on a Unisoc head unit VOICE_COMMUNICATION
- * plus the vendor echo canceller made calls much quieter (1 Nov test), so [attachEffects] is not
- * used by default.
+ * driver: a high-pass filter that removes road rumble ([Pcm16HighPass]), automatic gain
+ * ([Pcm16VoiceAgc]) on top of the user's microphone gain, and the echo suppressor
+ * ([CallEchoSuppressor]). The platform echo canceller is attached too, though on the Unisoc test
+ * unit it made no measurable difference. The MIC source is kept: VOICE_COMMUNICATION made calls
+ * much quieter there (1 Nov test).
  */
 internal object CallVoiceProcessing {
     private const val TAG = "xcertplay-usb"
 
-    fun audioSourceFor(@Suppress("UNUSED_PARAMETER") audioType: String): Int = MediaRecorder.AudioSource.MIC
+    /** Calls and Siri both record from MIC (see the class comment). */
+    const val AUDIO_SOURCE = MediaRecorder.AudioSource.MIC
 
     fun isCall(audioType: String): Boolean = audioType.equals("telephony", ignoreCase = true)
 
@@ -47,31 +46,6 @@ internal object CallVoiceProcessing {
             null
         }
         return Closeable { runCatching { aec?.release() } }
-    }
-
-    /** Attaches whichever platform voice effects exist; close the result with the recorder. */
-    fun attachEffects(recorder: AudioRecord): Closeable {
-        val session = recorder.audioSessionId
-        val effects = mutableListOf<AudioEffect>()
-        fun <T : AudioEffect> tryAttach(name: String, available: Boolean, create: () -> T?) {
-            if (!available) {
-                Log.i(TAG, "call voice: $name not available")
-                return
-            }
-            try {
-                create()?.let {
-                    it.enabled = true
-                    effects += it
-                    Log.i(TAG, "call voice: $name on")
-                }
-            } catch (error: RuntimeException) {
-                Log.w(TAG, "call voice: $name failed", error)
-            }
-        }
-        tryAttach("echo canceller", AcousticEchoCanceler.isAvailable()) { AcousticEchoCanceler.create(session) }
-        tryAttach("noise suppressor", NoiseSuppressor.isAvailable()) { NoiseSuppressor.create(session) }
-        tryAttach("gain control", AutomaticGainControl.isAvailable()) { AutomaticGainControl.create(session) }
-        return Closeable { effects.forEach { runCatching { it.release() } } }
     }
 }
 

@@ -73,7 +73,7 @@ internal class MicrophoneUplink(
             eldEncoder = AacEldEncoder.create(config.sampleRate, config.samplesPerPacket, config.bitrate ?: 48_000)
         }
 
-        val source = CallVoiceProcessing.audioSourceFor(config.audioType)
+        val source = CallVoiceProcessing.AUDIO_SOURCE
         val nextRecorder = try {
             openMicrophoneRecorder(captureRate, captureFrameBytes * 4, source)
         } catch (error: Exception) {
@@ -86,6 +86,7 @@ internal class MicrophoneUplink(
         if (CallVoiceProcessing.isCall(config.audioType)) {
             highPass = Pcm16HighPass(captureRate)
             callAgc = Pcm16VoiceAgc()
+            FarEndActivity.reset() // no stale playback levels from an earlier call
             echoSuppressor = CallEchoSuppressor(log = { Log.i(TAG, it) })
             voiceEffects = CallVoiceProcessing.attachEchoCanceller(nextRecorder)
             micRecorder = callMicCaptureDirectory?.let { CallMicRecorder(it, captureRate) }

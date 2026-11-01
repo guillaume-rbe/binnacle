@@ -23,23 +23,10 @@ internal class HeadUnitCallState(
         set(false)
     }
 
-    /**
-     * modesChanged params: the appStates entry with appStateID 2 is the phone call. The phone
-     * reports it as an owner, e.g. {appStateID=2, entity=1} during a call and entity=0 when idle.
-     */
+    /** modesChanged: follow the phone-call app state (see [phoneCallActive]). */
     @Synchronized
     fun onModesChanged(params: Map<String, Any?>) {
-        val appStates = params["appStates"] as? List<*> ?: return
-        for (entry in appStates) {
-            val state = entry as? Map<*, *> ?: continue
-            if ((state["appStateID"] as? Number)?.toInt() != APP_STATE_PHONE_CALL) continue
-            val on = when (val value = state["entity"] ?: state["state"]) {
-                is Boolean -> value
-                is Number -> value.toInt() != 0
-                else -> continue
-            }
-            set(on)
-        }
+        phoneCallActive(params)?.let(::set)
     }
 
     /** The session ended or the controller closed: a call can't still be running. */
@@ -67,7 +54,6 @@ internal class HeadUnitCallState(
     }
 
     private companion object {
-        const val APP_STATE_PHONE_CALL = 2
         const val ACTION = "com.zjinnova.zlink"
         const val CANAPP_PACKAGE = "com.xbs.canapp"
         const val EXTRA_PHONE_MODE = "phoneMode"
@@ -77,3 +63,24 @@ internal class HeadUnitCallState(
         const val STATUS_CALL_OFF = "PHONE_CALL_OFF"
     }
 }
+
+/**
+ * Phone-call state from modesChanged params, or null when they don't say. The appStates entry
+ * with appStateID 2 is the phone call; the iPhone reports it as an owner, e.g.
+ * {appStateID=2, entity=1} during a call and entity=0 when idle (a boolean "state" is accepted too).
+ */
+internal fun phoneCallActive(params: Map<String, Any?>): Boolean? {
+    val appStates = params["appStates"] as? List<*> ?: return null
+    for (entry in appStates) {
+        val state = entry as? Map<*, *> ?: continue
+        if ((state["appStateID"] as? Number)?.toInt() != APP_STATE_PHONE_CALL) continue
+        return when (val value = state["entity"] ?: state["state"]) {
+            is Boolean -> value
+            is Number -> value.toInt() != 0
+            else -> null
+        }
+    }
+    return null
+}
+
+private const val APP_STATE_PHONE_CALL = 2
