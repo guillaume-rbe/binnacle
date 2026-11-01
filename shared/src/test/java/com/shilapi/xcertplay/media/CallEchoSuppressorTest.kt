@@ -57,6 +57,21 @@ class CallEchoSuppressorTest {
     }
 
     @Test
+    fun silentMicBlocksDoNotBreakLearning() {
+        // As seen on the unit: loud far end (-12 dBFS), echo at -34, with frequent silent mic blocks.
+        val s = CallEchoSuppressor(farEndLevel = { -12.0 })
+        val levels = mutableListOf<Double>()
+        repeat(200) { i ->
+            val block = if (i % 3 == 0) tone(0.00003) else tone(0.028)
+            val echo = i % 3 != 0
+            s.process(block, block.size)
+            if (echo && i > 100) levels += rmsDb(block)
+        }
+        assertTrue("coupling stayed sane: ${s.couplingDb}", s.couplingDb > -40.0)
+        assertTrue("echo suppressed, max ${levels.max()}", levels.max() < -50)
+    }
+
+    @Test
     fun driverTalkingOverFarEndPasses() {
         val s = CallEchoSuppressor(farEndLevel = { -20.0 })
         repeat(100) { val b = tone(0.025); s.process(b, b.size) } // learn coupling on echo

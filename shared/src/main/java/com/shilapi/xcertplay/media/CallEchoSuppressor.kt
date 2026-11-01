@@ -93,10 +93,15 @@ internal class CallEchoSuppressor(
             val diff = micDb - farDb
             // Learn the coupling from blocks that look like echo: fall quickly toward quieter
             // echo, rise slowly (rising fast would mistake the driver talking for echo).
-            if (diff < couplingDb) {
-                couplingDb += 0.1 * (diff - couplingDb)
-            } else if (diff < couplingDb + doubleTalkMarginDb) {
-                couplingDb += 0.01 * (diff - couplingDb)
+            // Near-silent mic blocks (the capture path drops out now and then) say nothing about
+            // the echo; learning from them dragged the estimate to -75 dB on the unit.
+            if (micDb > MIN_LEARN_MIC_DB) {
+                if (diff < couplingDb) {
+                    couplingDb += 0.1 * (diff - couplingDb)
+                } else if (diff < couplingDb + doubleTalkMarginDb) {
+                    couplingDb += 0.01 * (diff - couplingDb)
+                }
+                couplingDb = couplingDb.coerceIn(MIN_COUPLING_DB, MAX_COUPLING_DB)
             }
             val echoDb = farDb + couplingDb
             if (micDb < echoDb + doubleTalkMarginDb) target = suppressDb
@@ -119,6 +124,12 @@ internal class CallEchoSuppressor(
             buffer[o] = out.toByte()
             buffer[o + 1] = (out shr 8).toByte()
         }
+    }
+
+    private companion object {
+        const val MIN_LEARN_MIC_DB = -65.0
+        const val MIN_COUPLING_DB = -40.0
+        const val MAX_COUPLING_DB = 30.0
     }
 
     private fun rmsDb(buffer: ByteArray, length: Int): Double {
