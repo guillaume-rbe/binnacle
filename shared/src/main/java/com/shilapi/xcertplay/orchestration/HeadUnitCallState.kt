@@ -17,14 +17,17 @@ internal class HeadUnitCallState(
     private val appContext = context.applicationContext
     private var callOn = false
 
-    /** modesChanged params: appStates entry with appStateID 2 is the phone call. */
+    /**
+     * modesChanged params: the appStates entry with appStateID 2 is the phone call. The phone
+     * reports it as an owner, e.g. {appStateID=2, entity=1} during a call and entity=0 when idle.
+     */
     @Synchronized
     fun onModesChanged(params: Map<String, Any?>) {
         val appStates = params["appStates"] as? List<*> ?: return
         for (entry in appStates) {
             val state = entry as? Map<*, *> ?: continue
             if ((state["appStateID"] as? Number)?.toInt() != APP_STATE_PHONE_CALL) continue
-            val on = when (val value = state["state"]) {
+            val on = when (val value = state["entity"] ?: state["state"]) {
                 is Boolean -> value
                 is Number -> value.toInt() != 0
                 else -> continue
