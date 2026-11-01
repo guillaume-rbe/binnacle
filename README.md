@@ -7,7 +7,7 @@
 
 > [!NOTE]
 > **This is a fork of [shilapi/xcertplay](https://github.com/shilapi/xcertplay)**, maintained for
-> aftermarket Tesla Model 3/Y cluster screens (Unisoc UMS512, Android 12, MFi coprocessor on
+> aftermarket Tesla Model 3/Y cluster screens (Unisoc UMS512, Android 10 reporting itself as 12, MFi coprocessor on
 > `/dev/i2c-1`) used with the [Binnacle](https://github.com/lotech/binnacle) dash app. All credit
 > for xcertplay goes to its author and contributors; it stays under GPL-3.0. Work happens on the
 > `binnacle` branch, which is upstream 1.4.2 plus the changes below.
