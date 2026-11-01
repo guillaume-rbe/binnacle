@@ -15,7 +15,13 @@ internal class HeadUnitCallState(
     private val log: (String) -> Unit,
 ) {
     private val appContext = context.applicationContext
-    private var callOn = false
+    // Start as "on" so the first sync always sends OFF: a previous run that was force-quit or
+    // reinstalled mid-call leaves the head unit in CarPlay-call mode, which blocks every other app.
+    private var callOn = true
+
+    init {
+        set(false)
+    }
 
     /**
      * modesChanged params: the appStates entry with appStateID 2 is the phone call. The phone
