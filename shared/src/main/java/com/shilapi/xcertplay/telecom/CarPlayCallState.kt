@@ -1,0 +1,88 @@
+package com.shilapi.xcertplay.telecom
+
+import com.shilapi.xcertplay.iap2.body.Iap2BodyReader
+import com.shilapi.xcertplay.iap2.message.Iap2Messages
+import com.shilapi.xcertplay.iap2.wire.Iap2Frame
+
+/**
+ * One iAP2 CallStateUpdate (0x4155) from the iPhone. Seen on an iPhone 16 (2 Nov):
+ * [0] remote ID "+64..." (empty in the first update), [1] display name, [2] status,
+ * [3] direction, [4] call UUID; the last update for a call carries an empty status and [11].
+ */
+internal data class CarPlayCallState(
+    val callUuid: String,
+    val remoteId: String,
+    val displayName: String,
+    val status: Int,
+    val direction: Int,
+) {
+    val ended: Boolean get() = status == STATUS_DISCONNECTED || status == STATUS_DISCONNECTING
+
+    companion object {
+        const val MESSAGE_ID = 0x4155
+
+        const val STATUS_DISCONNECTED = 0
+        const val STATUS_SENDING = 1
+        const val STATUS_RINGING = 2
+        const val STATUS_CONNECTING = 3
+        const val STATUS_ACTIVE = 4
+        const val STATUS_HELD = 5
+        const val STATUS_DISCONNECTING = 6
+
+        const val DIRECTION_INCOMING = 1
+        const val DIRECTION_OUTGOING = 2
+
+        /** Null for the empty update the iPhone sends when nothing is going on (no call UUID). */
+        fun parse(frame: Iap2Frame): CarPlayCallState? = parse(Iap2BodyReader.of(frame))
+
+        fun parse(body: Iap2BodyReader): CarPlayCallState? {
+            val uuid = body.optionalString(4)?.takeIf { it.isNotEmpty() } ?: return null
+            return CarPlayCallState(
+                callUuid = uuid,
+                remoteId = body.optionalString(0).orEmpty(),
+                displayName = body.optionalString(1).orEmpty(),
+                status = body.first(2)?.payload?.takeIf { it.size == 1 }?.let { body.u8(2) }
+                    ?: STATUS_DISCONNECTED,
+                direction = body.first(3)?.payload?.takeIf { it.size == 1 }?.let { body.u8(3) }
+                    ?: DIRECTION_INCOMING,
+            )
+        }
+    }
+}
+
+/** iAP2 call control the head unit sends to the iPhone (Communications feature). */
+internal object CarPlayCallMessages {
+    const val ACCEPT_CALL = 0x415B
+    const val END_CALL = 0x415C
+    const val SEND_DTMF = 0x4161
+
+    private const val ACCEPT_ACTION_HOLD_AND_ACCEPT = 0
+    private const val END_ACTION_END_DECLINE = 0
+
+    fun acceptCall(callUuid: String): Iap2Frame = Iap2Messages.buildRaw(ACCEPT_CALL) {
+        u8(0, ACCEPT_ACTION_HOLD_AND_ACCEPT)
+        string(1, callUuid)
+    }
+
+    fun endCall(callUuid: String): Iap2Frame = Iap2Messages.buildRaw(END_CALL) {
+        string(0, callUuid)
+        u8(1, END_ACTION_END_DECLINE)
+    }
+
+    /** Null for a character that isn't a keypad tone. */
+    fun sendDtmf(callUuid: String, tone: Char): Iap2Frame? {
+        val value = dtmfToneValue(tone) ?: return null
+        return Iap2Messages.buildRaw(SEND_DTMF) {
+            string(0, callUuid)
+            u8(1, value)
+        }
+    }
+
+    /** 0-9 for the digits, 10 for '*', 11 for '#'. */
+    fun dtmfToneValue(tone: Char): Int? = when (tone) {
+        in '0'..'9' -> tone - '0'
+        '*' -> 10
+        '#' -> 11
+        else -> null
+    }
+}

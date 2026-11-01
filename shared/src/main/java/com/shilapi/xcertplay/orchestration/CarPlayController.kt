@@ -51,6 +51,9 @@ import com.shilapi.xcertplay.network.WirelessHotspotInfo
 import com.shilapi.xcertplay.network.WirelessHotspotManager
 import com.shilapi.xcertplay.network.WirelessPerformanceLock
 import com.shilapi.xcertplay.network.mfiCertificateWifiP2pCredentials
+import com.shilapi.xcertplay.telecom.CarPlayCallMessages
+import com.shilapi.xcertplay.telecom.CarPlayCallState
+import com.shilapi.xcertplay.telecom.CarPlayTelecom
 import com.shilapi.xcertplay.transport.BlockingDuplexByteStream
 import com.shilapi.xcertplay.transport.BluetoothRfcommDuplexStream
 import com.shilapi.xcertplay.transport.Ch341DeviceMatcher
@@ -187,6 +190,17 @@ class CarPlayController(
     private val performanceLockLifecycle = Any()
     private val wirelessPerformanceLock = WirelessPerformanceLock(appContext) { debugLog(it) }
     private val headUnitCallState = HeadUnitCallState(appContext) { debugLog(it) }
+    private val callControl = object : CarPlayTelecom.CallControl {
+        override fun accept(callUuid: String) = sendCallControl("accept") { CarPlayCallMessages.acceptCall(callUuid) }
+        override fun end(callUuid: String) = sendCallControl("end call") { CarPlayCallMessages.endCall(callUuid) }
+        override fun sendDtmf(callUuid: String, tone: Char) =
+            sendCallControl("keypad '$tone'") { CarPlayCallMessages.sendDtmf(callUuid, tone) }
+    }
+
+    init {
+        CarPlayTelecom.attach(appContext, callControl) { debugLog(it) }
+    }
+
     @Volatile private var uiListener: AirPlaySessionListener? = listener
     @Volatile private var uiStatusReporter: ((CarPlayStatus) -> Unit)? = reportStatus
     private val permissionGrant = AtomicBoolean(false)
@@ -284,6 +298,7 @@ class CarPlayController(
                 }
             }
             headUnitCallState.end()
+            CarPlayTelecom.endAll()
             debugLog("AirPlay session ended peer=${session.host}")
             uiListener?.onSessionEnded(session)
         }
@@ -438,6 +453,14 @@ class CarPlayController(
     }
 
     private fun onIap2Incoming(frame: Iap2Frame) {
+        if (frame.messageId == CarPlayCallState.MESSAGE_ID) {
+            try {
+                CarPlayCallState.parse(frame)?.let(CarPlayTelecom::onCallState)
+            } catch (error: RuntimeException) {
+                debugLog("Could not decode iAP2 CallStateUpdate", error)
+            }
+            return
+        }
         if (frame.messageId != NOW_PLAYING_UPDATE) return
         try {
             CarPlayMediaSessionBridge.publish(this, nowPlaying.update(frame))
@@ -494,6 +517,30 @@ class CarPlayController(
         receivers.forEach { it.close() }
     }
 
+    /** Call control (answer, hang up, keypad) to the iPhone, on the iAP2 control session. */
+    private fun sendCallControl(what: String, frame: () -> Iap2Frame?) {
+        if (closed) return
+        val session = activeMediaRemoteSession
+        if (session == null || session.isClosed) {
+            debugLog("carplay calls: $what not sent, no iAP2 session")
+            return
+        }
+        try {
+            touchExecutor.execute {
+                if (closed || session.isClosed) return@execute
+                try {
+                    val message = frame() ?: return@execute
+                    session.send(message, MEDIA_REMOTE_SEND_TIMEOUT_MILLIS)
+                    debugLog("carplay calls: sent $what to the phone")
+                } catch (error: Exception) {
+                    debugLog("carplay calls: could not send $what", error)
+                }
+            }
+        } catch (_: Exception) {
+            debugLog("carplay calls: $what not sent")
+        }
+    }
+
     private fun sendMediaRemoteCommand(command: Iap2MediaRemoteCommand): Boolean {
         if (closed) return false
         val session = activeMediaRemoteSession ?: return false
@@ -526,6 +573,7 @@ class CarPlayController(
         synchronized(performanceLockLifecycle) {
             wirelessPerformanceLock.close()
         }
+        CarPlayTelecom.detach(callControl)
         headUnitCallState.end()
         closeReceivers()
         stopFileTransferReceivers()

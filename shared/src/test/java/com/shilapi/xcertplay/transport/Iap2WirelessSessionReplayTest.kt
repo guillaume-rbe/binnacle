@@ -215,10 +215,13 @@ class Iap2WirelessSessionReplayTest {
             "\$GPRMC,000000.00,A,0100.0000,N,00100.0000,E,0.0,0.0,010170,,,A*00\r\n"
         val FAKE_CERTIFICATE = ByteArray(16) { (0xc0 + it).toByte() }
 
-        /** Accessory message lists from the recorded IdentificationInformation without location. */
+        /**
+         * Accessory message lists from the recorded IdentificationInformation without location,
+         * plus the call control messages (AcceptCall, EndCall, SendDTMF) added since.
+         */
         val RECORDED_SENT = listOf(
-            0x5000, 0x5002, 0x5200, 0x5203, 0xae00, 0xae02, 0x4157, 0x4159, 0x4154, 0x4156, 0x4301, 0x6800,
-            0x6802, 0x6803, 0x5703,
+            0x5000, 0x5002, 0x5200, 0x5203, 0xae00, 0xae02, 0x4157, 0x4159, 0x4154, 0x4156,
+            0x415B, 0x415C, 0x4161, 0x4301, 0x6800, 0x6802, 0x6803, 0x5703,
         )
         val RECORDED_RECEIVED = listOf(
             0xea00, 0xea01, 0x5001, 0x5201, 0x5202, 0xae01, 0x4158, 0x4155, 0x4300, 0x6801, 0x4e0d, 0x4e0e, 0x5702,

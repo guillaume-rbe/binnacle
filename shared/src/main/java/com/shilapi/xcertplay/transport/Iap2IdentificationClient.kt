@@ -289,6 +289,9 @@ class Iap2IdentificationClient(private val session: Iap2Session) {
             0x4159, // StopCommunicationsUpdates
             0x4154, // StartCallStateUpdates
             0x4156, // StopCallStateUpdates
+            0x415B, // AcceptCall
+            0x415C, // EndCall
+            0x4161, // SendDTMF
             0xae03, // PowerSourceUpdate
             0x4301, // CarPlayStartSession
             0x6800, // StartHID
