@@ -127,7 +127,13 @@ class WifiP2pGroupManager(
                     // Only an explicit BUSY rejection permits another request; a timeout may
                     // still create a group, so it is never retried.
                     if (!P2pCreateRetry.shouldRetry(rejected.reason, busyRetries)) throw rejected
-                    // The radio is still releasing a previous hotspot or group.
+                    // The radio is still releasing a previous hotspot or group. A group left behind
+                    // by an earlier run that was killed or reinstalled keeps the radio busy until it
+                    // is removed (otherwise only a Wi-Fi off/on clears it), so remove it once.
+                    if (busyRetries == 0) {
+                        Log.w(TAG, "Wi-Fi P2P busy; removing any leftover group before retrying")
+                        removeGroupBlocking(p2pChannel)
+                    }
                     busyRetries++
                     val delayMillis = P2pCreateRetry.busyDelayMillis(busyRetries)
                     Log.w(TAG, "Wi-Fi P2P busy; retry $busyRetries in ${delayMillis}ms")
@@ -573,12 +579,12 @@ private const val HEX_DIGITS = "0123456789abcdef"
  * deadline; any other rejection fails at once, as before.
  */
 internal object P2pCreateRetry {
-    const val MAX_BUSY_RETRIES = 3
+    const val MAX_BUSY_RETRIES = 4
     private const val BUSY_RETRY_STEP_MILLIS = 500L
 
     fun shouldRetry(reason: Int, busyRetries: Int): Boolean =
         reason == WifiP2pManager.BUSY && busyRetries < MAX_BUSY_RETRIES
 
-    /** 0.5 s, 1 s, 1.5 s: enough for a hotspot that was just stopped to release the radio. */
+    /** 0.5 s, 1 s, 1.5 s, 2 s: enough for a hotspot or leftover group to release the radio. */
     fun busyDelayMillis(retry: Int): Long = BUSY_RETRY_STEP_MILLIS * retry
 }
