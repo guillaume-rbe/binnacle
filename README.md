@@ -5,6 +5,35 @@
   <p>An Android head-unit CarPlay receiver. It supports connecting to the MFi chip through a CH341 I2C bridge or directly through the board's I2C controller, and supports both wired and wireless CarPlay connections.</p>
 </div>
 
+> [!NOTE]
+> **This is a fork of [shilapi/xcertplay](https://github.com/shilapi/xcertplay)**, maintained for
+> aftermarket Tesla Model 3/Y cluster screens (Unisoc UMS512, Android 12, MFi coprocessor on
+> `/dev/i2c-1`) used with the [Binnacle](https://github.com/lotech/binnacle) dash app. All credit
+> for xcertplay goes to its author and contributors; it stays under GPL-3.0. Work happens on the
+> `binnacle` branch, which is upstream 1.4.2 plus the changes below.
+>
+> **Taken from open upstream pull requests** (authors credited in the commits):
+> - MFi I2C settle delay after register select (shilapi/xcertplay#53, by BBleae)
+> - Keep concurrent audio streams of the same type apart (shilapi/xcertplay#44, by code-new-bie)
+> - Retry the hotspot start while the radio is busy (shilapi/xcertplay#46, by code-new-bie)
+>
+> **Fork changes:**
+> - Wi-Fi Direct group on the connected network's 5 GHz channel, so a single-radio chip doesn't
+>   hop channels (fixes audio/video stutter while on home Wi-Fi)
+> - Remove a leftover Wi-Fi Direct group when start-up reports "busy" (no Wi-Fi off/on needed)
+> - Keep the CarPlay session when an unrelated AirPlay client (e.g. a media server probing port
+>   7000) disconnects
+> - Steering-wheel keys sent to CarPlay as knob and media controls
+> - Car-maker tile labelled "Binnacle" that returns to the head unit's home screen while CarPlay
+>   keeps running
+> - Tells the stock head-unit software about CarPlay phone calls (same broadcast the stock ZLink
+>   app sends), so the car shows a phone call
+> - Call microphone for a dash-mounted mic: road-rumble high-pass, automatic gain, platform echo
+>   canceller; diagnostic recording of the first minute of call mic audio
+> - One-finger edge swipe opens settings by default (a three-finger swipe is hard behind a
+>   steering wheel)
+> - Native I2C library built with CMake, so the project builds from a path with spaces
+
 ## Features
 
 - CarPlay host applications for Android and Android Automotive OS.
