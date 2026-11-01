@@ -86,6 +86,26 @@ class CallEchoSuppressorTest {
     }
 
     @Test
+    fun agcCannotLiftSuppressedEchoInTheCallChain() {
+        // The same chain MicrophoneUplink uses.
+        var far = FarEndActivity.SILENT_DB
+        val s = CallEchoSuppressor(farEndLevel = { far })
+        val agc = Pcm16VoiceAgc()
+        fun chain(block: ByteArray) = applyCallGain(block, block.size, MicrophoneGain.DEFAULT_PERCENT, agc, s)
+        repeat(200) { chain(tone(0.01)) } // quiet driver: AGC climbs to about +20 dB
+        assertTrue("AGC should be boosting, was ${agc.currentGainDb}", agc.currentGainDb > 15)
+        far = -12.0
+        var last = 0.0
+        val echo = tone(0.035) // about -32 dBFS at the mic
+        repeat(20) {
+            val block = echo.copyOf()
+            chain(block)
+            last = rmsDb(block)
+        }
+        assertTrue("echo must go out well below its captured level, was $last", last < rmsDb(echo) - 25)
+    }
+
+    @Test
     fun noFarEndMeansNoSuppression() {
         val s = CallEchoSuppressor(farEndLevel = { FarEndActivity.SILENT_DB })
         val block = tone(0.035)

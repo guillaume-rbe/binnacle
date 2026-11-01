@@ -145,9 +145,7 @@ internal class MicrophoneUplink(
 
                 micRecorder?.raw(readBuffer, count)
                 highPass?.process(readBuffer, count)
-                echoSuppressor?.process(readBuffer, count)
-                MicrophoneGain.applyPcm16InPlace(readBuffer, count, microphoneGainPercent)
-                callAgc?.process(readBuffer, count, hold = echoSuppressor?.suppressing == true)
+                applyCallGain(readBuffer, count, microphoneGainPercent, callAgc, echoSuppressor)
                 micRecorder?.sent(readBuffer, count)
                 val samples = resampler?.convert(readBuffer, 0, count) ?: readBuffer
                 val sampleBytes = if (resampler == null) count else samples.size
