@@ -2,6 +2,7 @@ package com.shilapi.xcertplay.orchestration
 
 import android.content.Context
 import android.content.Intent
+import com.shilapi.xcertplay.media.BluetoothCallRoute
 
 /**
  * Tells the stock head-unit software (ZIQI / XBS units) when a CarPlay phone call starts and ends,
@@ -9,6 +10,10 @@ import android.content.Intent
  * app reacts by putting the car-facing Bluetooth into call mode, so the car shows a phone call.
  *
  * Only the phone-call state is sent; on units without that software nobody listens.
+ *
+ * When the car is connected to this unit's Android Bluetooth as a hands-free device, the call goes
+ * to the car over that link instead ([BluetoothCallRoute]) and the CAN app isn't told: its call
+ * mode is for the other, car-facing Bluetooth module.
  */
 internal class HeadUnitCallState(
     context: Context,
@@ -36,6 +41,8 @@ internal class HeadUnitCallState(
     private fun set(on: Boolean) {
         if (on == callOn) return
         callOn = on
+        if (on && BluetoothCallRoute.start(appContext, log)) return
+        if (!on) BluetoothCallRoute.stop(appContext, log)
         val status = if (on) STATUS_CALL_ON else STATUS_CALL_OFF
         try {
             appContext.sendBroadcast(
