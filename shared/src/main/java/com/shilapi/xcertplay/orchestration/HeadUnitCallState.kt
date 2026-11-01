@@ -5,8 +5,8 @@ import android.content.Intent
 
 /**
  * Tells the stock head-unit software (ZIQI / XBS units) when a CarPlay phone call starts and ends,
- * with the same broadcast the stock ZLink receiver sends. The unit's CAN app reacts by putting the
- * car-facing Bluetooth into call mode, so the car shows a phone call instead of music.
+ * with the same broadcast the stock ZLink app sends, addressed to the unit's CAN app only. The CAN
+ * app reacts by putting the car-facing Bluetooth into call mode, so the car shows a phone call.
  *
  * Only the phone-call state is sent; on units without that software nobody listens.
  */
@@ -47,6 +47,10 @@ internal class HeadUnitCallState(
         try {
             appContext.sendBroadcast(
                 Intent(ACTION)
+                    // Only the CAN app (which tells the head-unit MCU, so the car shows a call).
+                    // The stock car service also listens and would enter "CarPlay call" mode,
+                    // which refuses every app start except ZLink until the call ends.
+                    .setPackage(CANAPP_PACKAGE)
                     .putExtra(EXTRA_PHONE_MODE, PHONE_MODE_WIRELESS)
                     .putExtra(EXTRA_STATUS, status),
             )
@@ -59,6 +63,7 @@ internal class HeadUnitCallState(
     private companion object {
         const val APP_STATE_PHONE_CALL = 2
         const val ACTION = "com.zjinnova.zlink"
+        const val CANAPP_PACKAGE = "com.xbs.canapp"
         const val EXTRA_PHONE_MODE = "phoneMode"
         const val EXTRA_STATUS = "status"
         const val PHONE_MODE_WIRELESS = "carplay_wireless"
