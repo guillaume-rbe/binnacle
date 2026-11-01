@@ -35,6 +35,7 @@ internal class MicrophoneUplink(
     @Volatile private var voiceEffects: Closeable? = null
     private var highPass: Pcm16HighPass? = null
     private var callAgc: Pcm16VoiceAgc? = null
+    private var echoSuppressor: CallEchoSuppressor? = null
     @Volatile private var micRecorder: CallMicRecorder? = null
 
     /** 实际采集速率：优先直接按协商速率打开，由系统做重采样；打不开才回退 16 kHz 并自行变换。 */
@@ -85,6 +86,7 @@ internal class MicrophoneUplink(
         if (CallVoiceProcessing.isCall(config.audioType)) {
             highPass = Pcm16HighPass(captureRate)
             callAgc = Pcm16VoiceAgc()
+            echoSuppressor = CallEchoSuppressor()
             voiceEffects = CallVoiceProcessing.attachEchoCanceller(nextRecorder)
             micRecorder = callMicCaptureDirectory?.let { CallMicRecorder(it, captureRate) }
         }
@@ -136,8 +138,9 @@ internal class MicrophoneUplink(
 
                 micRecorder?.raw(readBuffer, count)
                 highPass?.process(readBuffer, count)
+                echoSuppressor?.process(readBuffer, count)
                 MicrophoneGain.applyPcm16InPlace(readBuffer, count, microphoneGainPercent)
-                callAgc?.process(readBuffer, count)
+                callAgc?.process(readBuffer, count, hold = echoSuppressor?.suppressing == true)
                 micRecorder?.sent(readBuffer, count)
                 val samples = resampler?.convert(readBuffer, 0, count) ?: readBuffer
                 val sampleBytes = if (resampler == null) count else samples.size

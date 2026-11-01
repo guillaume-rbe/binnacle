@@ -1144,6 +1144,7 @@ private class AudioRenderer(
             }
             val count = track.write(data, offset + written, writeLength, AudioTrack.WRITE_BLOCKING)
             if (count <= 0) break
+            FarEndActivity.report(data, offset + written, count)
             written += count
             totalBytesWritten += count
             val monitor = mediaMetricsMonitor

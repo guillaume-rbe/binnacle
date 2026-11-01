@@ -22,7 +22,8 @@ internal class Pcm16VoiceAgc(
 
     val currentGainDb: Double get() = gainDb
 
-    fun process(buffer: ByteArray, length: Int) {
+    /** [hold] keeps the current gain (e.g. while echo is being suppressed). */
+    fun process(buffer: ByteArray, length: Int, hold: Boolean = false) {
         val samples = length / 2
         if (samples == 0) return
         var sum = 0.0
@@ -31,7 +32,7 @@ internal class Pcm16VoiceAgc(
             sum += s * s
         }
         val rmsDb = 10 * log10(sum / samples + 1e-12)
-        if (rmsDb > gateDb) {
+        if (!hold && rmsDb > gateDb) {
             val wanted = (targetDb - rmsDb).coerceIn(0.0, maxGainDb)
             gainDb = if (wanted > gainDb) {
                 minOf(wanted, gainDb + riseDbPerBlock)
