@@ -1144,9 +1144,22 @@ private class AudioRenderer(
             }
             val count = track.write(data, offset + written, writeLength, AudioTrack.WRITE_BLOCKING)
             if (count <= 0) break
-            FarEndActivity.report(data, offset + written, count)
+            val chunkOffset = offset + written
             written += count
             totalBytesWritten += count
+            // Time-stamp the echo reference for when this chunk is heard, not when it is queued:
+            // a call track can buffer up to a second ahead of playback.
+            val queuedFrames = if (trackBytesPerFrame > 0 && playbackStarted) {
+                (totalBytesWritten / trackBytesPerFrame - playbackHeadFrames(track)).coerceAtLeast(0)
+            } else {
+                0L
+            }
+            FarEndActivity.report(
+                data,
+                chunkOffset,
+                count,
+                System.currentTimeMillis() + queuedFrames * 1000 / format.sampleRate,
+            )
             val monitor = mediaMetricsMonitor
             if (monitor != null) {
                 val nowNs = System.nanoTime()

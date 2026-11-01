@@ -9,7 +9,7 @@ import kotlin.math.pow
  * hears the car speakers, whatever we play comes straight back into the call.
  */
 internal object FarEndActivity {
-    private const val SLOTS = 64
+    private const val SLOTS = 256 // up to ~1 s queued ahead plus the window, at 20 ms writes
     private val times = LongArray(SLOTS)
     private val levels = DoubleArray(SLOTS) { SILENT_DB }
     private var next = 0
