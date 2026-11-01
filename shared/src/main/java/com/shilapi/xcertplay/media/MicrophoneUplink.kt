@@ -31,6 +31,8 @@ internal class MicrophoneUplink(
     @Volatile private var opusEncoder: OpusEncoder? = null
     @Volatile private var eldEncoder: AacEldEncoder? = null
     private var thread: Thread? = null
+    @Volatile private var voiceEffects: Closeable? = null
+    private var highPass: Pcm16HighPass? = null
 
     /** 实际采集速率：优先直接按协商速率打开，由系统做重采样；打不开才回退 16 kHz 并自行变换。 */
     private var captureRate = config.sampleRate
@@ -67,15 +69,20 @@ internal class MicrophoneUplink(
             eldEncoder = AacEldEncoder.create(config.sampleRate, config.samplesPerPacket, config.bitrate ?: 48_000)
         }
 
+        val source = CallVoiceProcessing.audioSourceFor(config.audioType)
         val nextRecorder = try {
-            openMicrophoneRecorder(captureRate, captureFrameBytes * 4)
+            openMicrophoneRecorder(captureRate, captureFrameBytes * 4, source)
         } catch (error: Exception) {
             if (captureRate == MICROPHONE_CAPTURE_RATE_HZ) throw error
             Log.w(TAG, "microphone cannot capture at ${captureRate} Hz, falling back to $MICROPHONE_CAPTURE_RATE_HZ Hz", error)
             captureRate = MICROPHONE_CAPTURE_RATE_HZ
-            openMicrophoneRecorder(captureRate, captureFrameBytes * 4)
+            openMicrophoneRecorder(captureRate, captureFrameBytes * 4, source)
         }
         recorder = nextRecorder
+        if (CallVoiceProcessing.isCall(config.audioType)) {
+            voiceEffects = CallVoiceProcessing.attachEffects(nextRecorder)
+            highPass = Pcm16HighPass(captureRate)
+        }
 
         val nextSocket = DatagramSocket(null).apply {
             reuseAddress = true
@@ -122,6 +129,7 @@ internal class MicrophoneUplink(
                 }
                 if (count == 0) continue
 
+                highPass?.process(readBuffer, count)
                 MicrophoneGain.applyPcm16InPlace(readBuffer, count, microphoneGainPercent)
                 val samples = resampler?.convert(readBuffer, 0, count) ?: readBuffer
                 val sampleBytes = if (resampler == null) count else samples.size
@@ -214,6 +222,14 @@ internal class MicrophoneUplink(
     @Synchronized
     private fun release() {
         running.set(false)
+
+        val currentEffects = voiceEffects
+        voiceEffects = null
+        try {
+            currentEffects?.close()
+        } catch (_: Exception) {
+            // Best effort.
+        }
 
         val currentRecorder = recorder
         recorder = null

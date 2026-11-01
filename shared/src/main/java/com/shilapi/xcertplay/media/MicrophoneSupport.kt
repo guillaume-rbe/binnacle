@@ -13,7 +13,11 @@ import kotlin.math.pow
 
 internal const val MICROPHONE_CAPTURE_RATE_HZ = 16_000
 
-internal fun openMicrophoneRecorder(sampleRate: Int, requestedBufferBytes: Int): AudioRecord {
+internal fun openMicrophoneRecorder(
+    sampleRate: Int,
+    requestedBufferBytes: Int,
+    audioSource: Int = MediaRecorder.AudioSource.MIC,
+): AudioRecord {
     val minBuffer = AudioRecord.getMinBufferSize(
         sampleRate,
         AndroidAudioFormat.CHANNEL_IN_MONO,
@@ -21,7 +25,7 @@ internal fun openMicrophoneRecorder(sampleRate: Int, requestedBufferBytes: Int):
     )
     check(minBuffer > 0) { "microphone unavailable at $sampleRate Hz" }
     val recorder = AudioRecord.Builder()
-        .setAudioSource(MediaRecorder.AudioSource.MIC)
+        .setAudioSource(audioSource)
         .setAudioFormat(
             AndroidAudioFormat.Builder()
                 .setEncoding(AndroidAudioFormat.ENCODING_PCM_16BIT)
