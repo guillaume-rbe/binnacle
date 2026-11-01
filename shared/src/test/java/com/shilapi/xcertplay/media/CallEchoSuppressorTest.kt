@@ -44,6 +44,19 @@ class CallEchoSuppressorTest {
     }
 
     @Test
+    fun loudCarEchoAbovePlaybackLevelIsSuppressed() {
+        // The car amplifies playback: quiet far end (-45 dBFS) but echo at the mic is -34 dBFS.
+        val s = CallEchoSuppressor(farEndLevel = { -45.0 })
+        var last = 0.0
+        repeat(100) {
+            val block = tone(0.028)
+            s.process(block, block.size)
+            last = rmsDb(block)
+        }
+        assertTrue("echo should be suppressed, was $last", last < -55)
+    }
+
+    @Test
     fun driverTalkingOverFarEndPasses() {
         val s = CallEchoSuppressor(farEndLevel = { -20.0 })
         repeat(100) { val b = tone(0.025); s.process(b, b.size) } // learn coupling on echo

@@ -86,7 +86,7 @@ internal class MicrophoneUplink(
         if (CallVoiceProcessing.isCall(config.audioType)) {
             highPass = Pcm16HighPass(captureRate)
             callAgc = Pcm16VoiceAgc()
-            echoSuppressor = CallEchoSuppressor()
+            echoSuppressor = CallEchoSuppressor(log = { Log.i(TAG, it) })
             voiceEffects = CallVoiceProcessing.attachEchoCanceller(nextRecorder)
             micRecorder = callMicCaptureDirectory?.let { CallMicRecorder(it, captureRate) }
         }

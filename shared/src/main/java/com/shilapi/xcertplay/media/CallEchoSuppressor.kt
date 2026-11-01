@@ -65,10 +65,17 @@ internal class CallEchoSuppressor(
     private val doubleTalkMarginDb: Double = 8.0,
     private val suppressDb: Double = -30.0,
     private val windowMs: Long = 600,
+    /** Called about once a second with the current levels, for diagnostics. */
+    private val log: (String) -> Unit = {},
 ) {
-    /** Learned mic level minus playback level during far-end-only speech. Starts conservative. */
-    var couplingDb = 0.0
+    /**
+     * Learned mic level minus playback level during far-end-only speech. The car amplifies the
+     * playback, so the echo at the mic can be louder than the digital playback level: start high
+     * (assume a loud echo) and learn down quickly, up slowly.
+     */
+    var couplingDb = 20.0
         private set
+    private var blocks = 0
     private var gainDb = 0.0
 
     /** True when the last block was being suppressed (lets AGC hold its gain). */
@@ -84,12 +91,18 @@ internal class CallEchoSuppressor(
         var target = 0.0
         if (farActive) {
             val diff = micDb - farDb
-            // Learn the coupling from blocks that look like pure echo (not much above the estimate).
-            if (diff < couplingDb + doubleTalkMarginDb) {
-                couplingDb += 0.05 * (diff - couplingDb)
+            // Learn the coupling from blocks that look like echo: fall quickly toward quieter
+            // echo, rise slowly (rising fast would mistake the driver talking for echo).
+            if (diff < couplingDb) {
+                couplingDb += 0.1 * (diff - couplingDb)
+            } else if (diff < couplingDb + doubleTalkMarginDb) {
+                couplingDb += 0.01 * (diff - couplingDb)
             }
             val echoDb = farDb + couplingDb
             if (micDb < echoDb + doubleTalkMarginDb) target = suppressDb
+        }
+        if (++blocks % 50 == 0) {
+            log("call echo far=%.0f mic=%.0f coupling=%.1f gain=%.0f".format(farDb, micDb, couplingDb, gainDb))
         }
         gainDb = if (target < gainDb) {
             maxOf(target, gainDb - 10.0) // fast down
