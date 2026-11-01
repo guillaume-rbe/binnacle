@@ -5,6 +5,8 @@ import java.net.Socket
 import java.net.InetAddress
 import java.math.BigInteger
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -78,6 +80,36 @@ class CarPlayMediaEngineTest {
 
         assertEquals(setOf(110 to false, 111 to false), events.toSet())
         assertTrue(streams.isEmpty())
+    }
+
+    @Test
+    fun closingASecondSessionKeepsTheLiveSessionsAudioFeedback() {
+        val engine = CarPlayMediaEngine(object : MediaSink {})
+        val iphone = testSession()
+        val sideClient = testSession()
+        val metaField = CarPlayMediaEngine::class.java.getDeclaredField("audioMeta").apply {
+            isAccessible = true
+        }
+        @Suppress("UNCHECKED_CAST")
+        val audioMeta = metaField.get(engine) as
+            MutableMap<CarPlayMediaEngine.StreamKey, CarPlayMediaEngine.AudioMeta>
+        audioMeta[CarPlayMediaEngine.StreamKey(iphone, 100, "telephony")] = CarPlayMediaEngine.AudioMeta(
+            type = 100,
+            format = AudioFormat(AudioCodecKind.OPUS, 48_000, 1, 0, "telephony"),
+            connectionId = 1L,
+            playoutLatencyMs = 80,
+        )
+
+        try {
+            engine.onSessionClosed(sideClient)
+            assertNotNull(engine.onFeedback(iphone))
+            assertNull(engine.onFeedback(sideClient))
+            engine.onSessionClosed(iphone)
+            assertNull(engine.onFeedback(iphone))
+        } finally {
+            iphone.close()
+            sideClient.close()
+        }
     }
 
     @Test

@@ -44,7 +44,7 @@ class CarPlayMediaEngine(
         val audioStreamId: AudioStreamId get() = AudioStreamId(type, audioType)
     }
 
-    private data class AudioMeta(
+    internal data class AudioMeta(
         val type: Int,
         val format: AudioFormat,
         val connectionId: Any?,
@@ -281,7 +281,7 @@ class CarPlayMediaEngine(
     }
 
     override fun onFeedback(session: AirPlaySession): Map<String, Any?>? {
-        val active = audioMeta.values.toList()
+        val active = audioMeta.filterKeys { it.session === session }.values.toList()
         if (active.isEmpty()) return null
         val streams = active.map { meta ->
             val entry = linkedMapOf<String, Any?>(
@@ -345,9 +345,12 @@ class CarPlayMediaEngine(
         sessionStreams.forEach { streams.remove(it)?.close() }
         sessionStreams.filter { it.type in STREAM_TYPE_MAIN_AUDIO..STREAM_TYPE_MAIN_HIGH_AUDIO }
             .forEach { sink.onAudioStopped(it.audioStreamId) }
-        audioMeta.clear()
-        audioCaptures.values.forEach(AudioPacketCapture::close)
-        audioCaptures.clear()
+        // Only this session's audio: a second AirPlay client (e.g. a media server probing /info)
+        // can close while the iPhone's session keeps playing.
+        audioMeta.keys.removeIf { it.session === session }
+        audioCaptures.entries.removeIf { (key, capture) ->
+            (key.session === session).also { if (it) capture.close() }
+        }
     }
 
     private fun replacePendingIapTunnel(session: AirPlaySession, next: PendingIapTunnel) {

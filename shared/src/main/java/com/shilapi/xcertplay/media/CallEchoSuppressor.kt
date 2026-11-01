@@ -34,12 +34,17 @@ internal object FarEndActivity {
         next = (next + 1) % SLOTS
     }
 
-    /** Loudest playback level in the last [windowMs]; [SILENT_DB] if nothing played. */
+    /**
+     * Loudest playback heard in the last [windowMs]; [SILENT_DB] if nothing played. Chunks are
+     * stamped with when they will be heard (they can be queued up to 1.5 s ahead), so chunks not
+     * yet heard don't count.
+     */
     @Synchronized
     fun recentMaxDb(windowMs: Long, nowMs: Long = System.currentTimeMillis()): Double {
         var max = SILENT_DB
         for (i in 0 until SLOTS) {
-            if (nowMs - times[i] <= windowMs && levels[i] > max) max = levels[i]
+            val age = nowMs - times[i]
+            if (age in 0..windowMs && levels[i] > max) max = levels[i]
         }
         return max
     }
