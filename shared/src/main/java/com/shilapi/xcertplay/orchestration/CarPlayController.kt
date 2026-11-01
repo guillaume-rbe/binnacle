@@ -51,9 +51,9 @@ import com.shilapi.xcertplay.network.WirelessHotspotInfo
 import com.shilapi.xcertplay.network.WirelessHotspotManager
 import com.shilapi.xcertplay.network.WirelessPerformanceLock
 import com.shilapi.xcertplay.network.mfiCertificateWifiP2pCredentials
-import com.shilapi.xcertplay.telecom.CarPlayCallMessages
 import com.shilapi.xcertplay.telecom.CarPlayCallState
 import com.shilapi.xcertplay.telecom.CarPlayTelecom
+import com.shilapi.xcertplay.telecom.CarPlayTelephonyKeys
 import com.shilapi.xcertplay.transport.BlockingDuplexByteStream
 import com.shilapi.xcertplay.transport.BluetoothRfcommDuplexStream
 import com.shilapi.xcertplay.transport.Ch341DeviceMatcher
@@ -191,10 +191,11 @@ class CarPlayController(
     private val wirelessPerformanceLock = WirelessPerformanceLock(appContext) { debugLog(it) }
     private val headUnitCallState = HeadUnitCallState(appContext) { debugLog(it) }
     private val callControl = object : CarPlayTelecom.CallControl {
-        override fun accept(callUuid: String) = sendCallControl("accept") { CarPlayCallMessages.acceptCall(callUuid) }
-        override fun end(callUuid: String) = sendCallControl("end call") { CarPlayCallMessages.endCall(callUuid) }
-        override fun sendDtmf(callUuid: String, tone: Char) =
-            sendCallControl("keypad '$tone'") { CarPlayCallMessages.sendDtmf(callUuid, tone) }
+        override fun accept(callUuid: String) = sendCallKey("answer", CarPlayTelephonyKeys.HOOK_SWITCH)
+        override fun end(callUuid: String) = sendCallKey("end call", CarPlayTelephonyKeys.DROP)
+        override fun sendDtmf(callUuid: String, tone: Char) {
+            CarPlayTelephonyKeys.keypad(tone)?.let { sendCallKey("keypad '$tone'", it) }
+        }
     }
 
     init {
@@ -517,28 +518,10 @@ class CarPlayController(
         receivers.forEach { it.close() }
     }
 
-    /** Call control (answer, hang up, keypad) to the iPhone, on the iAP2 control session. */
-    private fun sendCallControl(what: String, frame: () -> Iap2Frame?) {
-        if (closed) return
-        val session = activeMediaRemoteSession
-        if (session == null || session.isClosed) {
-            debugLog("carplay calls: $what not sent, no iAP2 session")
-            return
-        }
-        try {
-            touchExecutor.execute {
-                if (closed || session.isClosed) return@execute
-                try {
-                    val message = frame() ?: return@execute
-                    session.send(message, MEDIA_REMOTE_SEND_TIMEOUT_MILLIS)
-                    debugLog("carplay calls: sent $what to the phone")
-                } catch (error: Exception) {
-                    debugLog("carplay calls: could not send $what", error)
-                }
-            }
-        } catch (_: Exception) {
-            debugLog("carplay calls: $what not sent")
-        }
+    /** A call button (answer, hang up, keypad) to the iPhone as a CarPlay telephony key. */
+    private fun sendCallKey(what: String, key: Int) {
+        val sent = onSession { it.sendTelephony(key) }
+        debugLog("carplay calls: ${if (sent) "sent" else "could not send"} $what to the phone")
     }
 
     private fun sendMediaRemoteCommand(command: Iap2MediaRemoteCommand): Boolean {

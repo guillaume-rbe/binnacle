@@ -1,6 +1,8 @@
 package com.shilapi.xcertplay.telecom
 
 import android.net.Uri
+import android.os.Handler
+import android.os.Looper
 import android.telecom.Connection
 import android.telecom.ConnectionRequest
 import android.telecom.ConnectionService
@@ -65,15 +67,27 @@ internal class CarPlayConnection(
         control()?.sendDtmf(callUuid, c)
     }
 
+    /**
+     * The call stays up on the car until the phone reports it ended, so a hang-up the phone
+     * ignores doesn't leave the call running on the head unit's speaker. If the phone hasn't
+     * ended it after [END_WAIT_MILLIS], Telecom's side is ended anyway.
+     */
     private fun endFromCar(reason: String) {
         CarPlayTelecom.logLine("carplay calls: $reason from car")
         control()?.end(callUuid)
-        if (!ended) {
+        handler.postDelayed({
+            if (ended) return@postDelayed
+            CarPlayTelecom.logLine("carplay calls: phone kept the call after $reason; ending it on the car")
             ended = true
             setDisconnected(DisconnectCause(DisconnectCause.LOCAL))
             destroy()
-        }
-        CarPlayTelecom.forget(this)
+            CarPlayTelecom.forget(this)
+        }, END_WAIT_MILLIS)
+    }
+
+    private companion object {
+        const val END_WAIT_MILLIS = 5_000L
+        val handler = Handler(Looper.getMainLooper())
     }
 }
 

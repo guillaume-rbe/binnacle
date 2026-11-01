@@ -14,7 +14,7 @@ import android.telecom.TelecomManager
  * Mirrors CarPlay phone calls into Android Telecom as calls of our own phone account, so a car
  * connected to this head unit's Bluetooth as a hands-free device sees a real call: caller name and
  * number on its screen, and its answer, hang-up and keypad buttons come back to us
- * ([CarPlayConnection]) and go on to the iPhone over iAP2 ([CallControl]).
+ * ([CarPlayConnection]) and go on to the iPhone as CarPlay telephony keys ([CallControl]).
  *
  * The account must be enabled once (Settings > Calling accounts, or
  * `adb shell telecom set-phone-account-enabled <component> carplay 0`); until then nothing is
@@ -86,7 +86,7 @@ internal object CarPlayTelecom {
 
     /** True when a call is (being) mirrored into Telecom, which then owns the call's audio link. */
     @Synchronized
-    fun ownsCallAudio(): Boolean = (requested.isNotEmpty() || connections.isNotEmpty()) && enabled()
+    fun ownsCallAudio(): Boolean = calls.isNotEmpty() && enabled()
 
     @Synchronized
     fun onCallState(state: CarPlayCallState) {
@@ -103,6 +103,9 @@ internal object CarPlayTelecom {
             return
         }
         if (state.callUuid in requested || !enabled()) return
+        // The first update of a call placed on the phone has no number yet, and the car keeps
+        // the first one it is given; wait a moment for it (it follows within about a second).
+        if (state.remoteId.isEmpty() && state.status == CarPlayCallState.STATUS_SENDING) return
         requested += state.callUuid
         val extras = Bundle().apply { putString(EXTRA_CALL_UUID, state.callUuid) }
         try {

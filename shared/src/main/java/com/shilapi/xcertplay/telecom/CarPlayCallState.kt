@@ -1,7 +1,6 @@
 package com.shilapi.xcertplay.telecom
 
 import com.shilapi.xcertplay.iap2.body.Iap2BodyReader
-import com.shilapi.xcertplay.iap2.message.Iap2Messages
 import com.shilapi.xcertplay.iap2.wire.Iap2Frame
 
 /**
@@ -50,39 +49,20 @@ internal data class CarPlayCallState(
     }
 }
 
-/** iAP2 call control the head unit sends to the iPhone (Communications feature). */
-internal object CarPlayCallMessages {
-    const val ACCEPT_CALL = 0x415B
-    const val END_CALL = 0x415C
-    const val SEND_DTMF = 0x4161
+/**
+ * Call buttons as CarPlay telephony HID usages: indexes into the "xcertplay Telephony" HID device
+ * ([com.shilapi.xcertplay.airplay.AirPlayHid]). During CarPlay the iPhone ignored iAP2 EndCall and
+ * SendDTMF (2 Nov); CarPlay cars send these keys instead.
+ */
+internal object CarPlayTelephonyKeys {
+    const val HOOK_SWITCH = 1
+    const val DROP = 3
 
-    private const val ACCEPT_ACTION_HOLD_AND_ACCEPT = 0
-    private const val END_ACTION_END_DECLINE = 0
-
-    fun acceptCall(callUuid: String): Iap2Frame = Iap2Messages.buildRaw(ACCEPT_CALL) {
-        u8(0, ACCEPT_ACTION_HOLD_AND_ACCEPT)
-        string(1, callUuid)
-    }
-
-    fun endCall(callUuid: String): Iap2Frame = Iap2Messages.buildRaw(END_CALL) {
-        string(0, callUuid)
-        u8(1, END_ACTION_END_DECLINE)
-    }
-
-    /** Null for a character that isn't a keypad tone. */
-    fun sendDtmf(callUuid: String, tone: Char): Iap2Frame? {
-        val value = dtmfToneValue(tone) ?: return null
-        return Iap2Messages.buildRaw(SEND_DTMF) {
-            string(0, callUuid)
-            u8(1, value)
-        }
-    }
-
-    /** 0-9 for the digits, 10 for '*', 11 for '#'. */
-    fun dtmfToneValue(tone: Char): Int? = when (tone) {
-        in '0'..'9' -> tone - '0'
-        '*' -> 10
-        '#' -> 11
+    /** Null for a character that isn't a keypad key. */
+    fun keypad(tone: Char): Int? = when (tone) {
+        in '0'..'9' -> 5 + (tone - '0')
+        '*' -> 15
+        '#' -> 16
         else -> null
     }
 }

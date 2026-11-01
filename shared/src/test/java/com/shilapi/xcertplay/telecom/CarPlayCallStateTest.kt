@@ -1,6 +1,5 @@
 package com.shilapi.xcertplay.telecom
 
-import com.shilapi.xcertplay.iap2.body.Iap2BodyReader
 import com.shilapi.xcertplay.iap2.message.Iap2Messages
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -46,16 +45,12 @@ class CarPlayCallStateTest {
     }
 
     @Test
-    fun callControlMessagesCarryTheCallUuid() {
-        val uuid = "D964DE78-E4DE-4A12-BD76-113316E7ECA5"
-        val end = Iap2BodyReader.of(CarPlayCallMessages.endCall(uuid))
-        assertEquals(uuid, end.string(0))
-        assertEquals(0, end.u8(1))
-        val dtmf = Iap2BodyReader.of(CarPlayCallMessages.sendDtmf(uuid, '#')!!)
-        assertEquals(uuid, dtmf.string(0))
-        assertEquals(11, dtmf.u8(1))
-        assertNull(CarPlayCallMessages.sendDtmf(uuid, 'A'))
-        val accept = Iap2BodyReader.of(CarPlayCallMessages.acceptCall(uuid))
-        assertEquals(uuid, accept.string(1))
+    fun keypadMapsToTelephonyHidIndexes() {
+        // Index order of the "xcertplay Telephony" HID descriptor: 0xb0..0xb9, then 0xba, 0xbb.
+        assertEquals(5, CarPlayTelephonyKeys.keypad('0'))
+        assertEquals(14, CarPlayTelephonyKeys.keypad('9'))
+        assertEquals(15, CarPlayTelephonyKeys.keypad('*'))
+        assertEquals(16, CarPlayTelephonyKeys.keypad('#'))
+        assertNull(CarPlayTelephonyKeys.keypad('A'))
     }
 }
