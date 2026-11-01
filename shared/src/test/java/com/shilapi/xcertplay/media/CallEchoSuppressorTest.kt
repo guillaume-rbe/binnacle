@@ -6,9 +6,25 @@ import kotlin.math.sin
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 
 class CallEchoSuppressorTest {
+    @Before
+    fun clearReference() {
+        FarEndActivity.reset()
+    }
+
+    @Test
+    fun playbackCountsOnlyOnceHeardAndForTheWindow() {
+        // Chunk stamped to be heard at t=1800 (queued ahead of playback).
+        val loud = tone(0.5)
+        FarEndActivity.report(loud, 0, loud.size, nowMs = 1800)
+        assertEquals(FarEndActivity.SILENT_DB, FarEndActivity.recentMaxDb(600, nowMs = 1000), 0.0)
+        assertTrue(FarEndActivity.recentMaxDb(600, nowMs = 1900) > -20)
+        assertEquals(FarEndActivity.SILENT_DB, FarEndActivity.recentMaxDb(600, nowMs = 2500), 0.0)
+    }
+
     private fun tone(amplitude: Double, samples: Int = 320): ByteArray {
         val out = ByteArray(samples * 2)
         for (i in 0 until samples) {
