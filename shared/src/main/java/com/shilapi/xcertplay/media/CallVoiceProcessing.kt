@@ -15,16 +15,18 @@ import kotlin.math.sqrt
 
 /**
  * Call-only voice clean-up for head units whose microphone sits in the dash, away from the
- * driver. Phone calls record from VOICE_COMMUNICATION, so the platform applies its call tuning
- * (on Unisoc units, the vendor echo canceller and a higher capture gain), plus any echo
- * canceller, noise suppressor and gain control the device offers, and a high-pass filter that
- * removes road rumble. Siri keeps the plain MIC source it already works with.
+ * driver: a high-pass filter that removes road rumble and a fixed boost on top of the user's
+ * microphone gain. The MIC source is kept: on a Unisoc head unit VOICE_COMMUNICATION plus the
+ * vendor echo canceller made calls about 14 dB quieter (1 Nov test), so [attachEffects] is not
+ * used by default.
  */
 internal object CallVoiceProcessing {
     private const val TAG = "xcertplay-usb"
 
-    fun audioSourceFor(audioType: String): Int =
-        if (isCall(audioType)) MediaRecorder.AudioSource.VOICE_COMMUNICATION else MediaRecorder.AudioSource.MIC
+    /** Extra call gain (percent) for distant dash microphones: +6 dB. */
+    const val CALL_BOOST_PERCENT = 200
+
+    fun audioSourceFor(@Suppress("UNUSED_PARAMETER") audioType: String): Int = MediaRecorder.AudioSource.MIC
 
     fun isCall(audioType: String): Boolean = audioType.equals("telephony", ignoreCase = true)
 

@@ -80,7 +80,6 @@ internal class MicrophoneUplink(
         }
         recorder = nextRecorder
         if (CallVoiceProcessing.isCall(config.audioType)) {
-            voiceEffects = CallVoiceProcessing.attachEffects(nextRecorder)
             highPass = Pcm16HighPass(captureRate)
         }
 
@@ -129,7 +128,10 @@ internal class MicrophoneUplink(
                 }
                 if (count == 0) continue
 
-                highPass?.process(readBuffer, count)
+                highPass?.let {
+                    it.process(readBuffer, count)
+                    MicrophoneGain.applyPcm16InPlace(readBuffer, count, CallVoiceProcessing.CALL_BOOST_PERCENT)
+                }
                 MicrophoneGain.applyPcm16InPlace(readBuffer, count, microphoneGainPercent)
                 val samples = resampler?.convert(readBuffer, 0, count) ?: readBuffer
                 val sampleBytes = if (resampler == null) count else samples.size
