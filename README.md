@@ -18,18 +18,22 @@
 > - Retry the hotspot start while the radio is busy (shilapi/xcertplay#46, by code-new-bie)
 >
 > **Fork changes:**
-> - Wi-Fi Direct group on the connected network's 5 GHz channel, so a single-radio chip doesn't
->   hop channels (fixes audio/video stutter while on home Wi-Fi)
+> - Wi-Fi Direct group on the connected network's 5 GHz channel (not on radar/DFS channels), so a
+>   single-radio chip doesn't hop channels (fixes audio/video stutter while on home Wi-Fi)
 > - Remove a leftover Wi-Fi Direct group when start-up reports "busy" (no Wi-Fi off/on needed)
-> - Keep the CarPlay session when an unrelated AirPlay client (e.g. a media server probing port
->   7000) disconnects
+> - Keep the CarPlay session, and its audio, when an unrelated AirPlay client (e.g. a media server
+>   probing port 7000) disconnects
 > - Steering-wheel keys sent to CarPlay as knob and media controls
 > - Car-maker tile labelled "Binnacle" that returns to the head unit's home screen while CarPlay
 >   keeps running
-> - Tells the stock head-unit software about CarPlay phone calls (same broadcast the stock ZLink
->   app sends), so the car shows a phone call
-> - Call microphone for a dash-mounted mic: road-rumble high-pass, automatic gain, platform echo
->   canceller; diagnostic recording of the first minute of call mic audio
+> - Tells the head unit's CAN app about CarPlay phone calls (the broadcast the stock ZLink app
+>   sends, addressed to the CAN app only), so the car shows a phone call without the stock car
+>   service locking other apps; sends "call off" on start in case a previous run quit mid-call
+> - Call microphone for a dash-mounted mic: road-rumble high-pass, automatic gain, and a
+>   half-duplex echo suppressor driven by what is actually being played (applied after the gain
+>   stages so they can't lift the echo); its levels go to the session log
+> - Opt-in diagnostic recording of the first minute of call mic audio (with "Audio diagnostic
+>   capture", last 3 calls kept)
 > - One-finger edge swipe opens settings by default (a three-finger swipe is hard behind a
 >   steering wheel)
 > - Native I2C library built with CMake, so the project builds from a path with spaces

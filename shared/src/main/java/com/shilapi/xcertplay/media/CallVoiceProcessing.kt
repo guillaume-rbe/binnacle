@@ -89,3 +89,24 @@ internal class Pcm16HighPass(sampleRate: Int, cutoffHz: Double = 120.0) {
         }
     }
 }
+
+/**
+ * Gain and echo suppression for one microphone block, in place. The suppressor decides from the
+ * captured level; while it is suppressing, the user gain and AGC are skipped so they can't lift the
+ * echo back up (2 Nov: the AGC's held +20 dB undid most of the suppression). Without a suppressor
+ * (Siri) this is just the user gain and, if given, the AGC.
+ */
+internal fun applyCallGain(
+    buffer: ByteArray,
+    count: Int,
+    userGainPercent: Int,
+    agc: Pcm16VoiceAgc?,
+    suppressor: CallEchoSuppressor?,
+) {
+    suppressor?.update(buffer, count)
+    if (suppressor?.suppressing != true) {
+        MicrophoneGain.applyPcm16InPlace(buffer, count, userGainPercent)
+        agc?.process(buffer, count)
+    }
+    suppressor?.apply(buffer, count)
+}
