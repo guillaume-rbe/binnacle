@@ -1154,12 +1154,10 @@ private class AudioRenderer(
             } else {
                 0L
             }
-            FarEndActivity.report(
-                data,
-                chunkOffset,
-                count,
-                System.currentTimeMillis() + queuedFrames * 1000 / format.sampleRate,
-            )
+            // Bounded: a flush (e.g. remote web-display playback) leaves the written/played
+            // counters apart, and an unbounded delay would keep the mic suppressed.
+            val queuedMs = (queuedFrames * 1000 / format.sampleRate).coerceAtMost(MAX_ECHO_REFERENCE_DELAY_MS)
+            FarEndActivity.report(data, chunkOffset, count, System.currentTimeMillis() + queuedMs)
             val monitor = mediaMetricsMonitor
             if (monitor != null) {
                 val nowNs = System.nanoTime()
@@ -1310,6 +1308,7 @@ private class AudioRenderer(
         const val MIN_TRACK_BUFFER_BYTES = 16 * 1024
         const val MIN_START_BUFFER_BYTES = 4 * 1024
         const val PREBUFFER_WRITE_CHUNK_BYTES = 2 * 1024
+        const val MAX_ECHO_REFERENCE_DELAY_MS = 1_500L
         const val DECODED_BUFFER_LOG_INTERVAL = 50
         const val AUDIO_TIMESTAMP_INTERVAL_NS = 200_000_000L
         const val NANOS_PER_SECOND = 1_000_000_000L
