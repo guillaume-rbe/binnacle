@@ -33,6 +33,7 @@ internal class MicrophoneUplink(
     private var thread: Thread? = null
     @Volatile private var voiceEffects: Closeable? = null
     private var highPass: Pcm16HighPass? = null
+    private var callAgc: Pcm16VoiceAgc? = null
 
     /** 实际采集速率：优先直接按协商速率打开，由系统做重采样；打不开才回退 16 kHz 并自行变换。 */
     private var captureRate = config.sampleRate
@@ -81,6 +82,7 @@ internal class MicrophoneUplink(
         recorder = nextRecorder
         if (CallVoiceProcessing.isCall(config.audioType)) {
             highPass = Pcm16HighPass(captureRate)
+            callAgc = Pcm16VoiceAgc()
         }
 
         val nextSocket = DatagramSocket(null).apply {
@@ -128,11 +130,9 @@ internal class MicrophoneUplink(
                 }
                 if (count == 0) continue
 
-                highPass?.let {
-                    it.process(readBuffer, count)
-                    MicrophoneGain.applyPcm16InPlace(readBuffer, count, CallVoiceProcessing.CALL_BOOST_PERCENT)
-                }
+                highPass?.process(readBuffer, count)
                 MicrophoneGain.applyPcm16InPlace(readBuffer, count, microphoneGainPercent)
+                callAgc?.process(readBuffer, count)
                 val samples = resampler?.convert(readBuffer, 0, count) ?: readBuffer
                 val sampleBytes = if (resampler == null) count else samples.size
                 var offset = 0
