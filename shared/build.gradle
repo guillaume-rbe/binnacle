@@ -14,8 +14,8 @@ android {
         }
 
         externalNativeBuild {
-            ndkBuild {
-                arguments 'APP_PLATFORM=android-28'
+            cmake {
+                arguments '-DANDROID_PLATFORM=android-28', '-DANDROID_STL=none'
             }
         }
 
@@ -23,8 +23,9 @@ android {
     }
     ndkVersion = '28.2.13676358'
     externalNativeBuild {
-        ndkBuild {
-            path = file('src/main/jni/Android.mk')
+        cmake {
+            path = file('src/main/jni/CMakeLists.txt')
+            version = '3.22.1'
         }
     }
     compileOptions {
