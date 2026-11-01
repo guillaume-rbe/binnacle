@@ -41,8 +41,18 @@ internal class HeadUnitCallState(
     private fun set(on: Boolean) {
         if (on == callOn) return
         callOn = on
-        if (on && BluetoothCallRoute.start(appContext, log)) return
-        if (!on) BluetoothCallRoute.stop(appContext, log)
+        if (on && BluetoothCallRoute.start(appContext, log, ::carRouteFailed)) return
+        if (!on) BluetoothCallRoute.stop()
+        send(on)
+    }
+
+    /** The car's audio link never came up or dropped: tell the CAN app after all. */
+    @Synchronized
+    private fun carRouteFailed() {
+        if (callOn) send(true)
+    }
+
+    private fun send(on: Boolean) {
         val status = if (on) STATUS_CALL_ON else STATUS_CALL_OFF
         try {
             appContext.sendBroadcast(
