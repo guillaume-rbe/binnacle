@@ -520,7 +520,7 @@ class CarPlayController(
 
     /** A call button (answer, hang up, keypad) to the iPhone as a CarPlay telephony key. */
     private fun sendCallKey(what: String, key: Int) {
-        val sent = onSession { it.sendTelephony(key) }
+        val sent = onSession { it.sendTelephony(key, HID_REPORT_HOLD_MILLIS) }
         debugLog("carplay calls: ${if (sent) "sent" else "could not send"} $what to the phone")
     }
 

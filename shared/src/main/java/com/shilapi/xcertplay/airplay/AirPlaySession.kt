@@ -182,8 +182,10 @@ class AirPlaySession(
         sendHidReport(AirPlayHid.MEDIA_HID_UID, AirPlayHid.mediaReport(0))
     }
 
-    fun sendTelephony(index: Int) {
+    /** Press and release; [holdMillis] keeps the key down so the phone registers it. */
+    fun sendTelephony(index: Int, holdMillis: Long = 0L) {
         sendHidReport(AirPlayHid.TELEPHONY_HID_UID, AirPlayHid.telephonyReport(index))
+        if (holdMillis > 0) Thread.sleep(holdMillis)
         sendHidReport(AirPlayHid.TELEPHONY_HID_UID, AirPlayHid.telephonyReport(0))
     }
 

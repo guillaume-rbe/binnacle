@@ -112,9 +112,11 @@ internal object BluetoothCallRoute {
         // around start().
         val fallback = synchronized(this) {
             if (!routing) return
-            onFallback.also {
+            // A Telecom call the phone has already ended (car hang-up) drops the link as expected.
+            val callGone = !usedSco && !CarPlayTelecom.ownsCallAudio()
+            onFallback.takeUnless { callGone }.also {
                 release()
-                log("call to car: $reason, back to the head unit's own call audio")
+                log(if (callGone) "call to car: ended" else "call to car: $reason, back to the head unit's own call audio")
             }
         }
         fallback?.invoke()
