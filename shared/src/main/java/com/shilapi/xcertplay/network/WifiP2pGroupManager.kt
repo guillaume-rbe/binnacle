@@ -1,6 +1,7 @@
 package com.shilapi.xcertplay.network
 
 import android.content.Context
+import android.net.wifi.WifiManager
 import android.net.wifi.p2p.WifiP2pConfig
 import android.net.wifi.p2p.WifiP2pGroup
 import android.net.wifi.p2p.WifiP2pInfo
@@ -102,14 +103,11 @@ class WifiP2pGroupManager(
                 callbackThread = thread
             }
 
-            val config = WifiP2pConfig.Builder()
-                .setNetworkName(credentials.ssid)
-                .setPassphrase(credentials.passphrase)
-                .setGroupOperatingBand(WifiP2pConfig.GROUP_OWNER_BAND_5GHZ)
-                .build()
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                config.groupOwnerIntent = WifiP2pConfig.GROUP_OWNER_INTENT_MAX
-            }
+            // On a single-radio chip a group on another channel than the station link time-slices
+            // the radio between the two, which stutters CarPlay audio and video. Share the
+            // station's 5 GHz channel when there is one; fall back to any 5 GHz channel.
+            var stationFrequencyMHz = connectedStation5GhzFrequency()
+            var config = groupConfig(credentials, stationFrequencyMHz)
 
             var busyRetries = 0
             while (true) {
@@ -119,6 +117,13 @@ class WifiP2pGroupManager(
                     awaitGroupCreated(attempt, deadlineNanos, timeoutMillis)
                     break
                 } catch (rejected: P2pCreateRejected) {
+                    if (stationFrequencyMHz != null && rejected.reason != WifiP2pManager.BUSY) {
+                        Log.w(TAG, "Wi-Fi P2P group refused at ${stationFrequencyMHz}MHz; using any 5 GHz channel")
+                        stationFrequencyMHz = null
+                        config = groupConfig(credentials, null)
+                        synchronized(stateLock) { attempt.failure = null }
+                        continue
+                    }
                     // Only an explicit BUSY rejection permits another request; a timeout may
                     // still create a group, so it is never retried.
                     if (!P2pCreateRetry.shouldRetry(rejected.reason, busyRetries)) throw rejected
@@ -154,6 +159,31 @@ class WifiP2pGroupManager(
             cleanupFailedStart(attempt)
             throw failure
         }
+    }
+
+    private fun groupConfig(credentials: WifiP2pCredentials, frequencyMHz: Int?): WifiP2pConfig {
+        val builder = WifiP2pConfig.Builder()
+            .setNetworkName(credentials.ssid)
+            .setPassphrase(credentials.passphrase)
+        if (frequencyMHz != null) {
+            builder.setGroupOperatingFrequency(frequencyMHz)
+        } else {
+            builder.setGroupOperatingBand(WifiP2pConfig.GROUP_OWNER_BAND_5GHZ)
+        }
+        val config = builder.build()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            config.groupOwnerIntent = WifiP2pConfig.GROUP_OWNER_INTENT_MAX
+        }
+        return config
+    }
+
+    @Suppress("DEPRECATION")
+    private fun connectedStation5GhzFrequency(): Int? = try {
+        val info = appContext.getSystemService(WifiManager::class.java)?.connectionInfo
+        if (info == null || info.networkId == -1) null else info.frequency.takeIf { is5Ghz(it) }
+    } catch (failure: RuntimeException) {
+        Log.w(TAG, "Could not read the Wi-Fi station frequency", failure)
+        null
     }
 
     override fun close() {
