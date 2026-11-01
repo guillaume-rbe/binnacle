@@ -443,7 +443,7 @@ object AirPlayPersistence {
 
     fun loadMoreGesturesToSettings(context: Context): Boolean =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .getBoolean(KEY_MORE_GESTURES_TO_SETTINGS, false)
+            .getBoolean(KEY_MORE_GESTURES_TO_SETTINGS, true)
 
     fun saveMoreGesturesToSettings(context: Context, enabled: Boolean) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
