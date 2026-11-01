@@ -22,6 +22,7 @@ internal class MicrophoneUplink(
     private val config: MicrophoneConfig,
     microphoneGainPercent: Int,
     private val callMicCaptureDirectory: java.io.File? = null,
+    private val debugLog: (String) -> Unit = {},
 ) : Closeable {
     private val microphoneGainPercent = MicrophoneGain.sanitize(microphoneGainPercent)
     private val running = AtomicBoolean(false)
@@ -87,7 +88,12 @@ internal class MicrophoneUplink(
             highPass = Pcm16HighPass(captureRate)
             callAgc = Pcm16VoiceAgc()
             FarEndActivity.reset() // no stale playback levels from an earlier call
-            echoSuppressor = CallEchoSuppressor(log = { Log.i(TAG, it) })
+            echoSuppressor = CallEchoSuppressor(
+                log = {
+                    Log.i(TAG, it)
+                    debugLog(it)
+                },
+            )
             voiceEffects = CallVoiceProcessing.attachEchoCanceller(nextRecorder)
             micRecorder = callMicCaptureDirectory?.let { CallMicRecorder(it, captureRate) }
         }

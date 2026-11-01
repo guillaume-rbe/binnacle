@@ -55,6 +55,8 @@ class AndroidMediaSink(
     private val audioFocus: AudioFocusSession? = null,
     /** Opt-in diagnostics: where call microphone recordings go; null means never record. */
     private val callMicCaptureDirectory: java.io.File? = null,
+    /** App debug log (the session log file) for call-audio diagnostics. */
+    private val debugLog: (String) -> Unit = {},
 ) : MediaSink {
     private val closed = java.util.concurrent.atomic.AtomicBoolean(false)
     private val defaultSurface = surface
@@ -178,7 +180,7 @@ class AndroidMediaSink(
 
     override fun onMicrophoneStarted(id: AudioStreamId, config: MicrophoneConfig) {
         val uplink = microphoneUplinks.computeIfAbsent(id) {
-            MicrophoneUplink(context, config, microphoneGainPercent, callMicCaptureDirectory)
+            MicrophoneUplink(context, config, microphoneGainPercent, callMicCaptureDirectory, debugLog)
         }
         if (!uplink.start()) microphoneUplinks.remove(id, uplink)
     }

@@ -1987,6 +1987,7 @@ class CarPlayHostActivity : ComponentActivity() {
                 mediaTap = outputs,
                 audioFocus = CarPlayBackgroundSession.audioFocus(this),
                 callMicCaptureDirectory = audioCaptureDirectory(),
+                debugLog = { appendFileLog(it, System.currentTimeMillis()) },
                 onScreenStreamActiveChanged = { type, active ->
                     onScreenStreamStateChanged(controllerGeneration, type, active)
                 },
