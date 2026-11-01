@@ -186,6 +186,7 @@ class CarPlayController(
     private val lifecycleLock = Any()
     private val performanceLockLifecycle = Any()
     private val wirelessPerformanceLock = WirelessPerformanceLock(appContext) { debugLog(it) }
+    private val headUnitCallState = HeadUnitCallState(appContext) { debugLog(it) }
     @Volatile private var uiListener: AirPlaySessionListener? = listener
     @Volatile private var uiStatusReporter: ((CarPlayStatus) -> Unit)? = reportStatus
     private val permissionGrant = AtomicBoolean(false)
@@ -282,6 +283,7 @@ class CarPlayController(
                     wirelessPerformanceLock.close()
                 }
             }
+            headUnitCallState.end()
             debugLog("AirPlay session ended peer=${session.host}")
             uiListener?.onSessionEnded(session)
         }
@@ -307,6 +309,9 @@ class CarPlayController(
             debugLog(
                 "AirPlay command type=$type params=${params.keys.sorted().joinToString(",")}",
             )
+            if (type == "modesChanged" && activeSession === session) {
+                headUnitCallState.onModesChanged(params)
+            }
             if (
                 config.transport == CarPlayTransport.WIRELESS &&
                 !closed &&
@@ -521,6 +526,7 @@ class CarPlayController(
         synchronized(performanceLockLifecycle) {
             wirelessPerformanceLock.close()
         }
+        headUnitCallState.end()
         closeReceivers()
         stopFileTransferReceivers()
         availabilityPollGeneration.incrementAndGet()
