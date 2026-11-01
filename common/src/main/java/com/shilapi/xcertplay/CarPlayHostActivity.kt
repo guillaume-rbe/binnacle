@@ -27,6 +27,7 @@ import android.provider.OpenableColumns
 import android.provider.Settings
 import android.util.Log
 import android.view.Gravity
+import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.Surface
 import android.view.SurfaceHolder
@@ -118,6 +119,7 @@ import com.shilapi.xcertplay.airplay.AirPlayIdentity
 import com.shilapi.xcertplay.airplay.AirPlayIcon
 import com.shilapi.xcertplay.airplay.AirPlaySafeArea
 import com.shilapi.xcertplay.airplay.AirPlaySession
+import com.shilapi.xcertplay.airplay.AirPlayKnobState
 import com.shilapi.xcertplay.airplay.AirPlaySessionListener
 import com.shilapi.xcertplay.airplay.CarPlayMediaEngine
 import com.shilapi.xcertplay.airplay.SafeAreaRect
@@ -860,6 +862,39 @@ class CarPlayHostActivity : ComponentActivity() {
         wirelessPermissionsReady = !wirelessEnabled || hasRequiredWirelessPermissions()
         maybeStartCarPlay()
         applyFullscreenMode()
+    }
+
+    /**
+     * Head-unit buttons into CarPlay while a session is up: the steering wheel arrives as normal
+     * key events (scroll = DPAD up/down, tilt right = ENTER, tilt left = BACK, plus media keys),
+     * sent on as the knob and media HID devices that /info already declares.
+     */
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        val ctl = controller
+        if (menuOpen || ctl == null || activeAirPlaySession == null) return super.dispatchKeyEvent(event)
+        val down = event.action == KeyEvent.ACTION_DOWN
+        val first = down && event.repeatCount == 0
+        val handled = when (event.keyCode) {
+            KeyEvent.KEYCODE_DPAD_UP -> { if (down) ctl.sendKnob(AirPlayKnobState(wheel = -1)); true }
+            KeyEvent.KEYCODE_DPAD_DOWN -> { if (down) ctl.sendKnob(AirPlayKnobState(wheel = 1)); true }
+            KeyEvent.KEYCODE_DPAD_LEFT -> { if (down) ctl.sendKnob(AirPlayKnobState(x = -1)); true }
+            KeyEvent.KEYCODE_DPAD_RIGHT -> { if (down) ctl.sendKnob(AirPlayKnobState(x = 1)); true }
+            KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> {
+                if (first || event.action == KeyEvent.ACTION_UP) ctl.sendKnobSelect(down); true
+            }
+            KeyEvent.KEYCODE_BACK -> { if (first) ctl.sendKnob(AirPlayKnobState(back = true)); true }
+            KeyEvent.KEYCODE_MEDIA_PLAY -> { if (first) ctl.sendMedia(MEDIA_PLAY); true }
+            KeyEvent.KEYCODE_MEDIA_PAUSE -> { if (first) ctl.sendMedia(MEDIA_PAUSE); true }
+            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, KeyEvent.KEYCODE_HEADSETHOOK -> {
+                if (first) ctl.sendMedia(MEDIA_PLAY_PAUSE); true
+            }
+            KeyEvent.KEYCODE_MEDIA_NEXT -> { if (first) ctl.sendMedia(MEDIA_NEXT); true }
+            KeyEvent.KEYCODE_MEDIA_PREVIOUS -> { if (first) ctl.sendMedia(MEDIA_PREVIOUS); true }
+            KeyEvent.KEYCODE_VOICE_ASSIST, KeyEvent.KEYCODE_SEARCH -> { if (first) ctl.invokeSiri(); true }
+            else -> false
+        }
+        if (handled && first) appendFileLog("key ${KeyEvent.keyCodeToString(event.keyCode)} -> CarPlay", System.currentTimeMillis())
+        return handled || super.dispatchKeyEvent(event)
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -2006,6 +2041,22 @@ class CarPlayHostActivity : ComponentActivity() {
                     setConnectionStage("Transport error; reconnecting")
                     appendLog("CarPlay transport error: $message; reconnecting from scratch")
                     reconnectAfterLoss("CarPlay transport error: $message")
+                }
+            }
+
+            override fun onHostUiRequested(session: AirPlaySession) {
+                // CarPlay's car-maker tile: back to the head unit's own Home (the dash). The
+                // session keeps running in the background (CarPlayBackgroundSession).
+                runOnUiThread {
+                    try {
+                        startActivity(
+                            Intent(Intent.ACTION_MAIN)
+                                .addCategory(Intent.CATEGORY_HOME)
+                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                        )
+                    } catch (_: ActivityNotFoundException) {
+                        appendLog("No Home app to return to")
+                    }
                 }
             }
 
@@ -4466,6 +4517,12 @@ class CarPlayHostActivity : ComponentActivity() {
 
     private companion object {
         const val TAG = "xcertplay-usb"
+        // media HID usages, in AirPlayHid's mediaDescriptor order
+        const val MEDIA_PLAY = 1
+        const val MEDIA_PAUSE = 2
+        const val MEDIA_PLAY_PAUSE = 3
+        const val MEDIA_NEXT = 4
+        const val MEDIA_PREVIOUS = 5
         const val SCREEN_TYPE_MAIN = 110
         const val SCREEN_TYPE_ALT = 111
         const val CLUSTER_WINDOW_MAX_WIDTH_FRACTION = 0.45

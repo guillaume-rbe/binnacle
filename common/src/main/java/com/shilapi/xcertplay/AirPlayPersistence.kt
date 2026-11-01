@@ -83,7 +83,7 @@ object AirPlayPersistence {
 
     const val DEFAULT_MANUFACTURER = "xcertplay"
     const val DEFAULT_MODEL = "xcertplay"
-    const val DEFAULT_OEM_LABEL = ""
+    const val DEFAULT_OEM_LABEL = "Binnacle"
     const val DEFAULT_MFI_I2C_PATH = "/dev/i2c-1"
 
     fun loadWebDisplay(context: Context, type: Int): CarPlayWebDisplayConfig {

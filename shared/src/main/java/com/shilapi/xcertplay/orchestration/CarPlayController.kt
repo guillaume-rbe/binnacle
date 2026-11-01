@@ -25,6 +25,7 @@ import com.shilapi.xcertplay.airplay.AirPlayContact
 import com.shilapi.xcertplay.airplay.AirPlayDeviceInfo
 import com.shilapi.xcertplay.airplay.AirPlayDisplayConfig
 import com.shilapi.xcertplay.airplay.AirPlayIdentity
+import com.shilapi.xcertplay.airplay.AirPlayKnobState
 import com.shilapi.xcertplay.airplay.AirPlayMediaHandler
 import com.shilapi.xcertplay.airplay.AirPlaySession
 import com.shilapi.xcertplay.airplay.AirPlaySessionListener
@@ -268,7 +269,14 @@ class CarPlayController(
         }
 
         override fun onSessionEnded(session: AirPlaySession) {
+            // A second AirPlay client (e.g. a Music Assistant server on the same LAN probing
+            // /info) ending must not tear down the iPhone's CarPlay session.
             synchronized(performanceLockLifecycle) {
+                val other = activeSession
+                if (other != null && other !== session) {
+                    debugLog("AirPlay side connection ended peer=${session.host}; CarPlay session kept")
+                    return
+                }
                 if (activeSession === session) {
                     activeSession = null
                     wirelessPerformanceLock.close()
@@ -398,6 +406,26 @@ class CarPlayController(
         val session = activeSession ?: return false
         return try {
             touchExecutor.execute { session.sendTouch(contacts) }
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    /** Head-unit buttons (steering wheel) as CarPlay knob / media HID input. */
+    fun sendKnob(state: AirPlayKnobState): Boolean = onSession { it.sendKnob(state) }
+
+    fun sendKnobSelect(down: Boolean): Boolean = onSession { it.sendKnobSelect(down) }
+
+    fun sendMedia(index: Int): Boolean = onSession { it.sendMedia(index) }
+
+    fun invokeSiri(): Boolean = onSession { it.invokeSiri() }
+
+    private fun onSession(action: (AirPlaySession) -> Unit): Boolean {
+        if (closed) return false
+        val session = activeSession ?: return false
+        return try {
+            touchExecutor.execute { action(session) }
             true
         } catch (_: Exception) {
             false
