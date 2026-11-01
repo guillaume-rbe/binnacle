@@ -21,6 +21,7 @@ internal class MicrophoneUplink(
     private val context: Context,
     private val config: MicrophoneConfig,
     microphoneGainPercent: Int,
+    private val callMicCaptureDirectory: java.io.File? = null,
 ) : Closeable {
     private val microphoneGainPercent = MicrophoneGain.sanitize(microphoneGainPercent)
     private val running = AtomicBoolean(false)
@@ -85,7 +86,7 @@ internal class MicrophoneUplink(
             highPass = Pcm16HighPass(captureRate)
             callAgc = Pcm16VoiceAgc()
             voiceEffects = CallVoiceProcessing.attachEchoCanceller(nextRecorder)
-            micRecorder = CallMicRecorder(context, captureRate)
+            micRecorder = callMicCaptureDirectory?.let { CallMicRecorder(it, captureRate) }
         }
 
         val nextSocket = DatagramSocket(null).apply {

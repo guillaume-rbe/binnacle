@@ -53,6 +53,8 @@ class AndroidMediaSink(
     private val mediaTap: MediaTap? = null,
     private val onClosed: () -> Unit = {},
     private val audioFocus: AudioFocusSession? = null,
+    /** Opt-in diagnostics: where call microphone recordings go; null means never record. */
+    private val callMicCaptureDirectory: java.io.File? = null,
 ) : MediaSink {
     private val closed = java.util.concurrent.atomic.AtomicBoolean(false)
     private val defaultSurface = surface
@@ -176,7 +178,7 @@ class AndroidMediaSink(
 
     override fun onMicrophoneStarted(id: AudioStreamId, config: MicrophoneConfig) {
         val uplink = microphoneUplinks.computeIfAbsent(id) {
-            MicrophoneUplink(context, config, microphoneGainPercent)
+            MicrophoneUplink(context, config, microphoneGainPercent, callMicCaptureDirectory)
         }
         if (!uplink.start()) microphoneUplinks.remove(id, uplink)
     }

@@ -244,7 +244,7 @@
   "settings.diagnostics.debug_logs.support": "Adds a Debug tab to the home log and shows it over video",
   "settings.diagnostics.capture": "Captures",
   "settings.diagnostics.audio_capture": "Audio diagnostic capture",
-  "settings.diagnostics.audio_capture.support": "Saves encrypted UDP and decrypted RTP audio packets",
+  "settings.diagnostics.audio_capture.support": "Saves encrypted UDP and decrypted RTP audio packets, and the first minute of call microphone audio (last 3 calls)",
   "settings.diagnostics.raw_video": "Raw video in saved log",
   "settings.diagnostics.raw_video.support": "Adds the original video packets to the log file",
   "settings.diagnostics.system": "System",
