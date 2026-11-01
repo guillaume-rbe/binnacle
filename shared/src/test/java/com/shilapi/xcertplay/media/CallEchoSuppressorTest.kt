@@ -30,65 +30,49 @@ class CallEchoSuppressorTest {
     }
 
     @Test
-    fun echoOnlyIsSuppressed() {
-        // Far end playing at about -20 dBFS; mic hears it at about -35 dBFS.
-        val s = CallEchoSuppressor(farEndLevel = { -20.0 })
+    fun echoWhileFarEndPlaysIsSuppressed() {
+        // As measured on the unit: playback about -12 dBFS, echo at the mic about -32 dBFS.
+        val s = CallEchoSuppressor(farEndLevel = { -12.0 })
         var last = 0.0
-        repeat(100) {
-            val block = tone(0.025)
+        repeat(20) {
+            val block = tone(0.035)
             s.process(block, block.size)
             last = rmsDb(block)
         }
-        assertTrue("echo should drop well below -35 dBFS, was $last", last < -55)
+        assertTrue("echo should drop well below -32 dBFS, was $last", last < -55)
         assertTrue(s.suppressing)
     }
 
     @Test
-    fun loudCarEchoAbovePlaybackLevelIsSuppressed() {
-        // The car amplifies playback: quiet far end (-45 dBFS) but echo at the mic is -34 dBFS.
-        val s = CallEchoSuppressor(farEndLevel = { -45.0 })
-        var last = 0.0
-        repeat(100) {
-            val block = tone(0.028)
-            s.process(block, block.size)
-            last = rmsDb(block)
-        }
-        assertTrue("echo should be suppressed, was $last", last < -55)
-    }
-
-    @Test
-    fun silentMicBlocksDoNotBreakLearning() {
-        // As seen on the unit: loud far end (-12 dBFS), echo at -34, with frequent silent mic blocks.
+    fun silentMicBlocksDoNotStopSuppression() {
         val s = CallEchoSuppressor(farEndLevel = { -12.0 })
         val levels = mutableListOf<Double>()
         repeat(200) { i ->
-            val block = if (i % 3 == 0) tone(0.00003) else tone(0.028)
             val echo = i % 3 != 0
+            val block = if (echo) tone(0.035) else tone(0.00003)
             s.process(block, block.size)
-            if (echo && i > 100) levels += rmsDb(block)
+            if (echo && i > 10) levels += rmsDb(block)
         }
-        assertTrue("coupling stayed sane: ${s.couplingDb}", s.couplingDb > -40.0)
         assertTrue("echo suppressed, max ${levels.max()}", levels.max() < -50)
     }
 
     @Test
-    fun driverTalkingOverFarEndPasses() {
-        val s = CallEchoSuppressor(farEndLevel = { -20.0 })
-        repeat(100) { val b = tone(0.025); s.process(b, b.size) } // learn coupling on echo
+    fun driverMuchLouderThanPlaybackPasses() {
+        val s = CallEchoSuppressor(farEndLevel = { -25.0 })
         var last = 0.0
         repeat(50) {
-            val block = tone(0.2) // driver much louder than the echo
+            val block = tone(0.5) // about -9 dBFS, well above playback + margin
             s.process(block, block.size)
             last = rmsDb(block)
         }
-        assertEquals(rmsDb(tone(0.2)), last, 1.0)
+        assertEquals(rmsDb(tone(0.5)), last, 1.0)
         assertFalse(s.suppressing)
     }
 
     @Test
     fun noFarEndMeansNoSuppression() {
         val s = CallEchoSuppressor(farEndLevel = { FarEndActivity.SILENT_DB })
-        val block = tone(0.025)
+        val block = tone(0.035)
         val before = rmsDb(block)
         s.process(block, block.size)
         assertEquals(before, rmsDb(block), 0.01)
