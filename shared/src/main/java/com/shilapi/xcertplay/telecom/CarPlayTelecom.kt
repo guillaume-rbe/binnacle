@@ -47,6 +47,10 @@ internal object CarPlayTelecom {
                 PhoneAccount.builder(handle(context), "CarPlay")
                     .setCapabilities(PhoneAccount.CAPABILITY_CALL_PROVIDER)
                     .setSupportedUriSchemes(listOf(PhoneAccount.SCHEME_TEL))
+                    // Communication (VoIP) mode from the start: a dialling call otherwise gets the
+                    // modem call mode first, and on a Unisoc unit (2 Nov) the audio HAL then left
+                    // the car's Bluetooth audio path off, so the car got no sound.
+                    .setExtras(Bundle().apply { putBoolean(PhoneAccount.EXTRA_ALWAYS_USE_VOIP_AUDIO_MODE, true) })
                     .build(),
             )
             log("carplay calls: phone account registered, enabled=${enabled()}")
