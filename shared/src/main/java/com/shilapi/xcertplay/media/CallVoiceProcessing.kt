@@ -27,6 +27,28 @@ internal object CallVoiceProcessing {
 
     fun isCall(audioType: String): Boolean = audioType.equals("telephony", ignoreCase = true)
 
+    /**
+     * Attaches only the platform echo canceller (the mic hears the car speakers as loudly as the
+     * driver). Keeps the MIC source and the rest of the call path unchanged.
+     */
+    fun attachEchoCanceller(recorder: AudioRecord): Closeable {
+        val session = recorder.audioSessionId
+        if (!AcousticEchoCanceler.isAvailable()) {
+            Log.i(TAG, "call voice: echo canceller not available")
+            return Closeable {}
+        }
+        val aec = try {
+            AcousticEchoCanceler.create(session)?.also {
+                it.enabled = true
+                Log.i(TAG, "call voice: echo canceller on (enabled=${it.enabled})")
+            }
+        } catch (error: RuntimeException) {
+            Log.w(TAG, "call voice: echo canceller failed", error)
+            null
+        }
+        return Closeable { runCatching { aec?.release() } }
+    }
+
     /** Attaches whichever platform voice effects exist; close the result with the recorder. */
     fun attachEffects(recorder: AudioRecord): Closeable {
         val session = recorder.audioSessionId
