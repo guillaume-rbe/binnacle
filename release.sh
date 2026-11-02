@@ -33,7 +33,7 @@ sign() {   # sign <in> <out> <module>
     # AGP's build-info file (META-INF/com/android/build/gradle/app-metadata.properties) out, so the
     # APK holds what build.sh's does; then align and sign as build.sh does.
     cp "$1" "$OUT/tmp.apk"
-    zip -qd "$OUT/tmp.apk" 'META-INF/com/android/build/gradle/*' || true
+    zip -qd "$OUT/tmp.apk" 'META-INF/com/android/build/gradle/*' || [ $? -eq 12 ]   # 12: nothing to remove
     "$BT/zipalign" -f -p 4 "$OUT/tmp.apk" "$OUT/aligned.apk"
     printf '%s\n' "$KS_PASS" | "$BT/apksigner" sign --ks "$KEYSTORE" --ks-key-alias "$KS_ALIAS" \
         --ks-pass stdin --out "$2" "$OUT/aligned.apk"
