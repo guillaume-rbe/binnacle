@@ -68,6 +68,9 @@ internal object BluetoothCallRoute {
             this.onFallback = onFallback
             linkSeen = false
             registerReceiver(app)
+            // Telecom may have connected the link before this call (no new event then).
+            val sco = app.registerReceiver(null, IntentFilter(AudioManager.ACTION_SCO_AUDIO_STATE_UPDATED))
+            val scoUp = sco?.getIntExtra(AudioManager.EXTRA_SCO_AUDIO_STATE, -1) == AudioManager.SCO_AUDIO_STATE_CONNECTED
             if (!telecomCall) {
                 audio.startBluetoothSco()
                 handler.postDelayed(connectTimeout, CONNECT_TIMEOUT_MILLIS)
@@ -77,6 +80,7 @@ internal object BluetoothCallRoute {
             usedSco = !telecomCall
             routing = true
             log("call to car: starting${if (telecomCall) " (Telecom call)" else ""}")
+            if (scoUp) handler.post { onLinkState(BluetoothHeadset.STATE_AUDIO_CONNECTED) }
             true
         } catch (error: RuntimeException) {
             log("call to car: could not start Bluetooth SCO: ${error.message}")
@@ -92,19 +96,27 @@ internal object BluetoothCallRoute {
         log("call to car: ended")
     }
 
-    @Synchronized
     private fun onLinkState(state: Int) {
-        if (!routing) return
-        when (state) {
-            BluetoothHeadset.STATE_AUDIO_CONNECTED -> {
-                handler.removeCallbacks(connectTimeout)
-                linkSeen = true
-                if (!active) log("call to car: audio over Bluetooth hands-free")
-                active = true
+        // fail() runs the fallback, which must happen outside this lock (see fail()).
+        val lost = synchronized(this) {
+            if (!routing) return
+            when (state) {
+                BluetoothHeadset.STATE_AUDIO_CONNECTED -> {
+                    handler.removeCallbacks(connectTimeout)
+                    linkSeen = true
+                    if (!active) log("call to car: audio over Bluetooth hands-free")
+                    active = true
+                    false
+                }
+                BluetoothHeadset.STATE_AUDIO_CONNECTING -> {
+                    linkSeen = true
+                    false
+                }
+                BluetoothHeadset.STATE_AUDIO_DISCONNECTED -> linkSeen
+                else -> false
             }
-            BluetoothHeadset.STATE_AUDIO_CONNECTING -> linkSeen = true
-            BluetoothHeadset.STATE_AUDIO_DISCONNECTED -> if (linkSeen) fail("car audio link lost")
         }
+        if (lost) fail("car audio link lost")
     }
 
     private fun fail(reason: String) {
@@ -154,7 +166,8 @@ internal object BluetoothCallRoute {
         }
         val filter = IntentFilter(BluetoothHeadset.ACTION_AUDIO_STATE_CHANGED)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            context.registerReceiver(next, filter, Context.RECEIVER_NOT_EXPORTED)
+            // Sent by the Bluetooth process, which a non-exported receiver doesn't hear.
+            context.registerReceiver(next, filter, Context.RECEIVER_EXPORTED)
         } else {
             context.registerReceiver(next, filter)
         }

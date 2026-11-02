@@ -1,7 +1,9 @@
 package com.shilapi.xcertplay.telecom
 
+import android.Manifest
 import android.content.ComponentName
 import android.content.Context
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
@@ -41,6 +43,8 @@ internal object CarPlayTelecom {
     private val calls = HashMap<String, CarPlayCallState>()
     private val connections = HashMap<String, CarPlayConnection>()
     private val requested = HashSet<String>()
+    /** Calls Telecom couldn't take; their audio falls back to the plain link. */
+    private val refused = HashSet<String>()
 
     @Synchronized
     fun attach(context: Context, control: CallControl, log: (String) -> Unit) {
@@ -71,6 +75,7 @@ internal object CarPlayTelecom {
         connections.clear()
         calls.clear()
         requested.clear()
+        refused.clear()
     }
 
     @Synchronized
@@ -91,7 +96,7 @@ internal object CarPlayTelecom {
 
     /** True when a call is (being) mirrored into Telecom, which then owns the call's audio link. */
     @Synchronized
-    fun ownsCallAudio(): Boolean = calls.isNotEmpty() && enabled()
+    fun ownsCallAudio(): Boolean = calls.keys.any { it !in refused } && enabled()
 
     @Synchronized
     fun onCallState(state: CarPlayCallState) {
@@ -99,6 +104,7 @@ internal object CarPlayTelecom {
         if (state.ended) {
             calls.remove(state.callUuid)
             requested.remove(state.callUuid)
+            refused.remove(state.callUuid)
             connections.remove(state.callUuid)?.endFromPhone()
             return
         }
@@ -107,10 +113,17 @@ internal object CarPlayTelecom {
             it.update(state)
             return
         }
-        if (state.callUuid in requested || !enabled()) return
+        if (state.callUuid in requested || state.callUuid in refused || !enabled()) return
         // The first update of a call placed on the phone has no number yet, and the car keeps
         // the first one it is given; wait a moment for it (it follows within about a second).
         if (state.remoteId.isEmpty() && state.status == CarPlayCallState.STATUS_SENDING) return
+        if (state.direction == CarPlayCallState.DIRECTION_OUTGOING &&
+            context.checkSelfPermission(Manifest.permission.CALL_PHONE) != PackageManager.PERMISSION_GRANTED
+        ) {
+            refused += state.callUuid
+            log("carplay calls: outgoing call not mirrored, no call permission")
+            return
+        }
         requested += state.callUuid
         val extras = Bundle().apply { putString(EXTRA_CALL_UUID, state.callUuid) }
         try {
@@ -131,6 +144,7 @@ internal object CarPlayTelecom {
             log("carplay calls: added ${directionName(state)} call status=${state.status}")
         } catch (error: RuntimeException) {
             requested -= state.callUuid
+            refused += state.callUuid
             log("carplay calls: could not add call: ${error.message}")
         }
     }
