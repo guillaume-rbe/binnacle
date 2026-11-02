@@ -19,9 +19,10 @@ A small separate Android app that records the car data the head unit publishes, 
 - The car's sleep force-stops it. If you want it running on every drive, turn on Apps & settings → Advanced → **Drive logger: start with the dash** in Binnacle (off by default).
 - Only Binnacle can start it: the service needs `app.binnacle.permission.CONTROL_LOGGER`, a signature permission, so only apps signed with the same key qualify.
 
-## Build and install (no Gradle)
+## Build and install
 ```
-capture/build.sh    # -> capture/build/BinnacleLogger.apk
+./gradlew :logger:assembleRelease   # -> capture/build/gradle/outputs/apk/release/logger-release.apk
+capture/build.sh                    # the same without Gradle -> capture/build/BinnacleLogger.apk
 adb install -r capture/build/BinnacleLogger.apk
 ```
 Remove it from Binnacle (Advanced → Remove drive logger) or with `adb uninstall app.binnacle.logger`.
