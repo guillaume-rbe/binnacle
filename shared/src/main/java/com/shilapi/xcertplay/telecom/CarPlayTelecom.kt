@@ -161,9 +161,13 @@ internal object CarPlayTelecom {
     /** Telecom asked for the connection of a call we added. */
     @Synchronized
     internal fun createConnection(callUuid: String?): Connection {
-        // Extras should carry the call UUID; with a single call waiting, take that one.
-        val state = callUuid?.let(calls::get)
-            ?: calls.values.singleOrNull { it.callUuid !in connections }
+        // Extras should carry the call UUID; only without one, take the single call waiting. A
+        // UUID that is gone ended before Telecom asked.
+        val state = if (callUuid != null) {
+            calls[callUuid]
+        } else {
+            calls.values.singleOrNull { it.callUuid !in connections }
+        }
         if (state == null) {
             log("carplay calls: call $callUuid already ended")
             return Connection.createFailedConnection(DisconnectCause(DisconnectCause.REMOTE))
