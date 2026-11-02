@@ -4,6 +4,8 @@ import android.content.ComponentName
 import android.content.Context
 import android.net.Uri
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.telecom.Connection
 import android.telecom.DisconnectCause
 import android.telecom.PhoneAccount
@@ -30,6 +32,9 @@ internal object CarPlayTelecom {
     const val ACCOUNT_ID = "carplay"
     internal const val EXTRA_CALL_UUID = "com.shilapi.xcertplay.CALL_UUID"
 
+    private const val STATE_SETTLE_MILLIS = 300L
+
+    private val handler = Handler(Looper.getMainLooper())
     private var appContext: Context? = null
     private var control: CallControl? = null
     private var log: (String) -> Unit = {}
@@ -141,9 +146,20 @@ internal object CarPlayTelecom {
             return Connection.createFailedConnection(DisconnectCause(DisconnectCause.REMOTE))
         }
         return CarPlayConnection(state.callUuid, ::controlFor).also {
-            it.update(state)
+            // Telecom puts a new outgoing call into DIALING after this returns, overriding an
+            // ACTIVE set here (2 Nov: the car then kept it as dialling and its keypad stayed
+            // off). Start it dialling and apply the real state once Telecom has it.
+            val outgoing = state.direction == CarPlayCallState.DIRECTION_OUTGOING
+            it.update(if (outgoing) state.copy(status = CarPlayCallState.STATUS_CONNECTING) else state)
             connections[state.callUuid] = it
+            if (outgoing) handler.postDelayed({ refresh(state.callUuid) }, STATE_SETTLE_MILLIS)
         }
+    }
+
+    @Synchronized
+    private fun refresh(callUuid: String) {
+        val state = calls[callUuid] ?: return
+        connections[callUuid]?.update(state)
     }
 
     @Synchronized
