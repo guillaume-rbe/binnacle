@@ -10,6 +10,8 @@ import java.util.stream.Collectors;
 import kotlin.Unit;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
+import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.artifacts.FileCollectionDependency;
 import org.gradle.api.file.Directory;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.TaskProvider;
@@ -60,10 +62,11 @@ public final class Guards {
         });
         android.onVariants(android.selector().all(), variant -> {
             String v = variant.getName().substring(0, 1).toUpperCase() + variant.getName().substring(1);
-            // Every class of the module that d8 will see: javac's output and the R classes.
+            // Every class that d8 will see: javac's output, the R classes, and (scope ALL) anything a
+            // library would bring, so nothing reaches the dex without this check.
             TaskProvider<CollectClasses> collect = p.getTasks().register("collectClasses" + v, CollectClasses.class,
                 t -> t.getClasses().set(p.getLayout().getBuildDirectory().dir("guards/classes_" + variant.getName())));
-            variant.getArtifacts().forScope(ScopedArtifacts.Scope.PROJECT).use(collect)
+            variant.getArtifacts().forScope(ScopedArtifacts.Scope.ALL).use(collect)
                 .toGet(ScopedArtifact.CLASSES.INSTANCE, CollectClasses::getJars, CollectClasses::getDirs);
             TaskProvider<GuardScript> classes = p.getTasks().register("checkBytecode" + v, GuardScript.class, t -> {
                 Provider<Directory> out = collect.flatMap(CollectClasses::getClasses);
@@ -73,10 +76,15 @@ public final class Guards {
                 t.getChecked().from(out, "tools");
                 t.getStamp().set(p.getLayout().getBuildDirectory().file("guards/check_bytecode_" + variant.getName() + ".stamp"));
             });
-            // Nothing but those classes goes into the dex.
-            TaskProvider<NoDependencies> libs = p.getTasks().register("checkNoLibraries" + v, NoDependencies.class, t ->
-                t.getDependencies().set(variant.getRuntimeConfiguration().getIncoming().getResolutionResult().getRootComponent()
-                    .map(root -> root.getDependencies().stream().map(Object::toString).collect(Collectors.toList()))));
+            // And no library at all: modules and jars from a repository, or local jars (files(...),
+            // which the dependency graph leaves out).
+            Configuration runtime = variant.getRuntimeConfiguration();
+            TaskProvider<NoDependencies> libs = p.getTasks().register("checkNoLibraries" + v, NoDependencies.class, t -> {
+                t.getDependencies().addAll(runtime.getIncoming().getResolutionResult().getRootComponent()
+                    .map(root -> root.getDependencies().stream().map(Object::toString).collect(Collectors.toList())));
+                t.getDependencies().addAll(p.provider(() -> runtime.getAllDependencies().withType(FileCollectionDependency.class)
+                    .stream().flatMap(d -> d.getFiles().getFiles().stream()).map(File::getName).collect(Collectors.toList())));
+            });
             p.getTasks().matching(t -> t.getName().equals("dexBuilder" + v)).configureEach(t -> t.dependsOn(classes, libs));
             // The packed APK: one dex, no native code, nothing hidden. Only a checked APK comes out.
             TaskProvider<CheckedApk> apk = p.getTasks().register("checkApk" + v, CheckedApk.class,
