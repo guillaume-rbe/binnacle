@@ -97,10 +97,26 @@ public final class Guards {
                 t.dependsOn(icloud, readonly, classes, libs);
                 if (tests != null) t.dependsOn(tests);
             });
-            p.getTasks().matching(t -> t.getName().equals("bundle" + v)).configureEach(t -> t.doFirst(x -> {
-                throw new GradleException("app bundles aren't checked by the read-only guards: build the APK");
-            }));
+            // App bundles: nothing checks them, so no .aab ever comes out (backstop for refuseBundles below).
+            TaskProvider<RefuseBundle> bundle = p.getTasks().register("refuseBundle" + v, RefuseBundle.class);
+            variant.getArtifacts().use(bundle)
+                .wiredWithFiles(RefuseBundle::getPacked, RefuseBundle::getRefused)
+                .toTransform(SingleArtifact.BUNDLE.INSTANCE);
             return Unit.INSTANCE;
+        });
+        refuseBundles(p);
+    }
+
+    /** Stops a build that would pack an app bundle before any of its tasks run. */
+    private static void refuseBundles(Project p) {
+        String prefix = p.getPath() + ":";
+        p.getGradle().getTaskGraph().whenReady(graph -> {
+            for (org.gradle.api.Task t : graph.getAllTasks()) {
+                if (t.getPath().startsWith(prefix) && t.getName().toLowerCase().contains("bundle")) {
+                    throw new GradleException("app bundles aren't checked by the read-only guards: build the APK ("
+                        + t.getPath() + ")");
+                }
+            }
         });
     }
 }
