@@ -9,6 +9,7 @@ import org.gradle.api.DefaultTask;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.provider.ListProperty;
+import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.InputFiles;
@@ -35,6 +36,10 @@ public abstract class GuardScript extends DefaultTask {
     @InputFiles @PathSensitive(PathSensitivity.RELATIVE)
     public abstract ConfigurableFileCollection getChecked();
 
+    /** The SDK AGP found (ANDROID_HOME or local.properties' sdk.dir), passed on as ANDROID_HOME. */
+    @Input
+    public abstract Property<String> getAndroidHome();
+
     @OutputFile
     public abstract RegularFileProperty getStamp();
 
@@ -47,7 +52,10 @@ public abstract class GuardScript extends DefaultTask {
         cmd.add("bash");
         cmd.add(getScript().get().getAsFile().getAbsolutePath());
         cmd.addAll(getArgs().get());
-        getExec().exec(spec -> spec.commandLine(cmd));
+        getExec().exec(spec -> {
+            spec.commandLine(cmd);
+            spec.environment("ANDROID_HOME", getAndroidHome().get());
+        });
         Files.write(getStamp().get().getAsFile().toPath(), (String.join(" ", cmd) + "\n").getBytes("UTF-8"));
     }
 }

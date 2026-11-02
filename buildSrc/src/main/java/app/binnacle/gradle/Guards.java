@@ -32,6 +32,11 @@ public final class Guards {
 
     public static void wire(Project p) {
         File dir = p.getProjectDir();
+        ApplicationAndroidComponentsExtension android =
+            p.getExtensions().getByType(ApplicationAndroidComponentsExtension.class);
+        // Every guard script gets the SDK AGP uses (tests/run.sh needs android.jar from it).
+        Provider<String> sdk = android.getSdkComponents().getSdkDirectory().map(d -> d.getAsFile().getAbsolutePath());
+        p.getTasks().withType(GuardScript.class).configureEach(t -> t.getAndroidHome().set(sdk));
         TaskProvider<GuardScript> readonly = p.getTasks().register("checkReadonly", GuardScript.class, t -> {
             t.getScript().set(p.file("tools/check_readonly.sh"));
             t.getChecked().from("src", "res", "AndroidManifest.xml", "tools");
@@ -54,8 +59,6 @@ public final class Guards {
             if (tests != null) t.dependsOn(tests);
         });
 
-        ApplicationAndroidComponentsExtension android =
-            p.getExtensions().getByType(ApplicationAndroidComponentsExtension.class);
         android.beforeVariants(android.selector().withBuildType("debug"), v -> {
             v.setEnable(false);
             return Unit.INSTANCE;
