@@ -39,6 +39,10 @@
 >   answer, hang-up and keypad buttons reach the iPhone as CarPlay telephony keys
 > - Opt-in diagnostic recording of the first minute of call mic audio (with "Audio diagnostic
 >   capture", last 3 calls kept)
+> - Session log keeps the previous five runs (xcertplay.1.log to .5.log), so an app restart
+>   doesn't erase the drive before it
+> - No "not responding" kill when Android starts the media service for a media key while CarPlay
+>   isn't running (e.g. the car's Bluetooth sending play/pause as it wakes)
 > - One-finger edge swipe opens settings by default (a three-finger swipe is hard behind a
 >   steering wheel)
 > - Native I2C library built with CMake, so the project builds from a path with spaces
