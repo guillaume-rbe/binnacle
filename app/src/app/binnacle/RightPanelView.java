@@ -249,7 +249,7 @@ public class RightPanelView extends View {
 
     /** Pinned page, or -1: automatic (saved in "card_pinned"). */
     private int pinned;
-    private final Paint pinFill = Style.fill(Style.ACCENT), pinStroke = Style.stroke(Style.ACCENT, 2f);
+    private final Paint pinFill = Style.fill(Style.MUTED), pinStroke = Style.stroke(Style.MUTED, 2f);
     private static final long HOLD_MS = 600;
     /** Long press on the card: pin or unpin. Cancelled by a swipe or lifting early. */
     private final Runnable hold = new Runnable() {
@@ -269,9 +269,13 @@ public class RightPanelView extends View {
         invalidate();
     }
 
-    /** Only an indicator: a small pin while the page is pinned. */
+    /** Only an indicator: a small, quiet pin while the page is pinned (the owner, 3 Nov: subtler, smaller). */
     private void drawPin(Canvas c) {
-        if (pinned >= 0) Icons.pin(c, PIN_X, PIN_Y, Style.ACCENT, path, pinFill, pinStroke);
+        if (pinned < 0) return;
+        c.save();
+        c.scale(PIN_SCALE, PIN_SCALE, PIN_X, PIN_Y);
+        Icons.pin(c, PIN_X, PIN_Y, Style.MUTED, path, pinFill, pinStroke);
+        c.restore();
     }
 
     static final int PAGE_SENSORS = 0, PAGE_TYRES = 1, PAGE_EFFICIENCY = 2, PAGES = 3;
@@ -283,7 +287,7 @@ public class RightPanelView extends View {
     /** The current touch started on the middle card (swipe / hold), not the dock or icons. */
     private boolean cardTouch;
     private static final float CARD_TOP = 262, CARD_BOTTOM = 594, SWIPE_MIN = 40;
-    private static final float PIN_X = X1 - 24, PIN_Y = CARD_TOP + 26;
+    private static final float PIN_X = X1 - 18, PIN_Y = CARD_TOP + 20, PIN_SCALE = 0.65f;
 
     /**
      * The middle card slides between its pages over CARD_SLIDE_MS per page when it switches, by
