@@ -1,5 +1,8 @@
 package com.shilapi.xcertplay.media
 
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -118,6 +121,9 @@ internal object CarPlayMediaSessionBridge {
         observer?.invoke(initial)
     }
 
+    /** True while a CarPlay session owns the media controls. */
+    fun isAttached(): Boolean = synchronized(this) { owner != null }
+
     fun send(command: Iap2MediaRemoteCommand): Boolean =
         synchronized(this) { commandSink }?.invoke(command) == true
 
@@ -165,11 +171,42 @@ class CarPlayMediaSessionService : MediaSessionService() {
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession = session
 
+    /**
+     * With CarPlay not running, Android can still start this service in the foreground to deliver
+     * a media key (2 Nov: the car's Bluetooth sending play/pause as it woke). Nothing can play, so
+     * Media3 never goes foreground and Android kills the app ~10 s later for not responding.
+     * Answer such a start with a brief foreground notice and stop.
+     */
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (CarPlayMediaSessionBridge.isAttached()) return super.onStartCommand(intent, flags, startId)
+        val manager = getSystemService(NotificationManager::class.java)
+        if (manager.getNotificationChannel(IDLE_CHANNEL_ID) == null) {
+            manager.createNotificationChannel(
+                NotificationChannel(IDLE_CHANNEL_ID, "CarPlay media", NotificationManager.IMPORTANCE_MIN),
+            )
+        }
+        startForeground(
+            IDLE_NOTIFICATION_ID,
+            Notification.Builder(this, IDLE_CHANNEL_ID)
+                .setSmallIcon(android.R.drawable.ic_media_play)
+                .setContentTitle("CarPlay not connected")
+                .build(),
+        )
+        stopForeground(true)
+        stopSelf(startId)
+        return START_NOT_STICKY
+    }
+
     override fun onDestroy() {
         CarPlayMediaSessionBridge.observe(null)
         player.release()
         session.release()
         super.onDestroy()
+    }
+
+    private companion object {
+        const val IDLE_CHANNEL_ID = "carplay_media_idle"
+        const val IDLE_NOTIFICATION_ID = 0x6361
     }
 }
 

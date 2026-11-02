@@ -13,6 +13,7 @@ internal class SessionLog : Closeable {
     fun start(file: File, header: String, onError: (String) -> Unit = {}) {
         synchronized(lock) {
             if (activeLog != null) return
+            keepPreviousLogs(file)
             val next = SessionLogFile(file, onError = onError)
             activeLog = next
             next.reset(header)
@@ -43,10 +44,28 @@ internal class SessionLog : Closeable {
         )
     }
 
+    /**
+     * Each app start begins a new log; keep the previous ones as xcertplay.1.log (newest) up to
+     * .[KEPT_LOGS].log, so a restart (car sleep, crash) doesn't erase the drive before it.
+     */
+    private fun keepPreviousLogs(file: File) {
+        if (!file.exists()) return
+        val stem = file.nameWithoutExtension
+        val ext = file.extension.let { if (it.isEmpty()) "" else ".$it" }
+        fun numbered(n: Int) = File(file.parentFile, "$stem.$n$ext")
+        numbered(KEPT_LOGS).delete()
+        for (n in KEPT_LOGS - 1 downTo 1) numbered(n).takeIf { it.exists() }?.renameTo(numbered(n + 1))
+        file.renameTo(numbered(1))
+    }
+
     override fun close() {
         synchronized(lock) {
             activeLog?.close()
             activeLog = null
         }
+    }
+
+    private companion object {
+        const val KEPT_LOGS = 5
     }
 }
