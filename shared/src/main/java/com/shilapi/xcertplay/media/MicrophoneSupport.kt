@@ -122,7 +122,10 @@ internal class AudioModeLeaseManager(
         check(users > 0)
         users--
         if (users == 0 && changedMode && readMode() == communicationMode) {
-            writeMode(previousMode)
+            // A mobile-call mode found at start (Telecom, briefly) is not ours to put back, and
+            // apps may not set it: back to normal instead, or communication mode would stick
+            // and send music to the speaker (2 Nov).
+            writeMode(if (previousMode == AudioManager.MODE_IN_CALL) AudioManager.MODE_NORMAL else previousMode)
         }
     }
 }

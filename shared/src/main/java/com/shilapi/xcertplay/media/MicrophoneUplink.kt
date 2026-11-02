@@ -129,6 +129,8 @@ internal class MicrophoneUplink(
         }
         val counters = MicrophoneCounters()
         var filled = 0
+        var lastCarMic = false
+        val isCall = CallVoiceProcessing.isCall(config.audioType)
         try {
             while (running.get()) {
                 val count = activeRecorder.read(
@@ -144,8 +146,17 @@ internal class MicrophoneUplink(
                 if (count == 0) continue
 
                 micRecorder?.raw(readBuffer, count)
-                highPass?.process(readBuffer, count)
-                applyCallGain(readBuffer, count, microphoneGainPercent, callAgc, echoSuppressor)
+                // A call routed to the car's hands-free uses the car's mic and echo cancelling (the
+                // route can start just after the mic does): send it as is.
+                val carMic = isCall && BluetoothCallRoute.active
+                if (carMic != lastCarMic) {
+                    lastCarMic = carMic
+                    debugLog("call microphone: ${if (carMic) "car hands-free, dash clean-up off" else "dash mic"}")
+                }
+                if (!carMic) {
+                    highPass?.process(readBuffer, count)
+                    applyCallGain(readBuffer, count, microphoneGainPercent, callAgc, echoSuppressor)
+                }
                 micRecorder?.sent(readBuffer, count)
                 val samples = resampler?.convert(readBuffer, 0, count) ?: readBuffer
                 val sampleBytes = if (resampler == null) count else samples.size

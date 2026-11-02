@@ -32,6 +32,11 @@
 > - Call microphone for a dash-mounted mic: road-rumble high-pass, automatic gain, and a
 >   half-duplex echo suppressor driven by what is actually being played (applied after the gain
 >   stages so they can't lift the echo); its levels go to the session log
+> - Calls to the car's own hands-free: when the car is connected to the head unit's Android
+>   Bluetooth as a hands-free device, CarPlay call audio goes to the car over Bluetooth (car mic
+>   and echo cancelling; the dash-mic clean-up is skipped). With the "CarPlay" calling account
+>   enabled, calls are also mirrored into Android Telecom, so the car shows the caller and its
+>   answer, hang-up and keypad buttons reach the iPhone as CarPlay telephony keys
 > - Opt-in diagnostic recording of the first minute of call mic audio (with "Audio diagnostic
 >   capture", last 3 calls kept)
 > - One-finger edge swipe opens settings by default (a three-finger swipe is hard behind a

@@ -51,6 +51,9 @@ import com.shilapi.xcertplay.network.WirelessHotspotInfo
 import com.shilapi.xcertplay.network.WirelessHotspotManager
 import com.shilapi.xcertplay.network.WirelessPerformanceLock
 import com.shilapi.xcertplay.network.mfiCertificateWifiP2pCredentials
+import com.shilapi.xcertplay.telecom.CarPlayCallState
+import com.shilapi.xcertplay.telecom.CarPlayTelecom
+import com.shilapi.xcertplay.telecom.CarPlayTelephonyKeys
 import com.shilapi.xcertplay.transport.BlockingDuplexByteStream
 import com.shilapi.xcertplay.transport.BluetoothRfcommDuplexStream
 import com.shilapi.xcertplay.transport.Ch341DeviceMatcher
@@ -187,6 +190,18 @@ class CarPlayController(
     private val performanceLockLifecycle = Any()
     private val wirelessPerformanceLock = WirelessPerformanceLock(appContext) { debugLog(it) }
     private val headUnitCallState = HeadUnitCallState(appContext) { debugLog(it) }
+    private val callControl = object : CarPlayTelecom.CallControl {
+        override fun accept(callUuid: String) = sendCallKey("answer", CarPlayTelephonyKeys.HOOK_SWITCH)
+        override fun end(callUuid: String) = sendCallKey("end call", CarPlayTelephonyKeys.DROP)
+        override fun sendDtmf(callUuid: String, tone: Char) {
+            CarPlayTelephonyKeys.keypad(tone)?.let { sendCallKey("keypad '$tone'", it) }
+        }
+    }
+
+    init {
+        CarPlayTelecom.attach(appContext, callControl) { debugLog(it) }
+    }
+
     @Volatile private var uiListener: AirPlaySessionListener? = listener
     @Volatile private var uiStatusReporter: ((CarPlayStatus) -> Unit)? = reportStatus
     private val permissionGrant = AtomicBoolean(false)
@@ -284,6 +299,7 @@ class CarPlayController(
                 }
             }
             headUnitCallState.end()
+            CarPlayTelecom.endAll()
             debugLog("AirPlay session ended peer=${session.host}")
             uiListener?.onSessionEnded(session)
         }
@@ -438,6 +454,14 @@ class CarPlayController(
     }
 
     private fun onIap2Incoming(frame: Iap2Frame) {
+        if (frame.messageId == CarPlayCallState.MESSAGE_ID) {
+            try {
+                CarPlayCallState.parse(frame)?.let(CarPlayTelecom::onCallState)
+            } catch (error: RuntimeException) {
+                debugLog("Could not decode iAP2 CallStateUpdate", error)
+            }
+            return
+        }
         if (frame.messageId != NOW_PLAYING_UPDATE) return
         try {
             CarPlayMediaSessionBridge.publish(this, nowPlaying.update(frame))
@@ -494,6 +518,12 @@ class CarPlayController(
         receivers.forEach { it.close() }
     }
 
+    /** A call button (answer, hang up, keypad) to the iPhone as a CarPlay telephony key. */
+    private fun sendCallKey(what: String, key: Int) {
+        val sent = onSession { it.sendTelephony(key, HID_REPORT_HOLD_MILLIS) }
+        debugLog("carplay calls: ${if (sent) "sent" else "could not send"} $what to the phone")
+    }
+
     private fun sendMediaRemoteCommand(command: Iap2MediaRemoteCommand): Boolean {
         if (closed) return false
         val session = activeMediaRemoteSession ?: return false
@@ -526,6 +556,7 @@ class CarPlayController(
         synchronized(performanceLockLifecycle) {
             wirelessPerformanceLock.close()
         }
+        CarPlayTelecom.detach(callControl)
         headUnitCallState.end()
         closeReceivers()
         stopFileTransferReceivers()

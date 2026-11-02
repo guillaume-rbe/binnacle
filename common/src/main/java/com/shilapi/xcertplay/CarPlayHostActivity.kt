@@ -814,7 +814,8 @@ class CarPlayHostActivity : ComponentActivity() {
     }
 
     private fun requestWirelessPermissions() {
-        val permissions = requiredWirelessPermissions()
+        // Optional: lets outgoing CarPlay calls be mirrored to a hands-free car (telecom/).
+        val permissions = requiredWirelessPermissions() + Manifest.permission.CALL_PHONE
         if (permissions.all { checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED }) {
             wirelessPermissionsReady = true
             updateHotspotStatusBlock()
