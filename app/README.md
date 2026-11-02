@@ -29,10 +29,15 @@ APP_ID=com.xbs.launcher app/build.sh
 ```
 `APP_ID=app.binnacle app/build.sh` builds a copy under another name, for example to sit beside it on an emulator; the pop-up then shows as before. Nothing in the CAN app is changed.
 
-## Build (no Gradle)
+## Build
 ```
-app/build.sh        # -> app/build/binnacle.apk
+./gradlew :app:assembleRelease   # -> app/build/gradle/outputs/apk/release/app-release.apk
+./release.sh                     # with the logger, release key -> build/release/Binnacle-<version>.apk
+app/build.sh                     # the same APK without Gradle -> app/build/binnacle.apk
 ```
+Gradle runs the same guards and tests at the same points as build.sh (below) and builds only the release variant. `-Pbinnacle.appId=app.binnacle` (or `APP_ID=app.binnacle`) builds the side-by-side copy. build.sh starts by deleting `app/build/`, Gradle's folder (`app/build/gradle/`) included, so Gradle just rebuilds after it. The version lives in `AndroidManifest.xml` (`versionCode`, `versionName`) for both builds; minSdk 21 / targetSdk 29 are in `build.gradle.kts` and in build.sh's aapt2 flags.
+
+`app/build.sh`:
 Needs JDK 17 and the Android SDK (build-tools + a platform). It runs `tools/check_readonly.sh` and `tests/run.sh` (tyre-pressure and battery decoding) first, `tools/check_bytecode.sh` on the classes and the APK, and stops on any failure. Signs with `~/.android/debug.keystore` unless `KEYSTORE`/`KS_ALIAS`/`KS_PASS` are set. Use the same key every time or upgrades will be refused.
 
 ## Test off the car

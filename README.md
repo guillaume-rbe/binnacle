@@ -75,7 +75,7 @@ Sold as an "Android 12" 10.25" cluster for the Model 3 and Model Y under several
 
 Changes made to the unit itself (outside the app), each with its undo: are located in `docs/UNIT-CHANGES.md`. No stock apps were removed.
 
-> **ABSOLUTE RULE — NOTHING TO THE CAR.** Nothing in this project ever sends anything onto the car's CAN bus or otherwise affects the car itself. The dash app *subscribes* to the stock CAN service and *receives* data. A write to the dash's own MCU is a narrow, owner-approved exception, one pinned message at a time, never assumed (see `CLAUDE.md`). This is enforced in code (one class, two allowed binder calls: subscribe/unsubscribe) and by build-time guards that refuse to build if any write path is referenced: `app/tools/check_readonly.sh` on the source and `app/tools/check_bytecode.sh` on the compiled classes and APK (the logger has its own pair in `capture/tools/`; `app/tools/test_guards.sh` checks that the guards still refuse known bypasses). Never weaken or bypass them.
+> **ABSOLUTE RULE — NOTHING TO THE CAR.** Nothing in this project ever sends anything onto the car's CAN bus or otherwise affects the car itself. The dash app *subscribes* to the stock CAN service and *receives* data. A write to the dash's own MCU is a narrow, owner-approved exception, one pinned message at a time, never assumed (see `CLAUDE.md`). This is enforced in code (one class, two allowed binder calls: subscribe/unsubscribe) and by build-time guards that refuse to build if any write path is referenced: `app/tools/check_readonly.sh` on the source and `app/tools/check_bytecode.sh` on the compiled classes and APK (the logger has its own pair in `capture/tools/`; `app/tools/test_guards.sh` checks that the guards still refuse known bypasses). The Gradle build runs the same guards (see Build). Never weaken or bypass them.
 
 ## Status
 In daily use on my 2023 Model 3 since 27 Oct 2026, as the unit's Home app (it replaces the stock dash; the stock launcher stays installed as the fallback).
@@ -94,7 +94,8 @@ In daily use on my 2023 Model 3 since 27 Oct 2026, as the unit's Home app (it re
 | `capture/` | Optional developer tool: Binnacle logger, a separate read-only app that records the car data feed (no location) to its private storage; used to derive the field map |
 | `mockups/` | HTML mockups of the dash layout — **own artwork only**, no vendor assets |
 | `docs/` | `FIELD_MAP.md` (decoded CAN fields), the ADB access guide, and `UNIT-CHANGES.md` (changes made to the unit outside the app) |
-| `app/tests/` | Plain-Java tests (tyre pressure, battery decoding), run by `app/build.sh` |
+| `app/tests/` | Plain-Java tests (tyre pressure, battery decoding), run by every build |
+| `buildSrc/`, `gradle/`, `*.gradle.kts` | The Gradle build (see Build below); `app/build.sh` and `capture/build.sh` still work as before |
 | `app/assets/cars/` | The dash's car renders, made from a CC BY 4.0 model (see Credits) |
 
 ## Binnacle Log tool — build & install
@@ -102,7 +103,7 @@ This was an important part of the project to understand all the information comi
 
 It never records location. Logs stay in the logger's own private storage (not `/sdcard`), and uninstalling it deletes them all. The dash only starts it if you turn on Apps & settings → Advanced → **Drive logger: start with the dash**. While it's installed, the dash shows an eye beside the Wi-Fi icon and a badge in the centre window, both red while it's recording. Details: `capture/README.md`.
 
-No Gradle required; it builds with the Android SDK command-line tools (`javac` → `d8` → `aapt2` → `apksigner`), or import `capture/` into Android Studio. Then:
+Build it with `./gradlew :logger:assembleRelease` or `capture/build.sh` (see Build below). Then:
 ```
 adb connect <unit-ip>:5555
 adb install -r capture/build/BinnacleLogger.apk
@@ -110,6 +111,16 @@ adb install -r capture/build/BinnacleLogger.apk
 # "Export logs to Downloads" copies the logs out when you want them
 ```
 It is **read-only** (subscribe + log only). Undo: `adb uninstall app.binnacle.logger`, or Advanced → Remove drive logger in Binnacle.
+
+## Build
+Needs JDK 17 and the Android SDK (with platform 37); Gradle downloads itself through the wrapper.
+```
+./gradlew assembleRelease   # dash and logger, signed with ~/.android/debug.keystore:
+                            #   app/build/gradle/outputs/apk/release/app-release.apk
+                            #   capture/build/gradle/outputs/apk/release/logger-release.apk
+./release.sh                # both, signed with the release key -> build/release/Binnacle-<version>.apk
+```
+Every build runs the read-only guards and the tests where the old scripts ran them (`buildSrc/src/main/java/app/binnacle/gradle/Guards.java`): the iCloud-copy check, `tools/check_readonly.sh` and `tests/run.sh` before compiling, `tools/check_bytecode.sh` on the compiled classes (javac's and the generated R) and on the packed APK, and it refuses any library in the APK. Any failure stops the build and leaves no APK. Only release APKs are built: no debug variant (it splits the dex, which the guard refuses) and no app bundles (nothing checks them). Settings shared by the dash and the logger, such as the signing key, are in `buildSrc/src/main/java/app/binnacle/gradle/BinnacleApp.java`. `-Pbinnacle.appId=app.binnacle` builds the dash under another package name (see `app/README.md`). `app/build.sh` and `capture/build.sh` (no Gradle) still build the same APKs.
 
 ## Safety & reversibility
 - The app only **reads** the stock CAN feed and never writes to the vehicle CAN bus. Writes to the dash's own MCU are acceptable but not preferred: each one needs the owner's go for that exact message and stays pinned in the guards (see `CLAUDE.md`).

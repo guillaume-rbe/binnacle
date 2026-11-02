@@ -1,0 +1,6 @@
+[versions]
+agp = "9.3.0"
+
+[libraries]
+# On buildSrc's classpath (see buildSrc/build.gradle.kts); modules apply id("com.android.application").
+android-gradle = { group = "com.android.tools.build", name = "gradle", version.ref = "agp" }

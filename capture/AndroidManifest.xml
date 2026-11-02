@@ -2,7 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="app.binnacle.logger"
     android:versionCode="3" android:versionName="0.3">
-    <uses-sdk android:minSdkVersion="21" android:targetSdkVersion="29" />
+    <!-- minSdk 21 / targetSdk 29: set in build.gradle.kts and by build.sh (AGP 9 refuses <uses-sdk> here). -->
     <!-- Only apps signed with the same key (Binnacle itself) may start or stop the logger. Declared
          here and in Binnacle, so it works whichever of the two is installed first. -->
     <permission android:name="app.binnacle.permission.CONTROL_LOGGER" android:protectionLevel="signature" />
