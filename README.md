@@ -89,6 +89,31 @@
 Use a recent Chrome, Edge, or Safari. If the browser cannot play H.265, turn
 off `HEVC (H.265)` in Settings.
 
+## Calls through the car's own Bluetooth (fork)
+
+With this, the head unit acts as the car's phone: CarPlay music and calls go to the car over
+the head unit's Android Bluetooth, and calls use the car's microphone, call screen, keypad and
+hang-up button. Tested on a Tesla Model 3 with an Android 10 head unit.
+
+1. **The head unit's Android Bluetooth must offer the phone-side roles** (A2DP source and the
+   hands-free audio gateway). Head-unit ROMs often switch these off. On the tested unit they were
+   switched on with a runtime resource overlay for `com.android.bluetooth` that sets
+   `profile_supported_a2dp` and `profile_supported_hs_hfp` (on that unit, the
+   `system_profile_supported_*` versions) to `true`, installed in `/product/overlay`.
+2. **Pair the car with the head unit** as you would a phone. Some cars only connect one Bluetooth
+   device at a time, so the head unit then carries both music and calls.
+3. **Turn on the "CarPlay" calling account** (Settings > Calls > Calling accounts, or
+   `adb shell telecom set-phone-account-enabled com.shilapi.xcertplay/com.shilapi.xcertplay.telecom.CarPlayConnectionService carplay 0`),
+   and allow the phone-call permission when asked. Without the account, call audio still goes to
+   the car, but with no caller details and the car's buttons do nothing. Without the permission,
+   only incoming calls get them.
+4. If the stock dialer's in-call screen pops up over CarPlay during calls, disable its in-call
+   service, e.g. `adb shell pm disable com.android.dialer/com.android.incallui.InCallServiceImpl`.
+
+During CarPlay the iPhone ignores iAP2 call control (EndCall, SendDTMF), so the car's buttons are
+sent as CarPlay telephony keys. On a single-chip head unit, Bluetooth music can make the Wi-Fi
+Direct link stall while the unit is also on home Wi-Fi; away from home it was stable.
+
 ## Current progress
 
 It works 👍. It has been tested on car head units and phones. If you encounter
