@@ -114,16 +114,15 @@ internal object CarPlayTelecom {
             return
         }
         if (state.callUuid in requested || state.callUuid in refused || !enabled()) return
-        // The first update of a call placed on the phone has no number yet, and the car keeps
-        // the first one it is given; wait a moment for it (it follows within about a second).
-        if (state.remoteId.isEmpty() && state.status == CarPlayCallState.STATUS_SENDING) return
         if (state.direction == CarPlayCallState.DIRECTION_OUTGOING &&
             context.checkSelfPermission(Manifest.permission.CALL_PHONE) != PackageManager.PERMISSION_GRANTED
         ) {
-            refused += state.callUuid
-            log("carplay calls: outgoing call not mirrored, no call permission")
+            refuse(state.callUuid, "outgoing call not mirrored, no call permission")
             return
         }
+        // The first update of a call placed on the phone has no number yet, and the car keeps
+        // the first one it is given; wait a moment for it (it follows within about a second).
+        if (state.remoteId.isEmpty() && state.status == CarPlayCallState.STATUS_SENDING) return
         requested += state.callUuid
         val extras = Bundle().apply { putString(EXTRA_CALL_UUID, state.callUuid) }
         try {
@@ -144,9 +143,19 @@ internal object CarPlayTelecom {
             log("carplay calls: added ${directionName(state)} call status=${state.status}")
         } catch (error: RuntimeException) {
             requested -= state.callUuid
-            refused += state.callUuid
-            log("carplay calls: could not add call: ${error.message}")
+            refuse(state.callUuid, "could not add call: ${error.message}")
         }
+    }
+
+    /** Listener for Telecom giving up a call's audio (the route then opens the link itself). */
+    @Volatile
+    var onAudioOwnershipLost: (() -> Unit)? = null
+
+    private fun refuse(callUuid: String, reason: String) {
+        refused += callUuid
+        log("carplay calls: $reason")
+        // Outside this object's lock: the route takes its own lock and then reads ownership.
+        onAudioOwnershipLost?.let { handler.post(it) }
     }
 
     /** Telecom asked for the connection of a call we added. */

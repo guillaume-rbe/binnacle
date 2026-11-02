@@ -45,6 +45,28 @@ internal object BluetoothCallRoute {
     private var receiver: BroadcastReceiver? = null
     private val connectTimeout = Runnable { fail("car audio link did not connect") }
 
+    init {
+        CarPlayTelecom.onAudioOwnershipLost = ::telecomGaveUp
+    }
+
+    /** Telecom couldn't take the call after this route left the link to it: open it here. */
+    private fun telecomGaveUp() {
+        synchronized(this) {
+            if (!routing || usedSco || active || CarPlayTelecom.ownsCallAudio()) return
+            val audio = appContext?.getSystemService(AudioManager::class.java) ?: return
+            try {
+                audio.startBluetoothSco()
+                usedSco = true
+                handler.postDelayed(connectTimeout, CONNECT_TIMEOUT_MILLIS)
+                log("call to car: Telecom refused the call, starting the link here")
+                return
+            } catch (error: RuntimeException) {
+                log("call to car: could not start Bluetooth SCO: ${error.message}")
+            }
+        }
+        fail("car audio link not available")
+    }
+
     /**
      * Starts the car route; false when no hands-free car is connected (or Bluetooth is off).
      * [onFallback] runs if the route later gives up while the call is still on.
