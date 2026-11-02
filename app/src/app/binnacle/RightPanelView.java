@@ -65,6 +65,8 @@ public class RightPanelView extends View {
         super(c);
         this.app = app;
         this.car = app.car;
+        pinned = app.prefs().getInt("card_pinned", -1);
+        if (pinned >= PAGES) pinned = -1;
     }
 
     void setDockListener(DockListener l) { dockListener = l; }
@@ -232,14 +234,36 @@ public class RightPanelView extends View {
      * Middle card, three pages left to right: parking sensors, tyres, efficiency. Automatic choice:
      * sensors whenever the car isn't driving (below 10 km/h, or speed not known yet: the dash nearly
      * always starts parked, and tyre pressures only arrive once driving), tyres while driving. A
-     * swipe moves one page and holds until the car next drives off.
+     * swipe moves one page and holds until the car next drives off. The pin (top right of the card)
+     * holds the page for good instead, across drives and restarts, until it is unpinned (the owner,
+     * 3 Nov: the switching can be distracting); a swipe while pinned moves the pin to the new page.
      */
     private int cardPage() {
         boolean driving = car.speedKmh() >= 10;
         if (driving && !wasDriving) manual = -1;       // driving OFF ends a manual choice; a swipe while driving holds
         wasDriving = driving;
-        shownPage = manual >= 0 ? manual : driving ? PAGE_TYRES : PAGE_SENSORS;
+        shownPage = pinned >= 0 ? pinned : manual >= 0 ? manual : driving ? PAGE_TYRES : PAGE_SENSORS;
         return shownPage;
+    }
+
+    /** Pinned page, or -1: automatic (saved in "card_pinned"). */
+    private int pinned;
+    private final Paint pinFill = Style.fill(Style.ACCENT), pinStroke = Style.stroke(Style.DIM, 2f);
+    private boolean pinDown;
+
+    private void setPinned(int page) {
+        pinned = page;
+        app.prefs().edit().putInt("card_pinned", page).apply();
+        invalidate();
+    }
+
+    private void drawPin(Canvas c) {
+        Icons.pin(c, PIN_X, PIN_Y, pinned >= 0 ? Style.ACCENT : Style.DIM, pinned >= 0, path, pinFill, pinStroke);
+    }
+
+    private boolean hitPin(MotionEvent e) {
+        float s = getHeight() / Style.DESIGN_H, x = e.getX() / s, y = e.getY() / s;
+        return Math.abs(x - PIN_X) <= PIN_HIT && Math.abs(y - PIN_Y) <= PIN_HIT;
     }
 
     static final int PAGE_SENSORS = 0, PAGE_TYRES = 1, PAGE_EFFICIENCY = 2, PAGES = 3;
@@ -249,6 +273,7 @@ public class RightPanelView extends View {
     private int shownPage;
     private float swipeX = Float.NaN, swipeY;
     private static final float CARD_TOP = 262, CARD_BOTTOM = 594, SWIPE_MIN = 40;
+    private static final float PIN_X = X1 - 24, PIN_Y = CARD_TOP + 26, PIN_HIT = 26;
 
     /**
      * The middle card slides between its pages over CARD_SLIDE_MS per page when it switches, by
@@ -283,6 +308,7 @@ public class RightPanelView extends View {
         }
         c.restore();
         pageDots(c, page);
+        drawPin(c);
         cardMoving = cardPos != goal;
         if (cardMoving) postInvalidateOnAnimation();
     }
@@ -553,8 +579,9 @@ public class RightPanelView extends View {
             case MotionEvent.ACTION_UP:
                 if (Float.isNaN(swipeX)) return false;
                 if (Math.abs(x - swipeX) > SWIPE_MIN && Math.abs(x - swipeX) > Math.abs(y - swipeY)) {
-                    int next = shownPage + (x < swipeX ? 1 : -1);   // held until driving off
-                    manual = Math.max(0, Math.min(PAGES - 1, next));
+                    int next = Math.max(0, Math.min(PAGES - 1, shownPage + (x < swipeX ? 1 : -1)));
+                    if (pinned >= 0) setPinned(next);               // the pin moves with the page
+                    else manual = next;                             // held until driving off
                     invalidate();
                 }
                 swipeX = Float.NaN;
@@ -576,6 +603,19 @@ public class RightPanelView extends View {
     }
 
     @Override public boolean onTouchEvent(MotionEvent e) {
+        // the pin: tap to hold the page that is showing, tap again for automatic
+        if (e.getActionMasked() == MotionEvent.ACTION_DOWN) pinDown = hitPin(e);
+        if (pinDown) {
+            if (e.getActionMasked() == MotionEvent.ACTION_UP) {
+                pinDown = false;
+                if (hitPin(e)) {
+                    playSoundEffect(android.view.SoundEffectConstants.CLICK);
+                    manual = -1;
+                    setPinned(pinned >= 0 ? -1 : shownPage);
+                }
+            } else if (e.getActionMasked() == MotionEvent.ACTION_CANCEL) pinDown = false;
+            return true;
+        }
         if (swipe(e)) return true;
         if (e.getActionMasked() == MotionEvent.ACTION_UP && hitNetIcon(e.getX(), e.getY()) && dockListener != null) {
             playSoundEffect(android.view.SoundEffectConstants.CLICK);

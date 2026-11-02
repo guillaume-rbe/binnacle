@@ -102,6 +102,25 @@ final class Icons {
         c.drawCircle(cx, cy + 7.5f, 1.8f, fill);
     }
 
+    /** Push pin, head up and needle down: filled when pinned, outline when not. */
+    static void pin(Canvas c, float cx, float cy, int col, boolean filled, Path p, Paint fill, Paint stroke) {
+        stroke.setColor(col);
+        p.reset();
+        p.moveTo(cx - 5, cy - 10);
+        p.lineTo(cx + 5, cy - 10);
+        p.lineTo(cx + 4, cy - 2);
+        p.lineTo(cx + 8, cy + 2);
+        p.lineTo(cx - 8, cy + 2);
+        p.lineTo(cx - 4, cy - 2);
+        p.close();
+        if (filled) {
+            fill.setColor(col);
+            c.drawPath(p, fill);
+        }
+        c.drawPath(p, stroke);
+        c.drawLine(cx, cy + 2, cx, cy + 11, stroke);
+    }
+
     /** Lightning bolt (charging). */
     static void bolt(Canvas c, float cx, float cy, int col, Path p, Paint fill) {
         fill.setColor(col);
