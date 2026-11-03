@@ -444,7 +444,7 @@ private class VideoDecoder(
                         Thread.sleep(2)
                         continue
                     }
-                    if (heldFrame != null && outputSurface == null) {
+                    if (heldFrame != null && outputSurface == null && !parked) {
                         // setSurface unparks; the timeout only bounds a missed wake.
                         LockSupport.parkNanos(IDLE_WAIT_NS)
                         continue
@@ -452,9 +452,11 @@ private class VideoDecoder(
                     when (val job = heldFrame ?: nextJob()) {
                         is VideoJob.Config -> configureDecoder(job)
                         is VideoJob.Frame -> {
-                            // Preserve the initial random access picture until a Surface exists.
-                            heldFrame = if (outputSurface == null) job else null
-                            if (outputSurface != null) feed(job)
+                            // Preserve the initial random access picture until a Surface exists;
+                            // a decoder parked offscreen keeps decoding.
+                            val canFeed = outputSurface != null || parked
+                            heldFrame = if (canFeed) null else job
+                            if (canFeed) feed(job)
                         }
                         VideoJob.Wake, null -> Unit
                     }
@@ -601,6 +603,7 @@ private class VideoDecoder(
     private fun changeSurface(surface: Surface?) {
         if (outputSurface === surface) return
         outputSurface = surface
+        parked = false
         if (surface == null) {
             // Keep decoding into a hidden surface while the screen is away (another app in front):
             // a restarted decoder needs a new random-access picture, and during a call the phone
@@ -609,6 +612,7 @@ private class VideoDecoder(
             if (codec != null) {
                 try {
                     codec.setOutputSurface(offscreen().surface)
+                    parked = true
                     Log.i(TAG, "video decoder parked on an offscreen surface")
                     return
                 } catch (error: Exception) {
@@ -634,6 +638,9 @@ private class VideoDecoder(
         releaseDecoder()
         lastConfig?.let(::configureDecoder)
     }
+
+    /** The decoder is running on [offscreen] while no screen is attached. */
+    private var parked = false
 
     /** Consumes and drops whatever the decoder renders while no screen is attached. */
     private var offscreenReader: ImageReader? = null
@@ -779,6 +786,7 @@ private class VideoDecoder(
     private fun releaseDecoder() {
         val codec = decoder
         decoder = null
+        parked = false
         pump?.clear()
         pump = null
         syncGate = null
