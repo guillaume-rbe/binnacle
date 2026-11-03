@@ -169,16 +169,18 @@ class AudioStream(
         when {
             delta == 0 -> Unit
             delta < 0x8000 -> {
-                for (gap in 1 until delta) {
-                    missing += (lastSequence + gap) and 0xffff
-                    if (missing.size > MISSING_WINDOW) missing.remove(missing.first())
-                }
+                for (gap in 1 until minOf(delta, MISSING_WINDOW)) missing += (sequence - gap) and 0xffff
                 lostPackets += delta - 1
                 lastSequence = sequence
+                // Forget gaps that fell out of the window, so a reused sequence number (after
+                // the 16-bit counter wraps) can't fill a gap from an earlier cycle.
+                missing.removeAll { ((lastSequence - it) and 0xffff) >= MISSING_WINDOW }
             }
             else -> {
                 latePackets++
-                if (missing.remove(sequence)) lostPackets--
+                if (((lastSequence - sequence) and 0xffff) < MISSING_WINDOW && missing.remove(sequence)) {
+                    lostPackets--
+                }
             }
         }
     }
