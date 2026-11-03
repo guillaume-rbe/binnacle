@@ -153,10 +153,12 @@ class AudioStream(
     }
 
     // RTP sequence bookkeeping (receive thread only): packets that never arrived, and packets
-    // that arrived after a later one, so the session log shows network loss on a call.
+    // that arrived after a later one, so the session log shows network loss on a call. Gaps are
+    // remembered for a bounded window so only a packet that fills one reduces the loss count.
     private var lastSequence = -1
     private var lostPackets = 0L
     private var latePackets = 0L
+    private val missing = LinkedHashSet<Int>()
 
     private fun countSequence(sequence: Int) {
         if (lastSequence < 0) {
@@ -167,12 +169,16 @@ class AudioStream(
         when {
             delta == 0 -> Unit
             delta < 0x8000 -> {
+                for (gap in 1 until delta) {
+                    missing += (lastSequence + gap) and 0xffff
+                    if (missing.size > MISSING_WINDOW) missing.remove(missing.first())
+                }
                 lostPackets += delta - 1
                 lastSequence = sequence
             }
             else -> {
                 latePackets++
-                if (lostPackets > 0) lostPackets--
+                if (missing.remove(sequence)) lostPackets--
             }
         }
     }
@@ -202,6 +208,7 @@ class AudioStream(
             (source[offset + 3].toInt() and 0xff)
 
     private companion object {
+        const val MISSING_WINDOW = 512
         const val TAG = "xcertplay-usb"
         const val DATAGRAM_BYTES = 4_096
         const val RTP_HEADER_LEN = 12
