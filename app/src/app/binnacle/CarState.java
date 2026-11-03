@@ -37,8 +37,15 @@ public final class CarState {
     }
     public int speedLimit;
     public boolean speedLimitOn;
-    public int power;                     // curentergyval magnitude
-    public boolean regen;                 // 0x400 flag on curentergyval
+    public int power;                     // kW magnitude (curentergyval, or the estimate)
+    public boolean regen;                 // power is regen
+    /** Decodes curentergyval and falls back to an estimate when the car's reading is unusable. */
+    final PowerDecoder powerDecoder = new PowerDecoder();
+    /** Demo feed: decode its values as they are, never through the power check. */
+    boolean demoPower;
+
+    /** True while power/regen are estimated from speed (the car's reading is unusable). */
+    public boolean powerEstimated() { return powerDecoder.estimating(); }
 
     // code 11: battery / gear / odo / temp
     public int soc;                       // %
@@ -143,8 +150,11 @@ public final class CarState {
                 speedLimitOn = bool(b, "speedlimitsw", speedLimitOn);
                 if (b.containsKey("curentergyval")) {
                     int v = num(b, "curentergyval", 0);
-                    regen = (v & 0x400) != 0;
-                    power = v & 0x3ff;
+                    int kw = live && !demoPower
+                            ? powerDecoder.read(android.os.SystemClock.elapsedRealtime(), speedKmh(), v)
+                            : PowerDecoder.carKw(v);
+                    regen = kw < 0;
+                    power = Math.abs(kw);
                 }
                 break;
             case 11:

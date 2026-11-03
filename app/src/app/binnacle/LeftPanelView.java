@@ -165,7 +165,8 @@ public class LeftPanelView extends View {
     private void drawPower(Canvas c, float w) {
         float x0 = 24, x1 = w - 24, top = 648, bottom = 676;   // 28 tall, same as the battery bar (the owner)
         Style.size(powerLbl, Style.T_LABEL);
-        c.drawText("POWER", x0, 638, powerLbl);
+        // "EST." while the car's power reading is unusable and the bar is worked out from speed
+        c.drawText(car.powerEstimated() ? "POWER · EST." : "POWER", x0, 638, powerLbl);
         Style.size(scaleP, Style.T_SCALE);
         r.set(x0, top, x1, bottom);
         c.drawRoundRect(r, 8, 8, track);
