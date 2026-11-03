@@ -360,7 +360,8 @@ public class RightPanelView extends View {
         c.drawText(Float.isNaN(recent) ? "--" : String.valueOf(Math.round(Units.perDistance(app, recent))), cx, CARD_TOP + 58, effBig);
         Style.size(centred, Style.T_SMALL);
         centred.setColor(Style.MUTED);
-        c.drawText(per, cx, CARD_TOP + 84, centred);
+        // "est." while the car's power reading is unusable and the numbers come from speed alone
+        c.drawText(app.car.powerEstimated() ? per + " · est." : per, cx, CARD_TOP + 84, centred);
 
         // graph: zero line low in the middle, power up in amber, regen down in green, 15 min wide
         float gTop = CARD_TOP + 104, gBottom = CARD_TOP + 250, zero = gTop + (gBottom - gTop) * 0.62f;

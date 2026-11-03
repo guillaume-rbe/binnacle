@@ -102,6 +102,7 @@ public class DashApp extends Application implements Feed.Sink, SharedPreferences
         String mode = prefs.getString("theme", "auto");
         Style.applyTheme("light".equals(mode) || ("auto".equals(mode) && prefs.getBoolean("theme_last_light", daytime())));
         rainbowRoad = prefs.getBoolean("autopilot_rainbow", false);
+        powerEstimatedSaved = prefs.getBoolean(POWER_ESTIMATED, false);   // applied in startFeed
         readDrawPrefs();
         startFeed();
         startCompass();
@@ -190,6 +191,9 @@ public class DashApp extends Application implements Feed.Sink, SharedPreferences
         // Never let values from the previous feed (e.g. simulated ones) pass as live readings.
         car.reset();
         efficiency.reset();                    // demo kilometres never count towards the real drive
+        // demo values never train the power check; live starts from what the last live drive found
+        car.demoPower = demo;
+        car.powerDecoder.setEstimating(!demo && powerEstimatedSaved);
         if (!demo) restoreLights();
         lastFrontCam = false;
         main.removeCallbacks(cameraAction);
@@ -278,6 +282,10 @@ public class DashApp extends Application implements Feed.Sink, SharedPreferences
 
     public boolean isDemo() { return demo; }
 
+    /** Pref: the car's power reading was last found unusable, so the bar shows an estimate. */
+    static final String POWER_ESTIMATED = "power_estimated";
+    private boolean powerEstimatedSaved;
+
     private final EfficiencyTracker efficiency = new EfficiencyTracker();
     /** Energy use since the dash started (fed on every code 10, whichever app is in front). */
     public EfficiencyTracker efficiency() { return efficiency; }
@@ -290,8 +298,15 @@ public class DashApp extends Application implements Feed.Sink, SharedPreferences
     @Override public void onData(int code, Bundle data) {
         try {
             car.apply(code, data);
-            if (code == 10) efficiency.feed(android.os.SystemClock.elapsedRealtime(),
-                    car.regen ? -car.power : car.power, car.speedKmh());
+            if (code == 10) {
+                efficiency.feed(android.os.SystemClock.elapsedRealtime(),
+                        car.regen ? -car.power : car.power, car.speedKmh());
+                if (car.powerEstimated() != powerEstimatedSaved && !demo) {
+                    // remembered so a restart doesn't flash the bad reading before it is spotted again
+                    powerEstimatedSaved = car.powerEstimated();
+                    prefs.edit().putBoolean(POWER_ESTIMATED, powerEstimatedSaved).apply();
+                }
+            }
             if (code == 16) onFrontCam(car.frontCamRequest);
             if (code == 9 && !demo) saveLights(data);
             if (STALE_PROBLEM.equals(problem)) problem = null;   // live data again after a stall
