@@ -30,6 +30,8 @@ data class AudioFormat(
 class AudioStream(
     private val key: ByteArray,
     private val streamType: Int = -1,
+    /** Also receives the periodic stream statistics (the session log keeps them; logcat may not). */
+    private val statsLog: (String) -> Unit = {},
 ) : Closeable {
     interface Listener {
         fun onStarted(firstSample: Int) {}
@@ -136,12 +138,11 @@ class AudioStream(
                         "payloadHead=${payload.copyOf(minOf(payload.size, 16)).toHexString()}",
                 )
             } else if (decryptedNumber % PACKET_LOG_INTERVAL == 0) {
-                android.util.Log.i(
-                    TAG,
-                    "audio stream type=$streamType decrypted=$decryptedNumber " +
-                        "authFailures=${authenticationFailures.get()} " +
-                        "lost=$lostPackets late=$latePackets",
-                )
+                val stats = "audio stream type=$streamType decrypted=$decryptedNumber " +
+                    "authFailures=${authenticationFailures.get()} " +
+                    "lost=$lostPackets late=$latePackets"
+                android.util.Log.i(TAG, stats)
+                statsLog(stats)
             }
             listener.onPacket(wire, rtp, sample, null)
             if (!started) {

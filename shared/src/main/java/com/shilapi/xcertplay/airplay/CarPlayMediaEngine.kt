@@ -35,6 +35,7 @@ class CarPlayMediaEngine(
     private val microphoneEnabled: Boolean = false,
     private val audioCaptureDirectory: File? = null,
     private val videoPacketLog: ((Int, VideoCodec, Long, ByteArray, ByteArray, Int, ByteArray?, Int) -> Unit)? = null,
+    private val statsLog: (String) -> Unit = {},
 ) : AirPlayMediaHandler {
     internal data class StreamKey(
         val session: AirPlaySession,
@@ -160,7 +161,7 @@ class CarPlayMediaEngine(
 
         val capture = audioCaptureDirectory?.let { AudioPacketCapture(it, type) }
         if (capture != null) audioCaptures[streamKey] = capture
-        val audio = AudioStream(key, type)
+        val audio = AudioStream(key, type, statsLog)
         val (dataPort, controlPort) = audio.listen(
             object : AudioStream.Listener {
                 override fun onStarted(firstSample: Int) {
