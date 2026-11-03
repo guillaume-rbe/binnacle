@@ -126,6 +126,7 @@ class AudioStream(
                 continue
             }
             val rtp = wire.copyOf(RTP_HEADER_LEN) + payload
+            countSequence(((wire[2].toInt() and 0xff) shl 8) or (wire[3].toInt() and 0xff))
             val decryptedNumber = decryptedPackets.incrementAndGet()
             if (decryptedNumber <= FIRST_PACKET_LOG_COUNT) {
                 android.util.Log.i(
@@ -138,7 +139,8 @@ class AudioStream(
                 android.util.Log.i(
                     TAG,
                     "audio stream type=$streamType decrypted=$decryptedNumber " +
-                        "authFailures=${authenticationFailures.get()}",
+                        "authFailures=${authenticationFailures.get()} " +
+                        "lost=$lostPackets late=$latePackets",
                 )
             }
             listener.onPacket(wire, rtp, sample, null)
@@ -147,6 +149,31 @@ class AudioStream(
                 listener.onStarted(sample)
             }
             listener.onRtp(rtp, sample)
+        }
+    }
+
+    // RTP sequence bookkeeping (receive thread only): packets that never arrived, and packets
+    // that arrived after a later one, so the session log shows network loss on a call.
+    private var lastSequence = -1
+    private var lostPackets = 0L
+    private var latePackets = 0L
+
+    private fun countSequence(sequence: Int) {
+        if (lastSequence < 0) {
+            lastSequence = sequence
+            return
+        }
+        val delta = (sequence - lastSequence) and 0xffff
+        when {
+            delta == 0 -> Unit
+            delta < 0x8000 -> {
+                lostPackets += delta - 1
+                lastSequence = sequence
+            }
+            else -> {
+                latePackets++
+                if (lostPackets > 0) lostPackets--
+            }
         }
     }
 
