@@ -2002,6 +2002,7 @@ class CarPlayHostActivity : ComponentActivity() {
             microphoneEnabled = microphoneAvailable,
             audioCaptureDirectory = audioCaptureDirectory(),
             videoPacketLog = CarPlayBackgroundSession.log::appendVideoPacket,
+            statsLog = { CarPlayBackgroundSession.log.appendTimestamped(it, System.currentTimeMillis()) },
         )
 
     private fun createSessionListener(controllerGeneration: Int): AirPlaySessionListener =
