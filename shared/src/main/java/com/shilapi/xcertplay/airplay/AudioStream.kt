@@ -126,6 +126,7 @@ class AudioStream(
                 continue
             }
             val rtp = wire.copyOf(RTP_HEADER_LEN) + payload
+            countSequence(((wire[2].toInt() and 0xff) shl 8) or (wire[3].toInt() and 0xff))
             val decryptedNumber = decryptedPackets.incrementAndGet()
             if (decryptedNumber <= FIRST_PACKET_LOG_COUNT) {
                 android.util.Log.i(
@@ -138,7 +139,8 @@ class AudioStream(
                 android.util.Log.i(
                     TAG,
                     "audio stream type=$streamType decrypted=$decryptedNumber " +
-                        "authFailures=${authenticationFailures.get()}",
+                        "authFailures=${authenticationFailures.get()} " +
+                        "lost=$lostPackets late=$latePackets",
                 )
             }
             listener.onPacket(wire, rtp, sample, null)
@@ -147,6 +149,39 @@ class AudioStream(
                 listener.onStarted(sample)
             }
             listener.onRtp(rtp, sample)
+        }
+    }
+
+    // RTP sequence bookkeeping (receive thread only): packets that never arrived, and packets
+    // that arrived after a later one, so the session log shows network loss on a call. Gaps are
+    // remembered for a bounded window so only a packet that fills one reduces the loss count.
+    private var lastSequence = -1
+    private var lostPackets = 0L
+    private var latePackets = 0L
+    private val missing = LinkedHashSet<Int>()
+
+    private fun countSequence(sequence: Int) {
+        if (lastSequence < 0) {
+            lastSequence = sequence
+            return
+        }
+        val delta = (sequence - lastSequence) and 0xffff
+        when {
+            delta == 0 -> Unit
+            delta < 0x8000 -> {
+                for (gap in 1 until minOf(delta, MISSING_WINDOW)) missing += (sequence - gap) and 0xffff
+                lostPackets += delta - 1
+                lastSequence = sequence
+                // Forget gaps that fell out of the window, so a reused sequence number (after
+                // the 16-bit counter wraps) can't fill a gap from an earlier cycle.
+                missing.removeAll { ((lastSequence - it) and 0xffff) >= MISSING_WINDOW }
+            }
+            else -> {
+                latePackets++
+                if (((lastSequence - sequence) and 0xffff) < MISSING_WINDOW && missing.remove(sequence)) {
+                    lostPackets--
+                }
+            }
         }
     }
 
@@ -175,6 +210,7 @@ class AudioStream(
             (source[offset + 3].toInt() and 0xff)
 
     private companion object {
+        const val MISSING_WINDOW = 512
         const val TAG = "xcertplay-usb"
         const val DATAGRAM_BYTES = 4_096
         const val RTP_HEADER_LEN = 12
