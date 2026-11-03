@@ -34,6 +34,7 @@ internal object BluetoothCallRoute {
         private set
 
     private const val CONNECT_TIMEOUT_MILLIS = 5_000L
+    private const val TELECOM_WAIT_MILLIS = 2_000L
 
     private val handler = Handler(Looper.getMainLooper())
     private var routing = false
@@ -44,6 +45,7 @@ internal object BluetoothCallRoute {
     private var onFallback: (() -> Unit)? = null
     private var receiver: BroadcastReceiver? = null
     private val connectTimeout = Runnable { fail("car audio link did not connect") }
+    private val telecomCheck = Runnable { telecomGaveUp() }
 
     init {
         CarPlayTelecom.onAudioOwnershipLost = ::telecomGaveUp
@@ -83,7 +85,10 @@ internal object BluetoothCallRoute {
         }
         // With the call mirrored into Telecom, Telecom connects the car's audio link itself (only
         // once the call is active); a second, virtual call from here would be refused.
+        // The phone's call update usually comes just before this; if not yet, give Telecom a
+        // moment (3 Nov: the update came 50 ms later and both paths opened a link).
         val telecomCall = CarPlayTelecom.ownsCallAudio()
+        val telecomPending = !telecomCall && CarPlayTelecom.enabled()
         return try {
             appContext = app
             this.log = log
@@ -93,15 +98,16 @@ internal object BluetoothCallRoute {
             // Telecom may have connected the link before this call (no new event then).
             val sco = app.registerReceiver(null, IntentFilter(AudioManager.ACTION_SCO_AUDIO_STATE_UPDATED))
             val scoUp = sco?.getIntExtra(AudioManager.EXTRA_SCO_AUDIO_STATE, -1) == AudioManager.SCO_AUDIO_STATE_CONNECTED
-            if (!telecomCall) {
+            if (!telecomCall && !telecomPending) {
                 audio.startBluetoothSco()
                 handler.postDelayed(connectTimeout, CONNECT_TIMEOUT_MILLIS)
             }
             @Suppress("DEPRECATION")
             audio.isBluetoothScoOn = true
-            usedSco = !telecomCall
+            usedSco = !telecomCall && !telecomPending
             routing = true
-            log("call to car: starting${if (telecomCall) " (Telecom call)" else ""}")
+            log("call to car: starting${if (telecomCall || telecomPending) " (Telecom call)" else ""}")
+            if (telecomPending) handler.postDelayed(telecomCheck, TELECOM_WAIT_MILLIS)
             if (scoUp) handler.post { onLinkState(BluetoothHeadset.STATE_AUDIO_CONNECTED) }
             true
         } catch (error: RuntimeException) {
@@ -158,6 +164,7 @@ internal object BluetoothCallRoute {
 
     private fun release() {
         handler.removeCallbacks(connectTimeout)
+        handler.removeCallbacks(telecomCheck)
         active = false
         routing = false
         onFallback = null

@@ -222,6 +222,7 @@ class AndroidMediaSink(
         val existing = audioRenderers[id]
         if (existing?.format == format) return existing
         existing?.close()
+        if (format.audioType.equals("media", ignoreCase = true)) CarLinkVolume.onMusicStart(context, debugLog)
         return AudioRenderer(
             id.type,
             format,

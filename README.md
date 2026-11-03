@@ -37,6 +37,8 @@
 >   and echo cancelling; the dash-mic clean-up is skipped). With the "CarPlay" calling account
 >   enabled, calls are also mirrored into Android Telecom, so the car shows the caller and its
 >   answer, hang-up and keypad buttons reach the iPhone as CarPlay telephony keys
+> - Restores the music volume on the Bluetooth link to the car when it starts at zero (the stock
+>   CAN app zeroes it when the car sleeps and only restores the built-in speaker on wake)
 > - Opt-in diagnostic recording of the first minute of call mic audio (with "Audio diagnostic
 >   capture", last 3 calls kept)
 > - Session log keeps the previous five runs (xcertplay.1.log to .5.log), so an app restart
