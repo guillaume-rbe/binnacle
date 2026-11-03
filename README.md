@@ -58,6 +58,8 @@ To remove it: **Apps → Advanced → Remove Binnacle**. The stock dash was neve
 ## The hardware (what the listings don't tell you)
 Sold as an "Android 12" 10.25" cluster for the Model 3 and Model Y under several brands. Inside, it's a ZIQI "A007" board.
 
+![How the dash connects: the Tesla CAN bus feeds the dash's MCUs, which pass car data over serial to the stock CAN app that Binnacle reads; the forward camera goes through a TP9950 decoder; Android's own Bluetooth carries music and calls to the Tesla, with the stock BT1036 module as the old music-only link; wireless CarPlay uses Bluetooth, the single Wi-Fi radio and an Apple MFi chip to reach the iPhone; otherwise the Wi-Fi radio joins home Wi-Fi](docs/images/how-it-connects.svg)
+
 | | |
 |---|---|
 | **Android** | **Android 10** (API 29). The build and About screen say 12, but the system is 10 underneath, so apps that need Android 11 or 12 won't run. |
