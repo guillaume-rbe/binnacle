@@ -39,6 +39,9 @@
 >   answer, hang-up and keypad buttons reach the iPhone as CarPlay telephony keys
 > - Restores the music volume on the Bluetooth link to the car when it starts at zero (the stock
 >   CAN app zeroes it when the car sleeps and only restores the built-in speaker on wake)
+> - The video decoder keeps running on a hidden surface while another app is in front, so
+>   CarPlay's picture is there straight away on return (during a call the phone never sent the
+>   fresh frame a restarted decoder needs, leaving the screen blank)
 > - Opt-in diagnostic recording of the first minute of call mic audio (with "Audio diagnostic
 >   capture", last 3 calls kept)
 > - Session log keeps the previous five runs (xcertplay.1.log to .5.log), so an app restart

@@ -3,7 +3,9 @@ package com.shilapi.xcertplay.media
 import android.content.Context
 import android.media.AudioAttributes
 import android.media.AudioFocusRequest
+import android.graphics.ImageFormat
 import android.media.AudioManager
+import android.media.ImageReader
 import android.media.AudioFormat as AndroidAudioFormat
 import android.media.AudioTimestamp
 import android.media.AudioTrack
@@ -13,6 +15,7 @@ import android.media.MediaCodecInfo
 import android.media.MediaFormat
 import android.os.Build
 import android.os.Handler
+import android.os.HandlerThread
 import android.os.Looper
 import android.os.Process
 import android.util.Log
@@ -469,6 +472,7 @@ private class VideoDecoder(
             heldFrame?.accessUnit?.close()
             heldFrame = null
             releaseDecoder()
+            releaseOffscreen()
             detached?.countDown()
         }
     }
@@ -598,6 +602,19 @@ private class VideoDecoder(
         if (outputSurface === surface) return
         outputSurface = surface
         if (surface == null) {
+            // Keep decoding into a hidden surface while the screen is away (another app in front):
+            // a restarted decoder needs a new random-access picture, and during a call the phone
+            // never sent one, leaving the screen blank on return (3 Nov).
+            val codec = decoder
+            if (codec != null) {
+                try {
+                    codec.setOutputSurface(offscreen().surface)
+                    Log.i(TAG, "video decoder parked on an offscreen surface")
+                    return
+                } catch (error: Exception) {
+                    Log.w(TAG, "video decoder could not park offscreen; releasing", error)
+                }
+            }
             releaseDecoder()
             Log.i(TAG, "video decoder detached from surface")
             return
@@ -616,6 +633,26 @@ private class VideoDecoder(
         }
         releaseDecoder()
         lastConfig?.let(::configureDecoder)
+    }
+
+    /** Consumes and drops whatever the decoder renders while no screen is attached. */
+    private var offscreenReader: ImageReader? = null
+    private var offscreenThread: HandlerThread? = null
+
+    private fun offscreen(): ImageReader = offscreenReader ?: run {
+        val handlerThread = HandlerThread("xcertplay-video-offscreen").apply { start() }
+        ImageReader.newInstance(width.coerceAtLeast(16), height.coerceAtLeast(16), ImageFormat.PRIVATE, 3).also {
+            it.setOnImageAvailableListener({ reader -> reader.acquireLatestImage()?.close() }, Handler(handlerThread.looper))
+            offscreenReader = it
+            offscreenThread = handlerThread
+        }
+    }
+
+    private fun releaseOffscreen() {
+        offscreenReader?.close()
+        offscreenReader = null
+        offscreenThread?.quitSafely()
+        offscreenThread = null
     }
 
     private fun feed(frame: VideoJob.Frame) {
