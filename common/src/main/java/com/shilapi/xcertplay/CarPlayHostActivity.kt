@@ -637,13 +637,15 @@ class CarPlayHostActivity : ComponentActivity() {
         session.register(sessionClient)
         session.setNightMode(darkMode)
         appendLog(
-            "Host started; MFI target=${mfiTargetLabel(mfiTarget)}; " +
+            "Host started; MFI target=${session.mfiTargetLabel(mfiTarget)}; " +
                 "transport=${if (wirelessEnabled) "wireless" else "wired"}",
         )
         val reusedBackgroundSession = adoptBackgroundSession()
         microphoneAvailable =
             checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
-        microphonePermissionResolved = microphoneAvailable
+        // A running session only started after an earlier screen settled the microphone prompt,
+        // so this screen must not hold later reconnects back waiting for it.
+        microphonePermissionResolved = microphoneAvailable || reusedBackgroundSession
         if (reusedBackgroundSession) {
             updateDebugOverlays()
         } else if (microphonePermissionResolved) {
@@ -707,6 +709,7 @@ class CarPlayHostActivity : ComponentActivity() {
 
     /** A session that outlived the previous screen keeps running; this screen just shows it. */
     private fun adoptBackgroundSession(): Boolean {
+        if (session.dropClosedController()) return false
         val controller = session.controller ?: return false
         syncFromSession()
         updateMediaMetricsOverlay()
@@ -833,7 +836,7 @@ class CarPlayHostActivity : ComponentActivity() {
 
     private fun requestWirelessPermissions() {
         // Optional: lets outgoing CarPlay calls be mirrored to a hands-free car (telecom/).
-        val permissions = requiredWirelessPermissions() + Manifest.permission.CALL_PHONE
+        val permissions = session.requiredWirelessPermissions() + Manifest.permission.CALL_PHONE
         if (permissions.all { checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED }) {
             wirelessPermissionsReady = true
             updateHotspotStatusBlock()
@@ -847,25 +850,9 @@ class CarPlayHostActivity : ComponentActivity() {
     }
 
     private fun hasRequiredWirelessPermissions(): Boolean =
-        requiredWirelessPermissions().all {
+        session.requiredWirelessPermissions().all {
             checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED
         }
-
-    private fun requiredWirelessPermissions(): List<String> = when {
-        Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> listOf(
-            Manifest.permission.BLUETOOTH_CONNECT,
-            Manifest.permission.NEARBY_WIFI_DEVICES,
-        )
-        Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> listOf(
-            Manifest.permission.BLUETOOTH_CONNECT,
-            Manifest.permission.ACCESS_COARSE_LOCATION,
-            Manifest.permission.ACCESS_FINE_LOCATION,
-        )
-        else -> listOf(
-            Manifest.permission.ACCESS_COARSE_LOCATION,
-            Manifest.permission.ACCESS_FINE_LOCATION,
-        )
-    }
 
     override fun onResume() {
         super.onResume()
@@ -940,6 +927,11 @@ class CarPlayHostActivity : ComponentActivity() {
         // The screen's size stays with the session (unregister keeps the active size), so the
         // next screen at the same size reuses the running session.
         session.unregister(sessionClient)
+        // The overlay that reads it goes with this screen.
+        if (mediaMetricsMonitor != null) session.setMediaMetricsMonitor(null)
+        // Settings were open: their edits are gone with this screen, so CarPlay may run again
+        // (the next screen, or an embedding app, starts it).
+        if (menuOpen) session.resume()
         session.release(startupHold)
         sessionLog.append("Activity destroyed; background session and log remain active")
         super.onDestroy()
@@ -1423,13 +1415,6 @@ class CarPlayHostActivity : ComponentActivity() {
 
     private fun syncMfiSettingsControls() {
         updateMfiTargetFields()
-    }
-
-    private fun mfiTargetLabel(target: MfiTarget): String = when (target) {
-        MfiTarget.USB_CH341 -> "USB/CH341"
-        MfiTarget.I2C -> "I2C"
-        MfiTarget.REMOTE -> "Remote"
-        MfiTarget.LOCAL_FILES -> "Local files"
     }
 
     private fun canRequestVehicleSpeedPermission(): Boolean = runCatching {
@@ -1992,7 +1977,7 @@ class CarPlayHostActivity : ComponentActivity() {
             "$prefix; starting a fresh handshake at " +
                 "${CarPlayDisplayScale.label(displayScaleTenths)} with " +
                 (if (hevcEnabled) "HEVC (H.265)" else "H.264") +
-                ", MFI ${mfiTargetLabel(mfiTarget)}" +
+                ", MFI ${session.mfiTargetLabel(mfiTarget)}" +
                 ", Wi-Fi session ${hotspotModeLabel(wirelessHotspotMode)}",
         )
         updateStartupHold()
@@ -3034,14 +3019,6 @@ class CarPlayHostActivity : ComponentActivity() {
         }
     }
 
-    private fun qualityLimit(stream: QualityStream): AudioQualityLimit = when (stream) {
-        QualityStream.MUSIC -> audioQuality.music
-        QualityStream.ASSISTANT -> audioQuality.assistant
-        QualityStream.NAVIGATION -> audioQuality.navigation
-        QualityStream.PHONE -> audioQuality.phone
-        QualityStream.MICROPHONE -> audioQuality.microphone
-    }
-
     private fun setQualityLimit(stream: QualityStream, limit: AudioQualityLimit) {
         audioQuality = when (stream) {
             QualityStream.MUSIC -> audioQuality.copy(music = limit)
@@ -3089,7 +3066,7 @@ class CarPlayHostActivity : ComponentActivity() {
             }
         }
         for (stream in QualityStream.entries) {
-            val requested = qualityLimit(stream)
+            val requested = audioQuality.limit(stream)
             val channels = options.channels(stream)
             val effective = options.effective(stream, requested)
             val selectedChannels = effective?.channels ?: channels.firstOrNull() ?: requested.channels
@@ -3623,7 +3600,7 @@ class CarPlayHostActivity : ComponentActivity() {
         if (mfiTarget == target) return
         mfiTarget = target
         updateMfiTargetFields()
-        appendLog("MFI target: ${mfiTargetLabel(target)}; applies when settings close")
+        appendLog("MFI target: ${session.mfiTargetLabel(target)}; applies when settings close")
     }
 
     private fun onHotspotModeSelected(mode: WirelessHotspotMode) {

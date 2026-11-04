@@ -127,7 +127,11 @@ class CarPlayEmbedService : Service() {
         override fun start() {
             onMain {
                 session.clearStop()
-                session.maybeStart()
+                // A dead controller is dropped (its teardown then starts afresh); a live one whose
+                // retries ran out gets the retry button's reconnect.
+                if (!session.dropClosedController()) {
+                    if (session.reconnectExhausted) session.reconnectManually() else session.maybeStart()
+                }
                 publishState()
             }
         }
@@ -158,7 +162,7 @@ class CarPlayEmbedService : Service() {
         override fun onHostUiRequested(): Boolean {
             // Only a client that is showing CarPlay decides what the car-maker tile does.
             val target = listener ?: return false
-            if (surface == null) return false
+            if (!session.isShowing(this)) return false
             return try {
                 target.onHostUiRequested()
                 true
@@ -250,6 +254,7 @@ class CarPlayEmbedService : Service() {
         const val STATE_STREAMING = 3
         const val STATE_FAILED = 4
         const val STATE_PAUSED = 5
-        private const val MAIN_WAIT_SECONDS = 2L
+        // Longer than the decoder's own surface-detach wait, so a detach normally finishes first.
+        private const val MAIN_WAIT_SECONDS = 5L
     }
 }

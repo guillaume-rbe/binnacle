@@ -547,6 +547,29 @@ internal object CarPlaySession {
         tearDown {}
     }
 
+    /**
+     * A controller that closed itself (retries ran out, or a status nobody acted on) blocks
+     * every start. Drops it so the next [maybeStart] begins afresh with a new retry budget; the
+     * old per-screen hand-off did the same when a screen opened. True when one was dropped.
+     */
+    fun dropClosedController(): Boolean {
+        val current = controller ?: return false
+        if (!current.isClosed() || resetInProgress || shuttingDown) return false
+        appendLog("Dropping a closed CarPlay controller")
+        reconnectScheduled = false
+        reconnectAttempts = 0
+        reconnectExhausted = false
+        ++generation
+        screenStreams.clear()
+        notifyScreenStreams()
+        tearDown {}
+        return true
+    }
+
+    /** True when [client]'s surface is the one showing the main stream. */
+    fun isShowing(client: Client): Boolean =
+        client.surfaces[SCREEN_TYPE_MAIN] != null && displayOwner() === client
+
     /** Lets sessions start again after [stop]; the caller then asks for one with [maybeStart]. */
     fun clearStop() {
         if (!stopped) return
@@ -896,6 +919,9 @@ internal object CarPlaySession {
                             notifySessionChanged()
                         }
                         after()
+                        // A start asked for while this ran (e.g. start() right after stop())
+                        // was turned away; maybeStart checks again whether one may run now.
+                        maybeStart()
                     }
                 }
             }
