@@ -37,6 +37,8 @@ final class CarPlayLink implements ServiceConnection {
         void onHostUi();
         /** Where the video view goes inside ours: left, top, width, height; empty = fill. */
         void onVideoLayout(int[] video);
+        /** What the iPhone is playing, or null for nothing (also when the link is lost). */
+        void onNowPlaying(NowPlaying now);
     }
 
     static final int STATE_IDLE = 0, STATE_NEEDS_SETUP = 1, STATE_CONNECTING = 2, STATE_STREAMING = 3,
@@ -50,7 +52,7 @@ final class CarPlayLink implements ServiceConnection {
     /** ICarPlayEmbed transaction codes (FIRST_CALL_TRANSACTION + position), fixed by API 2. */
     private static final int TX_VERSION = 1, TX_LISTENER = 2, TX_ATTACH = 3, TX_DETACH = 4, TX_TOUCH = 5,
             TX_KEY = 6, TX_START = 7, TX_DISCONNECT = 8, TX_SETTINGS = 9, TX_SIZES = 10;
-    private static final int MSG_STATE = 1, MSG_HOST_UI = 2, MSG_LAYOUT = 3;
+    private static final int MSG_STATE = 1, MSG_HOST_UI = 2, MSG_LAYOUT = 3, MSG_NOW_PLAYING = 4;
 
     private final Context context;
     private final Listener listener;
@@ -73,9 +75,28 @@ final class CarPlayLink implements ServiceConnection {
                 } else if (m.what == MSG_LAYOUT) {
                     int[] video = m.peekData() != null ? m.peekData().getIntArray("video") : null;
                     listener.onVideoLayout(video != null && video.length == 4 ? video : new int[0]);
+                } else if (m.what == MSG_NOW_PLAYING) {
+                    listener.onNowPlaying(m.arg1 == 1 && m.peekData() != null ? nowPlaying(m.peekData()) : null);
                 }
             }
         });
+    }
+
+    /** The cover xcertplay sent last; it sends each cover once, so it is kept here by its id. */
+    private android.graphics.Bitmap art;
+    private int artId = -1;
+
+    private NowPlaying nowPlaying(android.os.Bundle d) {
+        int id = d.getInt("artId", -1);
+        byte[] bytes = d.getByteArray("art");
+        if (id < 0) { art = null; artId = -1; }
+        else if (bytes != null) {
+            art = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
+            artId = art != null ? id : -1;
+        }
+        return new NowPlaying(d.getString("title"), d.getString("artist"), d.getString("album"), d.getString("app"),
+                d.getLong("duration"), d.getLong("position"), d.getBoolean("playing"), d.getBoolean("controls"),
+                id, id >= 0 && id == artId ? art : null);
     }
 
     /** Binds xcertplay's service; false if it isn't there or we may not (other signing key). */

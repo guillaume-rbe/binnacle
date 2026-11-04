@@ -115,11 +115,14 @@ LINK_CLASS=$(printf '%s\n' "$files" | grep '/app/binnacle/CarPlayLink\.class$')
 if [ -n "$LINK_CLASS" ]; then
     link_dump=$(javap -c -p "$LINK_CLASS" 2>/dev/null) || bad "javap failed on CarPlayLink"
     bc=$(printf '%s\n' "$link_dump" | awk '/ binderCall\(int, android.os.Parcel, android.os.Parcel, boolean\);/{on=1;next} on && /^  [a-z]/{exit} on')
-    ops=$(printf '%s\n' "$bc" | grep -E '^ +[0-9]+:' | awk '{print $2}' | tr '\n' ' ')
+    # ldc_w is ldc with a wider constant index (the class's constant pool passed 255 entries);
+    # the constants themselves are pinned by the string list below
+    ops=$(printf '%s\n' "$bc" | grep -E '^ +[0-9]+:' | awk '{print $2}' | sed 's/^ldc_w$/ldc/' | tr '\n' ' ')
     [ "$ops" = "iload_1 iconst_1 if_icmplt iload_1 bipush if_icmple new dup ldc invokespecial athrow aload_0 getfield astore aload ifnonnull iconst_0 ireturn aload iload_1 aload_2 aload_3 iload ifeq iconst_1 goto iconst_0 invokeinterface ifne iconst_0 ireturn aload_3 ifnull aload_3 invokevirtual iconst_1 ireturn astore ldc new dup invokespecial ldc invokevirtual iload_1 invokevirtual ldc invokevirtual aload invokevirtual invokevirtual invokestatic pop iconst_0 ireturn " ] \
         || bad "CarPlayLink.binderCall changed: review it, then update this guard (got: $ops)"
     printf '%s\n' "$bc" | grep -qE '^ +6: bipush +10$' || bad "CarPlayLink.binderCall must refuse codes above 10"
-    # its strings: the one service it binds, the interface token and log text, nothing else
+    # its strings: the one service it binds, the interface token, log text and the keys of the
+    # state / layout / now-playing messages it receives, nothing else
     got=$(refs '^String:' | awk -F'\t' '$1 ~ /^app\/binnacle\/CarPlayLink(\$|$)/ { print $4 }' | sort -u)
     expected=$(sort -u <<'EOF'
 String: failed:
@@ -132,7 +135,17 @@ String:com.shilapi.xcertplay
 String:com.shilapi.xcertplay.CarPlayEmbedService
 String:com.shilapi.xcertplay.embed.ICarPlayEmbed
 String:not an ICarPlayEmbed call
+String:album
+String:app
+String:art
+String:artId
+String:artist
+String:controls
+String:duration
+String:playing
+String:position
 String:stage
+String:title
 String:video
 EOF
 )
