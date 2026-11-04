@@ -45,3 +45,22 @@ sign "$APP_IN" "$APP_OUT" app
 sign "$LOG_IN" "$LOG_OUT" capture
 unset KS_PASS
 echo "release copies: $APP_OUT ($(du -h "$APP_OUT" | cut -f1)), $LOG_OUT"
+
+# In-app updates (Advanced -> Updates, app/src/app/binnacle/Updater.java) read the LATEST GitHub
+# release's binnacle-update.txt, then download its Binnacle.apk. Both names are fixed (the guards
+# pin them), so the release carries the dash under that name, next to this info file.
+GH="$OUT/github"; mkdir -p "$GH"
+cp "$APP_OUT" "$GH/Binnacle.apk"
+code=$(sed -n 's/.*android:versionCode="\([0-9]*\)".*/\1/p' app/AndroidManifest.xml)
+sha=$(shasum -a 256 "$GH/Binnacle.apk" 2>/dev/null || sha256sum "$GH/Binnacle.apk"); sha=${sha%% *}
+cat > "$GH/binnacle-update.txt" <<EOF
+# Binnacle update info: read by Advanced -> Updates on the dash (Updater.java)
+versionCode=$code
+versionName=$(version app)
+size=$(wc -c < "$GH/Binnacle.apk" | tr -d ' ')
+sha256=$sha
+EOF
+echo
+echo "for in-app updates, publish both files in $GH as the latest release, e.g.:"
+echo "  gh release create v$(version app) $GH/Binnacle.apk $GH/binnacle-update.txt $LOG_OUT --title \"Binnacle $(version app)\" --latest"
+echo "(bump versionCode first: the dash only offers a higher one. Car-image releases: --latest=false.)"

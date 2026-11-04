@@ -27,6 +27,9 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <!-- Only to open Android's uninstall confirmation (Remove drive logger, Remove Binnacle); the user confirms. -->
     <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
+    <!-- Only for Advanced → Updates (Updater): hands this project's own release APK to Android's
+         installer, which asks before installing and only accepts the same app signed with the same key. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <application
         android:name=".DashApp"
@@ -69,5 +72,7 @@
             android:label="Apps and settings"
             android:exported="false"
             android:theme="@style/Dash.List" />
+        <!-- Android's installer reports back here (opens its confirm screen, shows failures). -->
+        <receiver android:name=".Updater$Status" android:exported="false" />
     </application>
 </manifest>

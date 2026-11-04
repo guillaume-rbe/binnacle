@@ -146,12 +146,34 @@ never '^java/lang/ClassLoader\.(loadClass|defineClass)'
 never '^dalvik/system/'
 never '^java/lang/(System|Runtime)\.(load|loadLibrary)$'
 
-# 4. No processes; sockets only in LocalShell (loopback ADB), HTTP only in CarPacks.
+# 4. No processes; sockets only in LocalShell (loopback ADB), HTTP only in CarPacks and Updater.
 never '^java/lang/(Runtime\.exec|ProcessBuilder|Process)'
 never '^java/net/(ServerSocket|DatagramSocket|MulticastSocket)|^java/nio/channels/|^android/net/Local(Server)?Socket'
 only '^java/net/(Socket|InetSocketAddress|InetAddress)(\.|$)' 'app/binnacle/LocalShell'
-only '^java/net/(URL|URLConnection|HttpURLConnection)|^javax/net/' 'app/binnacle/CarPacks'
+only '^java/net/(URL|URLConnection|HttpURLConnection)|^javax/net/' 'app/binnacle/(CarPacks|Updater)'
 never '^java/net/(HttpURLConnection|URLConnection)\.(setRequestMethod|setDoOutput|getOutputStream)$'
+
+# 4b. Installing apps: only Updater, one session, locked to this app's own package (Android then
+#     needs the same signing key and the user's tap). Its only web addresses are the latest
+#     release's two fixed files (javac folds RELEASE_BASE + name into one constant).
+only '^android/content/pm/PackageInstaller' 'app/binnacle/Updater'
+only '^android/content/pm/PackageManager\.(getPackageInstaller|canRequestPackageInstalls)$' 'app/binnacle/Updater'
+never '^android/content/pm/PackageInstaller\.(uninstall|setPermissionsResult)$|^android/content/pm/PackageInstaller\$SessionParams\.(setInstallerPackageName|setGrantedRuntimePermissions|setWhitelistedRestrictedPermissions|setInstallReason)$'
+[ "$(refs '^android/content/pm/PackageInstaller\$SessionParams\.setAppPackageName$' | wc -l | tr -d ' ')" = 1 ] || bad "Updater must lock its install session to one package, once"
+[ "$(refs '^android/content/pm/PackageInstaller\.createSession$' | wc -l | tr -d ' ')" = 1 ] || bad "exactly one install session allowed (Updater)"
+printf '%s\n' "$TABLE" | awk -F'\t' '$1 == "app/binnacle/Updater" && $2 == "install"' \
+    | awk -F'\t' '{ op[NR] = $3; r[NR] = $4 } END { for (i = 1; i <= NR; i++) if (r[i] ~ /SessionParams\.setAppPackageName$/) { print r[i-1]; exit } }' \
+    | grep -qx 'android/content/Context.getPackageName' || bad "Updater must lock its install session to getPackageName()"
+got=$(refs '^String:.*(://|\.apk|\.txt)' | awk -F'\t' '$1 ~ /^app\/binnacle\/Updater(\$|$)/ { print $4 }' | sort -u)
+expected=$(sort -u <<'EOF'
+String:Binnacle.apk
+String:base.apk
+String:binnacle-update.txt
+String:https://github.com/lotech/binnacle/releases/latest/download/
+EOF
+)
+[ "$got" = "$expected" ] || { diff <(printf '%s\n' "$expected") <(printf '%s\n' "$got") >&2; bad "Updater addresses changed: review, then update this guard"; }
+refs '^String:.*://' | awk -F'\t' '$1 !~ /^app\/binnacle\/(CarPacks|Updater)(\$|$)/' | grep -E 'String:https?://' >&2 && bad "web addresses outside CarPacks/Updater (above)"
 
 # 5. Files: FileOutputStream only in CarPacks (its own files dir), FileWriter only in CameraPane
 #    (the camera decoder's sysfs nodes); nothing else may open a file for writing.

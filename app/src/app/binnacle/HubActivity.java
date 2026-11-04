@@ -286,7 +286,7 @@ public class HubActivity extends Activity {
                     switchCard("Show raw CAN values", "Latest raw fields over the centre view, for in-car checks", "raw_overlay", false),
                     switchCard("Demo data", "Simulated drive instead of the car feed", "demo", false),
                     loggerCards(),
-                    stack(setupCard(), resetCard(), aboutCard()))); break;
+                    stack(updateCard(), setupCard(), resetCard(), aboutCard()))); break;
         }
         final ScrollView sv = pageScroll();
         if (keepScroll > 0 && sv != null) {
@@ -1075,6 +1075,125 @@ public class HubActivity extends Activity {
         bg.addState(new int[]{}, card.getBackground());
         card.setBackground(bg);
         return card;
+    }
+
+    /**
+     * Updates: checks this project's latest GitHub release on a tap (never by itself) and, if it is
+     * newer, downloads it into Android's installer, which asks before it installs (Updater). Only
+     * in Park: installing restarts the dash.
+     */
+    private View updateCard() {
+        LinearLayout card = card("Updates", "Binnacle " + versionName() + " · checks GitHub over Wi-Fi when you tap");
+        final TextView b = chip(Updater.installing() ? "Downloading…" : "Check for updates");
+        b.setEnabled(!Updater.installing());
+        b.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                b.setEnabled(false);
+                b.setText("Checking…");
+                new Thread(new Runnable() {
+                    @Override public void run() {
+                        Updater.Release found = null;
+                        String err = null;
+                        try {
+                            found = Updater.check();
+                        } catch (Exception e) {
+                            err = e.getMessage();
+                        }
+                        final Updater.Release r = found;
+                        final String problem = err;
+                        main.post(new Runnable() {
+                            @Override public void run() {
+                                b.setEnabled(true);
+                                if (r == null) {
+                                    b.setText("Check for updates");
+                                    Toast.makeText(HubActivity.this, "Couldn't check for updates: " + problem
+                                            + "\nIs the dash on Wi-Fi?", Toast.LENGTH_LONG).show();
+                                } else if (r.versionCode <= Updater.installedCode(HubActivity.this)) {
+                                    b.setText("Up to date");
+                                } else {
+                                    b.setText("Update to " + r.versionName);
+                                    offerUpdate(r, b);
+                                }
+                            }
+                        });
+                    }
+                }, "update-check").start();
+            }
+        });
+        card.addView(b, new LinearLayout.LayoutParams(dp(260), dp(BUTTON_DP)));
+        return card;
+    }
+
+    /** Asks, then downloads r into Android's installer (b shows progress). */
+    private void offerUpdate(final Updater.Release r, final TextView b) {
+        long mb = Math.max(1, (r.size + (1 << 19)) >> 20);
+        BinnacleDialog.show(this, "Update to Binnacle " + r.versionName + "?",
+                "Downloads " + mb + " MB from GitHub, then Android asks you to confirm the install.\n"
+                        + "The dash closes and comes back while it installs. Settings and car images are kept.",
+                new String[]{"Not now", "Update"}, true, new BinnacleDialog.Choice() {
+                    @Override public void chosen(int index) {
+                        if (index != 1) return;
+                        b.setOnClickListener(new View.OnClickListener() {
+                            @Override public void onClick(View v) { offerUpdate(r, b); }
+                        });
+                        startUpdate(r, b);
+                    }
+                });
+    }
+
+    private void startUpdate(final Updater.Release r, final TextView b) {
+        final DashApp app = DashApp.get(this);
+        if (app.car.gear != CarState.GEAR_P) {   // Park only, not just "not D or R": Neutral or no car data aren't safe
+            Toast.makeText(this, "Update in Park: installing restarts the dash", Toast.LENGTH_LONG).show();
+            return;
+        }
+        if (!Updater.allowedToInstall(this)) {
+            BinnacleDialog.show(this, "Allow Binnacle to install updates",
+                    "Android asks once. On the next screen, turn on \"Allow from this source\", come back, and tap Update again.",
+                    new String[]{"Cancel", "Open setting"}, true, new BinnacleDialog.Choice() {
+                        @Override public void chosen(int index) {
+                            if (index != 1) return;
+                            try {
+                                startActivity(new Intent("android.settings.MANAGE_UNKNOWN_APP_SOURCES",
+                                        android.net.Uri.parse("package:" + getPackageName())));
+                            } catch (RuntimeException e) {
+                                Toast.makeText(HubActivity.this, "Couldn't open the setting: Android settings → Apps → Binnacle → Install unknown apps",
+                                        Toast.LENGTH_LONG).show();
+                            }
+                        }
+                    });
+            return;
+        }
+        b.setEnabled(false);
+        b.setText("Downloading…");
+        new Thread(new Runnable() {
+            @Override public void run() {
+                String err = null;
+                try {
+                    Updater.install(app, r, new Updater.Progress() {
+                        long shownMb = -1;
+                        @Override public void onProgress(final long bytes) {
+                            final long mbNow = bytes >> 20;
+                            if (mbNow == shownMb) return;
+                            shownMb = mbNow;
+                            main.post(new Runnable() {
+                                @Override public void run() { b.setText(Math.max(1, mbNow) + " MB…"); }
+                            });
+                        }
+                    });
+                } catch (Exception e) {
+                    err = e.getMessage();
+                }
+                final String problem = err;
+                main.post(new Runnable() {
+                    @Override public void run() {
+                        b.setEnabled(true);
+                        b.setText(problem == null ? "Installing…" : "Update to " + r.versionName);
+                        if (problem != null) Toast.makeText(app, "Couldn't update: " + problem, Toast.LENGTH_LONG).show();
+                    }
+                });
+            }
+        }, "update").start();
     }
 
     /** About: who made it and where it lives; the button opens the full About pop-up. */
