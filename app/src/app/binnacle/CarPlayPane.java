@@ -79,6 +79,13 @@ final class CarPlayPane extends FrameLayout implements SurfaceHolder.Callback {
         link.start();       // no-op when CarPlay is already running
     }
 
+    /** Before the link goes (activity destroyed): xcertplay lets go of the surface now. */
+    void release() {
+        removeCallbacks(attachNow);
+        if (attached) link.detach();
+        attached = false;
+    }
+
     @Override public void surfaceCreated(SurfaceHolder h) { holder = h; }
 
     @Override public void surfaceChanged(SurfaceHolder h, int format, int w, int height) {

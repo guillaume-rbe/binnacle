@@ -91,8 +91,14 @@ final class CarPlayLink implements ServiceConnection {
 
     void unbind() {
         if (!bound) return;
+        if (binder != null) {
+            Parcel d = token();
+            d.writeInt(0);                  // no listener: xcertplay lets go of our Messenger
+            call(TX_LISTENER, d, false);
+        }
         bound = false;
         binder = null;
+        state = STATE_IDLE;
         try { context.unbindService(this); } catch (RuntimeException ignored) { }
         listener.onLinkChanged(false);
     }
@@ -119,11 +125,14 @@ final class CarPlayLink implements ServiceConnection {
 
     @Override public void onServiceDisconnected(ComponentName name) {
         binder = null;
+        state = STATE_IDLE;
         listener.onLinkChanged(false);
     }
 
+    /** xcertplay was updated or reinstalled: this binding is dead for good, so bind afresh. */
     @Override public void onBindingDied(ComponentName name) {
         unbind();
+        bind();
     }
 
     private int version() {
@@ -159,12 +168,28 @@ final class CarPlayLink implements ServiceConnection {
 
     /** True when CarPlay took the key. */
     boolean key(KeyEvent e) {
+        // decided here, sent one-way: a busy xcertplay must never hold up the dash's main thread
+        if (binder == null || state != STATE_STREAMING || !carPlayKey(e.getKeyCode())) return false;
         Parcel d = token();
         d.writeInt(1);
         e.writeToParcel(d, 0);
-        Parcel r = callForReply(TX_KEY, d);
-        if (r == null) return false;
-        try { return r.readInt() != 0; } finally { r.recycle(); }
+        call(TX_KEY, d, true);
+        return true;
+    }
+
+    /** The keys xcertplay sends on to the phone (knob and media); volume stays with Android. */
+    private static boolean carPlayKey(int code) {
+        switch (code) {
+            case KeyEvent.KEYCODE_DPAD_UP: case KeyEvent.KEYCODE_DPAD_DOWN:
+            case KeyEvent.KEYCODE_DPAD_LEFT: case KeyEvent.KEYCODE_DPAD_RIGHT:
+            case KeyEvent.KEYCODE_ENTER: case KeyEvent.KEYCODE_DPAD_CENTER: case KeyEvent.KEYCODE_NUMPAD_ENTER:
+            case KeyEvent.KEYCODE_MEDIA_PLAY: case KeyEvent.KEYCODE_MEDIA_PAUSE: case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
+            case KeyEvent.KEYCODE_HEADSETHOOK: case KeyEvent.KEYCODE_MEDIA_NEXT: case KeyEvent.KEYCODE_MEDIA_PREVIOUS:
+            case KeyEvent.KEYCODE_VOICE_ASSIST: case KeyEvent.KEYCODE_SEARCH:
+                return true;
+            default:
+                return false;
+        }
     }
 
     void start() { call(TX_START, token(), false); }

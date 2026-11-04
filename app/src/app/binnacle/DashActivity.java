@@ -36,6 +36,8 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
     private FrameLayout centreFrame;
     /** The sizes last declared to xcertplay (centre w, h, full w, h). */
     private int[] declaredSizes;
+    /** The centre window's inner size, from the last layout that wasn't full screen. */
+    private int centreW, centreH;
     /** Theme the views were built in (Style.light at onCreate). */
     private boolean lightBuilt;
     private boolean lastFrontCam, askedCamera, permissionDialogOpen, resumed, manualCameraPending;
@@ -97,7 +99,8 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
                 carplay.layout(ci, ci, w - ci, h - ci);
                 camera.layout(inset, inset, w - inset, h - inset);
                 centre.attentionOverlay.layout(0, 0, w, h);
-                if (carplayMode != CARPLAY_FULL) noteCarPlaySizes(w - 2 * inset, h - 2 * inset);   // declared before CarPlay is first shown
+                if (carplayMode != CARPLAY_FULL) { centreW = w - 2 * inset; centreH = h - 2 * inset; }
+                noteCarPlaySizes();   // declared before CarPlay is first shown
             }
         };
         centreFrame.addView(centre);
@@ -112,6 +115,7 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
     }
 
     @Override protected void onDestroy() {
+        carplay.release();      // xcertplay lets go of the surface while we are still bound
         carplayLink.unbind();   // the CarPlay session itself keeps running in xcertplay
         super.onDestroy();
     }
@@ -122,7 +126,7 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
         @Override public void onLinkChanged(boolean connected) {
             if (connected) {
                 declaredSizes = null;
-                if (centreFrame != null) centreFrame.requestLayout();   // declares the sizes again
+                noteCarPlaySizes();     // before the surface goes over, so the session starts knowing both
                 if (carplayMode != CARPLAY_OFF) carplay.reattach();   // also asks for CarPlay
                 else if (restoreCarplayMode != CARPLAY_OFF) showCarPlay(restoreCarplayMode);
                 restoreCarplayMode = CARPLAY_OFF;
@@ -144,7 +148,7 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
      * The centre window's size (measured) and the whole screen: both are declared to xcertplay, so
      * switching between them needs no reconnect. Sent again whenever either changes.
      */
-    private void noteCarPlaySizes(int centreW, int centreH) {
+    private void noteCarPlaySizes() {
         int fullW = root.getWidth(), fullH = root.getHeight();
         if (centreW <= 0 || centreH <= 0 || fullW <= 0 || fullH <= 0 || !carplayLink.connected()) return;
         int[] sizes = {centreW, centreH, fullW, fullH};
@@ -170,8 +174,10 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
     @Override public boolean dispatchKeyEvent(KeyEvent event) {
         if (carplayMode != CARPLAY_OFF && !camera.isRunning()) {
             if (event.getKeyCode() == KeyEvent.KEYCODE_BACK) {
-                if (event.getAction() == KeyEvent.ACTION_UP && !event.isCanceled())
-                    showCarPlay(carplayMode == CARPLAY_FULL ? CARPLAY_CENTRE : CARPLAY_OFF);
+                if (event.getAction() == KeyEvent.ACTION_UP && !event.isCanceled()) {
+                    if (focus >= 0) setFocus(-1);    // as elsewhere: BACK first clears the dock highlight
+                    else showCarPlay(carplayMode == CARPLAY_FULL ? CARPLAY_CENTRE : CARPLAY_OFF);
+                }
                 return true;
             }
             if (carplayLink.key(event)) return true;

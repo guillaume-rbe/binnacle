@@ -63,7 +63,8 @@ grep -nE '\.(put|call|query|register|notify|acquire)[A-Za-z]*\(' "$ALLOWED" && b
 find src -name '*.aidl' | grep . && bad "AIDL files are not allowed"
 grep -rnE 'IMcuService\.(Stub|Proxy)|extends +Binder|implements +IInterface' src && bad "service stub/proxy found (above)"
 
-# 3. Exactly one class may make binder calls, and only IMcuService transactions 1 and 2.
+# 3. CAN feed: exactly one class (CanFeed) may make binder calls to the CAN service, and only IMcuService
+#    transactions 1 and 2. (The only other binder calls are CarPlayLink to xcertplay, pinned in 3b.)
 #    (Whole-line matches, so a pinned text kept in a comment beside a changed one doesn't pass.
 #    tools/check_bytecode.sh checks the same on the compiled class.)
 hits=$(grep -rlwE 'transact' src | sort | tr '\n' ' ')
