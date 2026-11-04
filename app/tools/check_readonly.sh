@@ -32,6 +32,16 @@ for f in $(grep -rlE 'startService|startForegroundService|bindService' src); do
 done
 grep -rnE 'sendOrderedBroadcast|sendStickyBroadcast' src && bad "ordered/sticky broadcasts are not allowed (above)"
 
+# 1e. Audio settings: only the setup wizard's media volume to full (owner OK 4 Nov), exactly once.
+#     Android's own music volume, which the wheel keys change too; nothing else (ringer, other
+#     streams, mute) may be set.
+VOL='src/app/binnacle/SetupActivity.java'
+for f in $(grep -rlE 'set(Stream|Ringer|Mode)Volume|adjust(Stream|Suggested)?Volume|setRingerMode|setMicrophoneMute|setMasterMute|setStreamMute|setSpeakerphoneOn|setMode\(' src); do
+  [ "$f" = "$VOL" ] || bad "audio setting changed outside the setup wizard: $f"
+done
+[ "$(grep -cE 'set(Stream|Ringer|Mode)Volume|adjust(Stream|Suggested)?Volume|setRingerMode|setMicrophoneMute|setMasterMute|setStreamMute|setSpeakerphoneOn|setMode\(' "$VOL")" = 1 ] || bad "the setup wizard may change exactly one audio setting"
+grep -qxE '\s*audio\.setStreamVolume\(AudioManager\.STREAM_MUSIC, max, 0\);' "$VOL" || bad "the setup wizard may only set the music volume to its maximum"
+
 # 1a. What javac reads must be what this script reads: no symlinks (grep -r skips them, find and
 #     javac follow them) and no \u escapes (javac decodes them before parsing, anywhere in a file,
 #     so \u0074ransact is transact). Write the character itself instead.

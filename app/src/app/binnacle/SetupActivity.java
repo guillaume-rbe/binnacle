@@ -10,6 +10,7 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.StateListDrawable;
+import android.media.AudioManager;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.util.TypedValue;
@@ -44,7 +45,7 @@ public final class SetupActivity extends Activity {
     /** The step to come back to if the wizard was closed under us (Android's Home picker). */
     private static final String STEP_KEY = "setup_step";
     private static final int REQ_LOCATION = 11, REQ_CAMERA = 12;
-    private static final int STEPS = 6;
+    private static final int STEPS = 7;
     private static final int BUTTON_DP = 52;
     /** Paint swatches in carcolor order: white, red, blue, black, dark grey (silver). */
     private static final int[] PAINT = {0xfff2f2f0, 0xffb3202a, 0xff1f4f9f, 0xff121314, 0xff4b4f55};
@@ -119,6 +120,7 @@ public final class SetupActivity extends Activity {
             case 2: v = home(); break;
             case 3: v = compass(); break;
             case 4: v = camera(); break;
+            case 5: v = volume(); break;
             default: v = finished(); break;
         }
         page.addView(v);
@@ -269,6 +271,34 @@ public final class SetupActivity extends Activity {
                             } else {
                                 requestPermissions(new String[]{Manifest.permission.CAMERA}, REQ_CAMERA);
                             }
+                        } }}));
+        return s;
+    }
+
+    /**
+     * Media volume to full: the car sets the loudness, so anything less on the unit only makes it
+     * quieter than the car's other sources. Android's own music volume, the same one the wheel's
+     * volume keys change (the CAN app sets it locally); nothing goes to the car or the MCU.
+     */
+    private View volume() {
+        final AudioManager audio = (AudioManager) getSystemService(AUDIO_SERVICE);
+        final int max = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+        boolean full = audio.getStreamVolume(AudioManager.STREAM_MUSIC) >= max;
+        LinearLayout s = stepLayout("Volume",
+                "The car sets how loud things are. Set the unit's media volume to full, so CarPlay, music and Bluetooth "
+                        + "audio are as loud as the car's own sources. You can still change it with the volume keys.");
+        if (full) s.addView(tick("Already at full"));
+        s.addView(buttons(full ? new String[]{"Next"} : new String[]{"Not now", "Set to full"},
+                full ? new Runnable[]{new Runnable() { @Override public void run() { next(); } }}
+                        : new Runnable[]{
+                        new Runnable() { @Override public void run() { next(); } },
+                        new Runnable() { @Override public void run() {
+                            try {
+                                audio.setStreamVolume(AudioManager.STREAM_MUSIC, max, 0);
+                            } catch (SecurityException ignored) {
+                                // do-not-disturb can refuse it; the step just moves on
+                            }
+                            next();
                         } }}));
         return s;
     }

@@ -37,7 +37,7 @@ The absolute line is the car: nothing ever reaches the CAN bus, and the MCU / ca
 - it is pinned in the guards (a fixed `LocalShell` command, or an exact allow-list entry), never built from caller text;
 - it is opt-in for users, says what it does, and can be undone from the app;
 - it is listed with its undo in `docs/UNIT-CHANGES.md`.
-Approved so far: Bluetooth auto-connect (`settings put system xbs_isautoconnect`, via `LocalShell`) and End CarPlay (Wi-Fi off/on, via `LocalShell`). Anything the CAN app forwards to the MCU (backlight mode, speaker level, ambient light, camera type/trigger, night mode) is an MCU write: only under "MCU writes" above, never assumed.
+Approved so far: Bluetooth auto-connect (`settings put system xbs_isautoconnect`, via `LocalShell`), End CarPlay (Wi-Fi off/on, via `LocalShell`) and the setup wizard's media volume to full (`AudioManager.setStreamVolume(STREAM_MUSIC, max)`, owner OK 4 Nov: Android's own music volume, which the CAN app also sets locally for the wheel keys; not the car-setup "speaker level", which goes to the MCU). Anything the CAN app forwards to the MCU (backlight mode, speaker level, ambient light, camera type/trigger, night mode) is an MCU write: only under "MCU writes" above, never assumed.
 
 ## Must-keep features — never break these
 - **Forward/reverse camera**: separate app `com.xbs.frontcam`, activity `com.xbs.frontcam.CameraActivity` (also responds to intent `com.xbs.action.reqcam`). Auto-shows on Drive via the CAN `frontcamstate` flag — a replacement Home re-does that (watch the flag, launch the camera). Independent of the Home app otherwise.
