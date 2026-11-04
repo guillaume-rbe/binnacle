@@ -40,7 +40,9 @@ class CarPlayEmbedService : Service() {
     private var audioFocusRetained = false
     private var nowPlaying: CarPlayNowPlaying? = null
     private var nowPlayingArt: ByteArray? = null       // the cover, made small for the client
-    private var nowPlayingArtId = -1
+    private var nowPlayingArtId = -1                    // our own number per cover (iAP2 ids repeat)
+    private var artSource: ByteArray? = null            // the iPhone's cover nowPlayingArt was made from
+    private var artSeq = 0
     private var sentArtId = -1                          // the cover this listener already has
     private var nowPlayingSent = false
 
@@ -48,11 +50,7 @@ class CarPlayEmbedService : Service() {
         super.onCreate()
         session.init(this)
         session.register(client)
-        CarPlayNowPlayingFeed.observe { next ->
-            // iAP2 thread: shrink a new cover here, then hand over on the main thread
-            val art = next?.artwork?.takeIf { next.artworkId != nowPlayingArtId }?.let { smallCover(it) }
-            mainHandler.post { onNowPlaying(next, art) }
-        }
+        CarPlayNowPlayingFeed.observe { next -> mainHandler.post { onNowPlaying(next) } }
     }
 
     override fun onBind(intent: Intent?): IBinder = binder
@@ -258,14 +256,13 @@ class CarPlayEmbedService : Service() {
         }
     }
 
-    private fun onNowPlaying(next: CarPlayNowPlaying?, art: ByteArray?) {
+    private fun onNowPlaying(next: CarPlayNowPlaying?) {
         nowPlaying = next
-        if (next == null) {
-            nowPlayingArt = null
-            nowPlayingArtId = -1
-        } else if (next.artworkId != nowPlayingArtId) {
-            nowPlayingArt = art
-            nowPlayingArtId = if (art != null) next.artworkId else -1
+        val source = next?.artwork
+        if (source !== artSource) {           // a new cover (or none): shrink it once
+            artSource = source
+            nowPlayingArt = source?.let { smallCover(it) }
+            nowPlayingArtId = if (nowPlayingArt != null) ++artSeq else -1
         }
         publishNowPlaying()
     }
