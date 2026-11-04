@@ -259,9 +259,16 @@ internal object CarPlaySession {
         listOf(SCREEN_TYPE_MAIN, SCREEN_TYPE_ALT).forEach(::showBestSurface)
     }
 
-    /** Sizes [client] may show CarPlay at; used from the next connection on. */
+    /**
+     * Sizes [client] may show CarPlay at. A running session whose view areas lack one of them
+     * reconnects once, so later switches between them need no reconnect.
+     */
     fun declareSizes(client: Client, sizes: List<DisplaySize>) {
+        if (client.declaredSizes == sizes) return
         client.declaredSizes = sizes
+        val areas = viewAreas ?: return
+        if (controller == null || sizes.all { areas.indexFor(it.width, it.height) != null }) return
+        restart("New view areas declared: ${sizes.joinToString { "${it.width}x${it.height}" }}")
     }
 
     private fun declaredSizes(): List<DisplaySize> = clients.flatMap { it.declaredSizes }.distinct()
