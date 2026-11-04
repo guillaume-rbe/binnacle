@@ -31,6 +31,8 @@ final class CarPlayPane extends FrameLayout implements SurfaceHolder.Callback {
         video = new SurfaceView(c);
         video.getHolder().addCallback(this);
         addView(video, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
+        cover = buildCover(c);
+        addView(cover, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
         status = new TextView(c);
         status.setTextColor(0xffd0d4da);
         status.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, 30f * c.getResources().getDisplayMetrics().heightPixels / Style.DESIGN_H);
@@ -92,9 +94,51 @@ final class CarPlayPane extends FrameLayout implements SurfaceHolder.Callback {
     private int[] videoLayout = new int[0];
 
     void setVideoLayout(int[] v) {
-        if (java.util.Arrays.equals(v, videoLayout)) return;
-        videoLayout = v;
-        requestLayout();
+        if (!java.util.Arrays.equals(v, videoLayout)) {
+            videoLayout = v;
+            requestLayout();
+        }
+        // xcertplay has switched the view area: the iPhone now redraws at the new size
+        if (cover.getVisibility() == VISIBLE) {
+            removeCallbacks(uncover);
+            postDelayed(uncover, REDRAW_MS);
+        }
+    }
+
+    /**
+     * Centre ↔ full screen: the view changes size at once, but the iPhone takes a moment to blur
+     * and redraw at the new size, so the old picture would show stretched and then snap. A dark
+     * cover with a spinner hides that until the new size is drawing. Times tuned in the car.
+     */
+    private static final long REDRAW_MS = 600, AFTER_ATTACH_MS = 900, COVER_MAX_MS = 1800, FADE_MS = 180;
+    private View cover;
+    private final Runnable uncover = new Runnable() {
+        @Override public void run() {
+            removeCallbacks(this);
+            cover.animate().alpha(0f).setDuration(FADE_MS).withEndAction(new Runnable() {
+                @Override public void run() { cover.setVisibility(GONE); }
+            }).start();
+        }
+    };
+
+    void coverForResize() {
+        if (status.getVisibility() == VISIBLE) return;   // no picture yet: nothing to hide
+        cover.animate().cancel();
+        cover.setAlpha(1f);
+        cover.setVisibility(VISIBLE);
+        removeCallbacks(uncover);
+        postDelayed(uncover, COVER_MAX_MS);              // in case no confirmation comes
+    }
+
+    private View buildCover(Context c) {
+        FrameLayout f = new FrameLayout(c);
+        f.setBackgroundColor(Color.BLACK);
+        android.widget.ProgressBar spinner = new android.widget.ProgressBar(c);
+        spinner.setIndeterminate(true);
+        int size = Math.round(48f * c.getResources().getDisplayMetrics().heightPixels / Style.DESIGN_H);
+        f.addView(spinner, new LayoutParams(size, size, Gravity.CENTER));
+        f.setVisibility(GONE);
+        return f;
     }
 
     /**
@@ -104,6 +148,7 @@ final class CarPlayPane extends FrameLayout implements SurfaceHolder.Callback {
     @Override protected void onLayout(boolean changed, int l, int t, int r, int b) {
         int w = r - l, h = b - t;
         status.layout(0, 0, w, h);
+        cover.layout(0, 0, w, h);
         corners.layout(0, 0, w, h);
         if (videoLayout.length == 4 && videoLayout[2] > 0 && videoLayout[3] > 0) {
             int vl = videoLayout[0], vt = videoLayout[1];
@@ -168,6 +213,11 @@ final class CarPlayPane extends FrameLayout implements SurfaceHolder.Callback {
         // the size is this view's (the area CarPlay lays out for), not the video view's, which can be larger
         if (holder == null || surfaceW <= 0 || surfaceH <= 0 || getWidth() <= 0 || getHeight() <= 0 || !link.connected()) return;
         link.attach(holder.getSurface(), getWidth(), getHeight());
+        // the view area switches now; the iPhone takes about this long to blur and redraw
+        if (cover.getVisibility() == VISIBLE) {
+            removeCallbacks(uncover);
+            postDelayed(uncover, AFTER_ATTACH_MS);
+        }
         attached = true;
         link.start();       // no-op when CarPlay is already running
     }
