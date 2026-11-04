@@ -14,7 +14,7 @@ import java.util.concurrent.Executors;
 /**
  * Android's Wi-Fi auto-connect scanning, through fixed LocalShell commands (owner OK 4 Nov).
  *
- * Pause during CarPlay (Apps → Settings → General, off by default): while CarPlay connects,
+ * Pause during CarPlay (Apps → Settings → General, on by default): while CarPlay connects,
  * runs or has its settings open, auto-connect scans are off, because each one takes the single
  * radio off CarPlay's Wi-Fi Direct channel for about a second and the music and calls stutter
  * (proved on drives, 3-4 Nov). When CarPlay ends they are on again. Car sleep stops both apps;
@@ -29,6 +29,8 @@ import java.util.concurrent.Executors;
  */
 final class WifiScans {
     static final String KEY = "pause_wifi_scans";
+    /** On unless switched off (owner, 5 Nov: the stutter fix should just work). */
+    static final boolean DEFAULT = true;
     private static final String TAG = "Binnacle";
     private static final ExecutorService SHELL = Executors.newSingleThreadExecutor();
     private static final Handler MAIN = new Handler(Looper.getMainLooper());
@@ -44,13 +46,13 @@ final class WifiScans {
     }
 
     static boolean paused(SharedPreferences prefs) {
-        return supported() && prefs.getBoolean(KEY, false);
+        return supported() && prefs.getBoolean(KEY, DEFAULT);
     }
 
     /** CarPlay is connecting, running or has its settings open (true), or not (false). */
     static void forCarPlay(SharedPreferences prefs, boolean carplayRunning) {
         if (!supported()) return;
-        boolean pause = prefs.getBoolean(KEY, false);
+        boolean pause = prefs.getBoolean(KEY, DEFAULT);
         if (!pause && scansOn == null && wanted == null) return;   // never touched: leave Android's own state
         final boolean wantOn = !(pause && carplayRunning);
         if (wanted != null && wanted == wantOn) return;             // already on its way (or done)
@@ -86,7 +88,7 @@ final class WifiScans {
             Toast.makeText(app, "Join Wi-Fi in Android's settings", Toast.LENGTH_SHORT).show();
             return;
         }
-        if (carplayRunning && prefs.getBoolean(KEY, false)) {
+        if (carplayRunning && prefs.getBoolean(KEY, DEFAULT)) {
             Toast.makeText(app, "Wi-Fi scanning is paused while CarPlay runs", Toast.LENGTH_SHORT).show();
             return;
         }
