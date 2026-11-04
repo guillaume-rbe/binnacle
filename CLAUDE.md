@@ -49,7 +49,7 @@ The dash can draw CarPlay in its own window (centre or full screen) so it stays 
 - one class (`CarPlayLink`), one `bindService` to the fixed component `com.shilapi.xcertplay/.CarPlayEmbedService`, one `transact` that refuses any code outside ICarPlayEmbed's 1..10 before touching the binder;
 - state comes back on a Messenger the dash only receives on (never `Messenger.send`);
 - both guards pin the class (source text; compiled opcodes and strings), and `test_guards.sh` has cases for a widened code check, another package, a changed txn, a Messenger send and a second transact.
-It needs xcertplay signed with the dash's key (the service is signature-protected); otherwise binding fails and the CarPlay button opens xcertplay's own screen as before. Nothing in this path reaches the car or the MCU.
+The same Messenger brings what the iPhone is playing (title, artist, progress, a small cover) for the right card's Now playing page; its buttons send the media keys the steering wheel already sends through TX_KEY, so no new call. It needs xcertplay signed with the dash's key (the service is signature-protected); otherwise binding fails and the CarPlay button opens xcertplay's own screen as before. Nothing in this path reaches the car or the MCU.
 
 ## ADB / network facts
 - `adb connect <unit-ip>:5555` (persistent, no key auth on the LAN).

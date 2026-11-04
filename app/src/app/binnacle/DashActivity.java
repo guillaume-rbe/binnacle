@@ -131,6 +131,7 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
 
     private final CarPlayLink.Listener carplayListener = new CarPlayLink.Listener() {
         @Override public void onLinkChanged(boolean connected) {
+            if (!connected) right.setNowPlaying(null);
             if (connected) {
                 declaredSizes = null;
                 noteCarPlaySizes();     // before the surface goes over, so the session starts knowing both
@@ -148,6 +149,9 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
         }
         @Override public void onVideoLayout(int[] video) {
             carplay.setVideoLayout(video);
+        }
+        @Override public void onNowPlaying(NowPlaying now) {
+            right.setNowPlaying(now);
         }
         @Override public void onCarPlayState(int state, String stage) {
             carplay.showState(state, stage);
@@ -409,6 +413,13 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
      * With xcertplay the dash stays on home Wi-Fi, so there is nothing to offer unless ZLink's
      * hotspot is somehow up (the owner, 1 Nov: no ZLink steps from this icon).
      */
+    /** The Now playing card's buttons: the media key to CarPlay, pressed and let go. */
+    @Override public void onMediaKey(int keyCode) {
+        long t = android.os.SystemClock.uptimeMillis();
+        if (carplayLink.key(new KeyEvent(t, t, KeyEvent.ACTION_DOWN, keyCode, 0)))
+            carplayLink.key(new KeyEvent(t, t, KeyEvent.ACTION_UP, keyCode, 0));
+    }
+
     @Override public void onNetIcon() {
         final boolean hotspot = apOn;
         if (!hotspot && Launch.hasXcertplay(this)) {
