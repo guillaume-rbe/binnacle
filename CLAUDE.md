@@ -44,7 +44,7 @@ Approved so far: Bluetooth auto-connect (`settings put system xbs_isautoconnect`
 - **CarPlay / Android Auto**: CarPlay opens xcertplay (`com.shilapi.xcertplay/.CarPlayHostActivity`) when it is installed (owner, 1 Nov), otherwise ZLink (`com.zjinnova.zlink`, the licensed *xinbasi-a007* build, which also does Android Auto). Launch by intent, or, when xcertplay is signed with the dash's key, draw it in the dash (see "CarPlay in the dash"). Never uninstall or disable ZLink; with xcertplay installed it is only hidden from Binnacle's app list.
 - Keep the stock launcher `com.xbs.launcher1` installed as the **fallback Home**.
 
-## CarPlay in the dash (CarPlayLink, proposed 4 Nov 2026, needs the owner's OK in review)
+## CarPlay in the dash (CarPlayLink, owner OK 4 Nov 2026)
 The dash can draw CarPlay in its own window (centre or full screen) so it stays the top activity and the CAN app keeps the door pop-up hidden. xcertplay (an app on the unit) runs the session; `CarPlayLink` binds its `CarPlayEmbedService` and hands it a Surface, touch and wheel keys. This is the second binder exception after `CanFeed`, pinned the same way:
 - one class (`CarPlayLink`), one `bindService` to the fixed component `com.shilapi.xcertplay/.CarPlayEmbedService`, one `transact` that refuses any code outside ICarPlayEmbed's 1..10 before touching the binder;
 - state comes back on a Messenger the dash only receives on (never `Messenger.send`);

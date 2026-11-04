@@ -77,7 +77,7 @@ grep -qxE ' *if \(txn != TX_REGISTER && txn != TX_UNREGISTER\) \{' src/app/binna
 [ "$(grep -cE 'call\(TX_(REGISTER|UNREGISTER), ' src/app/binnacle/CanFeed.java)" = 2 ] || bad "call() used with something other than TX_REGISTER / TX_UNREGISTER"
 [ "$(grep -cE '[^.a-zA-Z]call\(' src/app/binnacle/CanFeed.java)" = 3 ] || bad "unexpected call() use in CanFeed"
 
-# 3b. CarPlayLink (owner OK needed, see CLAUDE.md "CarPlay in the dash"): binder calls only to
+# 3b. CarPlayLink (owner OK 4 Nov, see CLAUDE.md "CarPlay in the dash"): binder calls only to
 #     xcertplay's CarPlay service, an app on the unit. One bind to a fixed component, one transact
 #     whose code is checked against the ICarPlayEmbed range first, fixed codes and interface token.
 #     tools/check_bytecode.sh checks the same on the compiled class.
