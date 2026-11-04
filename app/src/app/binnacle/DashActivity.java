@@ -172,6 +172,8 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
 
     private void showCarPlay(int mode) {
         if (mode == carplayMode) return;
+        // centre <-> full: hide the iPhone's blur and snap while it redraws at the new size
+        if (mode != CARPLAY_OFF && carplayMode != CARPLAY_OFF) carplay.coverForResize();
         carplayMode = mode;
         wheelOnDock = false;                      // a newly shown CarPlay gets the wheel
         boolean full = mode == CARPLAY_FULL;
