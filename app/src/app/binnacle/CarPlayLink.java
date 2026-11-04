@@ -94,6 +94,20 @@ final class CarPlayLink implements ServiceConnection {
         return bound;
     }
 
+    /**
+     * Binds again when there is no link yet. Right after boot the unit's power manager (Unisoc
+     * BackgroundCleanHelper) refuses binds before it has loaded its allow list, and a refused
+     * bind never connects, so the dash retries each time it comes to the front.
+     */
+    void retry() {
+        if (binder != null) return;
+        if (bound) {
+            bound = false;
+            try { context.unbindService(this); } catch (RuntimeException ignored) { }
+        }
+        bind();
+    }
+
     void unbind() {
         if (!bound) return;
         if (binder != null) {
