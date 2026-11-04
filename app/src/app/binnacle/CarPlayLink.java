@@ -136,6 +136,11 @@ final class CarPlayLink implements ServiceConnection {
 
     int state() { return state; }
 
+    /** A CarPlay session is up: connecting, showing, or with xcertplay's settings open. */
+    static boolean running(int state) {
+        return state == STATE_CONNECTING || state == STATE_STREAMING || state == STATE_PAUSED;
+    }
+
     @Override public void onServiceConnected(ComponentName name, IBinder service) {
         binder = service;
         int version = version();

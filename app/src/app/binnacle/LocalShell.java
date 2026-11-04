@@ -46,8 +46,10 @@ final class LocalShell {
          * road stutter (owner, 3-5 Nov). On again to rejoin the saved home network (Wi-Fi icon).
          * Resets to on at every reboot. Run only on Android 10 (other versions number it differently).
          */
-        WIFI_SCANS_ON("service call wifi 58 i32 1 && svc wifi enable && echo BINNACLE_OK"),
-        WIFI_SCANS_OFF("service call wifi 58 i32 0 && echo BINNACLE_OK");
+        WIFI_SCANS_ON("service call wifi 58 i32 1 && echo BINNACLE_OK"),
+        WIFI_SCANS_OFF("service call wifi 58 i32 0 && echo BINNACLE_OK"),
+        /** The Wi-Fi icon only: scanning on and Wi-Fi itself on, so the saved home network is joined. */
+        WIFI_REJOIN("service call wifi 58 i32 1 && svc wifi enable && echo BINNACLE_OK");
 
         final String shell;
         Command(String shell) { this.shell = shell; }
