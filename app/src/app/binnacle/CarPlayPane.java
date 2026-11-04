@@ -32,6 +32,7 @@ final class CarPlayPane extends FrameLayout implements SurfaceHolder.Callback {
         video.getHolder().addCallback(this);
         addView(video, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
         cover = buildCover(c);
+        tintCover();
         addView(cover, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
         status = new TextView(c);
         status.setTextColor(0xffd0d4da);
@@ -107,8 +108,8 @@ final class CarPlayPane extends FrameLayout implements SurfaceHolder.Callback {
 
     /**
      * Centre ↔ full screen: the view changes size at once, but the iPhone takes a moment to blur
-     * and redraw at the new size, so the old picture would show stretched and then snap. A dark
-     * cover with a spinner hides that until the new size is drawing. Times tuned in the car.
+     * and redraw at the new size, so the old picture would show stretched and then snap. A cover
+     * in the dash's theme colour, with a spinner, hides that until the new size is drawing.
      */
     private static final long REDRAW_MS = 600, AFTER_ATTACH_MS = 900, COVER_MAX_MS = 1800, FADE_MS = 180;
     private View cover;
@@ -124,16 +125,24 @@ final class CarPlayPane extends FrameLayout implements SurfaceHolder.Callback {
     void coverForResize() {
         if (status.getVisibility() == VISIBLE) return;   // no picture yet: nothing to hide
         cover.animate().cancel();
+        tintCover();                                     // the theme can change while CarPlay runs
         cover.setAlpha(1f);
         cover.setVisibility(VISIBLE);
         removeCallbacks(uncover);
         postDelayed(uncover, COVER_MAX_MS);              // in case no confirmation comes
     }
 
+    private android.widget.ProgressBar spinner;
+
+    /** The cover takes the dash's own screen colour and accent, so it isn't black on a light dash. */
+    private void tintCover() {
+        cover.setBackgroundColor(Style.SCREEN);
+        spinner.setIndeterminateTintList(android.content.res.ColorStateList.valueOf(Style.ACCENT));
+    }
+
     private View buildCover(Context c) {
         FrameLayout f = new FrameLayout(c);
-        f.setBackgroundColor(Color.BLACK);
-        android.widget.ProgressBar spinner = new android.widget.ProgressBar(c);
+        spinner = new android.widget.ProgressBar(c);
         spinner.setIndeterminate(true);
         int size = Math.round(48f * c.getResources().getDisplayMetrics().heightPixels / Style.DESIGN_H);
         f.addView(spinner, new LayoutParams(size, size, Gravity.CENTER));
