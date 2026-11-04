@@ -10,25 +10,18 @@ import android.media.AudioManager
  * On the tested head unit the stock CAN app sets music volume to zero when the car goes to sleep,
  * and on wake restores it only for the output active then (the built-in speaker). When the car
  * later connects as a Bluetooth audio device, its music volume is still zero, so CarPlay music
- * plays silently (3 Nov). When CarPlay music starts over Bluetooth at zero, the last level seen
- * there is put back (half volume the first time).
+ * plays silently (3 Nov). When CarPlay music starts over Bluetooth at zero, it is put back to
+ * full: the car sets the loudness, and anything less on this link only makes the head unit quieter
+ * than the car's other sources (4 Nov).
  */
 internal object CarLinkVolume {
-    private const val PREFS = "car_link_volume"
-    private const val KEY_LAST = "last_bt_music_index"
-
     fun onMusicStart(context: Context, log: (String) -> Unit) {
         val app = context.applicationContext
         val audio = app.getSystemService(AudioManager::class.java) ?: return
         if (!musicGoesToBluetooth(audio)) return
-        val prefs = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        val current = audio.getStreamVolume(AudioManager.STREAM_MUSIC)
-        if (current > 0) {
-            prefs.edit().putInt(KEY_LAST, current).apply()
-            return
-        }
+        if (audio.getStreamVolume(AudioManager.STREAM_MUSIC) > 0) return
         val max = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
-        val restored = prefs.getInt(KEY_LAST, max / 2).coerceIn(1, max)
+        val restored = max
         try {
             audio.setStreamVolume(AudioManager.STREAM_MUSIC, restored, 0)
             log("car link music volume was 0; restored to $restored/$max")
