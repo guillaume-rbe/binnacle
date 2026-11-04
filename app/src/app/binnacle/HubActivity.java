@@ -262,6 +262,7 @@ public class HubActivity extends Activity {
                             StartupVolume.KEY, StartupVolume.DEFAULT,
                             new String[]{"100", "75", "50", "off"}, new String[]{"100%", "75%", "50%", "Leave as is"}),
                     btAutoConnectCard(),
+                    switchCard("Pause Wi-Fi scans during CarPlay", "Stops music and call stutter away from home. Scanning comes back on when CarPlay ends, and tapping the Wi-Fi icon rejoins home Wi-Fi", WifiScans.KEY, false),
                     actionCard("End CarPlay", null,
                             "End CarPlay", LocalShell.Command.END_CARPLAY),
                     infoCard("CarPlay layout", carplayLayoutText()))); break;

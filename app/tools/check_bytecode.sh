@@ -186,6 +186,10 @@ String:BT_AUTOCONNECT_GET
 String:BT_AUTOCONNECT_OFF
 String:BT_AUTOCONNECT_ON
 String:END_CARPLAY
+String:WIFI_SCANS_OFF
+String:WIFI_SCANS_ON
+String:service call wifi 58 i32 0 && echo BINNACLE_OK
+String:service call wifi 58 i32 1 && svc wifi enable && echo BINNACLE_OK
 String:UTF-8
 String:\u0000
 String:bad ADB message

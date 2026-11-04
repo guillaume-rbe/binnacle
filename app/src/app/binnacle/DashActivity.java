@@ -112,6 +112,8 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
         setContentView(root);
         // no storage permission: the car renders are bundled (or in this app's own files dir)
         carplayLink.bind();     // false when xcertplay is missing or signed differently: its own screen then
+        // car sleep stops CarPlay without a word, so scanning paused for it goes back on at every start
+        WifiScans.forCarPlay(app.prefs(), false);
     }
 
     @Override protected void onDestroy() {
@@ -135,12 +137,16 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
             } else if (carplayMode != CARPLAY_OFF) {
                 showCarPlay(CARPLAY_OFF);       // xcertplay went away; the dock opens its own screen now
             }
+            if (!connected) {
+                WifiScans.forCarPlay(app.prefs(), false);   // no CarPlay without xcertplay: scanning back on
+            }
         }
         @Override public void onVideoLayout(int[] video) {
             carplay.setVideoLayout(video);
         }
         @Override public void onCarPlayState(int state, String stage) {
             carplay.showState(state, stage);
+            WifiScans.forCarPlay(app.prefs(), state == CarPlayLink.STATE_CONNECTING || state == CarPlayLink.STATE_STREAMING);
         }
         @Override public void onHostUi() {
             // CarPlay's Binnacle tile: from full screen back to the dash with CarPlay in the centre;
@@ -285,6 +291,8 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
         firstStartQuestions();
         resumed = true;
         carplayLink.retry();    // a bind refused at boot (power manager not ready yet) connects now
+        int cs = carplayLink.state();   // a pause setting changed in Settings applies on return
+        WifiScans.forCarPlay(app.prefs(), cs == CarPlayLink.STATE_CONNECTING || cs == CarPlayLink.STATE_STREAMING);
         lastFrontCam = app.car.frontCamRequest;     // seed the edge detector with the current state
         if (!dashCamera()) return;
         if (Build.VERSION.SDK_INT >= 23 && checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
@@ -372,6 +380,9 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
     };
     private boolean apOn;
 
+    /** The network icon's last state (RightPanelView.NET_*). */
+    private int netMode = RightPanelView.NET_NONE;
+
     private void updateNet() {
         int mode = RightPanelView.NET_NONE;
         try {
@@ -381,6 +392,7 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
             else if (ni != null && ni.isConnected() && ni.getType() == android.net.ConnectivityManager.TYPE_WIFI) mode = RightPanelView.NET_WIFI;
         } catch (RuntimeException ignored) {
         }
+        netMode = mode;
         right.setNet(mode);
     }
 
@@ -391,7 +403,13 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
      */
     @Override public void onNetIcon() {
         final boolean hotspot = apOn;
-        if (!hotspot && Launch.hasXcertplay(this)) return;
+        if (!hotspot && Launch.hasXcertplay(this)) {
+            // xcertplay keeps the dash on home Wi-Fi; off it (scanning paused, out of range), the
+            // icon rejoins the saved network (WifiScans)
+            if (netMode == RightPanelView.NET_WIFI) Toast.makeText(this, "On home Wi-Fi", Toast.LENGTH_SHORT).show();
+            else WifiScans.rejoin(this);
+            return;
+        }
         BinnacleDialog.show(this, hotspot ? "On CarPlay's hotspot" : "On home Wi-Fi",
                 hotspot ? "End CarPlay and switch back to home Wi-Fi?" : "Start CarPlay? The dash leaves home Wi-Fi while CarPlay is on.",
                 new String[]{"Cancel", hotspot ? "Switch to Wi-Fi" : "Start CarPlay"}, true, new BinnacleDialog.Choice() {
