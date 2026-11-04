@@ -117,6 +117,8 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
 
     @Override protected void onDestroy() {
         destroying = true;      // the unbind below is not xcertplay going away
+        // closed for good (not recreated): nothing will hear CarPlay end, so scanning goes back on now
+        if (!isChangingConfigurations()) WifiScans.forCarPlay(app.prefs(), false);
         carplay.release();      // xcertplay lets go of the surface while we are still bound
         carplayLink.unbind();   // the CarPlay session itself keeps running in xcertplay
         super.onDestroy();
