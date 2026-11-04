@@ -123,12 +123,12 @@ internal data class CarPlaySessionSettings(
         locationReportingEnabled = locationReportingEnabled,
     )
 
-    fun viewAreas(context: Context, size: DisplaySize): CarPlayViewAreas? {
+    fun viewAreas(context: Context, size: DisplaySize, extraSizes: List<DisplaySize> = emptyList()): CarPlayViewAreas? {
         if (mainWebDisplay.enabled) return null
         return CarPlayViewAreas.build(
             currentWidth = size.width,
             currentHeight = size.height,
-            savedSizes = AirPlayPersistence.loadSafeAreaSizes(context),
+            savedSizes = AirPlayPersistence.loadSafeAreaSizes(context) + extraSizes.map { it.width to it.height },
             scaleTenths = displayScaleTenths,
         ) { width, height -> AirPlayPersistence.loadSafeAreaRect(context, width, height) }
     }

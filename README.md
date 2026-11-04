@@ -58,8 +58,9 @@
 > - The CarPlay session runs on its own, apart from the CarPlay screen (`CarPlaySession`), and an
 >   app signed with the same key can show CarPlay in a view of its own through a bound service
 >   (`CarPlayEmbedService`, AIDL `ICarPlayEmbed`): it hands over a surface and its size, and
->   forwards touch and wheel keys. Meant for a head-unit launcher that shows CarPlay in part of its
->   screen. xcertplay's own screen works as before
+>   forwards touch and wheel keys; state comes back as Messages, and the sizes it switches between are
+>   declared to the phone as view areas (no reconnect on a switch). Meant for a head-unit launcher
+>   that shows CarPlay in part of its screen. xcertplay's own screen works as before
 
 ## Features
 
