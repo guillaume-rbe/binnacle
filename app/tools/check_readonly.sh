@@ -28,7 +28,7 @@ for f in $(grep -rlE 'sendBroadcast|sendOrderedBroadcast|sendStickyBroadcast' sr
   case "$f" in src/app/binnacle/DashApp.java|src/app/binnacle/Launch.java) ;; *) bad "broadcast sent outside DashApp/Launch: $f";; esac
 done
 for f in $(grep -rlE 'startService|startForegroundService|bindService' src); do
-  case "$f" in src/app/binnacle/DashActivity.java|src/app/binnacle/CanFeed.java) ;; *) bad "service started or bound outside DashActivity/CanFeed: $f";; esac
+  case "$f" in src/app/binnacle/DashActivity.java|src/app/binnacle/CanFeed.java|src/app/binnacle/CarPlayLink.java) ;; *) bad "service started or bound outside DashActivity/CanFeed/CarPlayLink: $f";; esac
 done
 grep -rnE 'sendOrderedBroadcast|sendStickyBroadcast' src && bad "ordered/sticky broadcasts are not allowed (above)"
 
@@ -63,11 +63,12 @@ grep -nE '\.(put|call|query|register|notify|acquire)[A-Za-z]*\(' "$ALLOWED" && b
 find src -name '*.aidl' | grep . && bad "AIDL files are not allowed"
 grep -rnE 'IMcuService\.(Stub|Proxy)|extends +Binder|implements +IInterface' src && bad "service stub/proxy found (above)"
 
-# 3. Exactly one class may make binder calls, and only IMcuService transactions 1 and 2.
+# 3. CAN feed: exactly one class (CanFeed) may make binder calls to the CAN service, and only IMcuService
+#    transactions 1 and 2. (The only other binder calls are CarPlayLink to xcertplay, pinned in 3b.)
 #    (Whole-line matches, so a pinned text kept in a comment beside a changed one doesn't pass.
 #    tools/check_bytecode.sh checks the same on the compiled class.)
-hits=$(grep -rlwE 'transact' src)
-[ "$hits" = "src/app/binnacle/CanFeed.java" ] || bad "binder transact outside CanFeed: $hits"
+hits=$(grep -rlwE 'transact' src | sort | tr '\n' ' ')
+[ "$hits" = "src/app/binnacle/CanFeed.java src/app/binnacle/CarPlayLink.java " ] || bad "binder transact outside CanFeed/CarPlayLink: $hits"
 [ "$(grep -E '(^|[^A-Za-z0-9_])transact *\(' src/app/binnacle/CanFeed.java | grep -cvE '^ *(\*|//)')" = 1 ] || bad "CanFeed must have exactly one transact() call"
 grep -qxE ' *b\.transact\(txn, data, r, 0\);' src/app/binnacle/CanFeed.java || bad "CanFeed's transact call changed"
 grep -qxE ' *private static final int TX_REGISTER = 1, TX_UNREGISTER = 2;' src/app/binnacle/CanFeed.java || bad "transaction codes changed"
@@ -75,6 +76,22 @@ grep -qxE ' *private static final int TX_REGISTER = 1, TX_UNREGISTER = 2;' src/a
 grep -qxE ' *if \(txn != TX_REGISTER && txn != TX_UNREGISTER\) \{' src/app/binnacle/CanFeed.java || bad "transaction allow-list changed"
 [ "$(grep -cE 'call\(TX_(REGISTER|UNREGISTER), ' src/app/binnacle/CanFeed.java)" = 2 ] || bad "call() used with something other than TX_REGISTER / TX_UNREGISTER"
 [ "$(grep -cE '[^.a-zA-Z]call\(' src/app/binnacle/CanFeed.java)" = 3 ] || bad "unexpected call() use in CanFeed"
+
+# 3b. CarPlayLink (owner OK 4 Nov, see CLAUDE.md "CarPlay in the dash"): binder calls only to
+#     xcertplay's CarPlay service, an app on the unit. One bind to a fixed component, one transact
+#     whose code is checked against the ICarPlayEmbed range first, fixed codes and interface token.
+#     tools/check_bytecode.sh checks the same on the compiled class.
+L=src/app/binnacle/CarPlayLink.java
+grep -qxF '    private static final String PKG = "com.shilapi.xcertplay";' "$L" || bad "CarPlayLink package changed"
+grep -qxF '    private static final String SERVICE = "com.shilapi.xcertplay.CarPlayEmbedService";' "$L" || bad "CarPlayLink service changed"
+grep -qxF '    private static final String DESCRIPTOR = "com.shilapi.xcertplay.embed.ICarPlayEmbed";' "$L" || bad "CarPlayLink interface changed"
+grep -qxF '    private static final int TX_VERSION = 1, TX_LISTENER = 2, TX_ATTACH = 3, TX_DETACH = 4, TX_TOUCH = 5,' "$L" \
+    && grep -qxF '            TX_KEY = 6, TX_START = 7, TX_DISCONNECT = 8, TX_SETTINGS = 9, TX_SIZES = 10;' "$L" || bad "CarPlayLink transaction codes changed"
+[ "$(grep -E '(^|[^A-Za-z0-9_])transact *\(' "$L" | grep -cvE '^ *(\*|//)')" = 1 ] || bad "CarPlayLink must have exactly one transact() call"
+grep -qxF '            if (!b.transact(txn, data, reply, oneway ? IBinder.FLAG_ONEWAY : 0)) return false;' "$L" || bad "CarPlayLink's transact call changed"
+grep -qxF '        if (txn < TX_VERSION || txn > TX_SIZES) throw new IllegalArgumentException("not an ICarPlayEmbed call");' "$L" || bad "CarPlayLink's code check changed"
+[ "$(grep -cE '[^n]bindService\(' "$L")" = 1 ] && grep -qxF '        Intent i = new Intent().setComponent(new ComponentName(PKG, SERVICE));' "$L" || bad "CarPlayLink may bind only xcertplay's CarPlay service"
+grep -nE '\.send\(|Messenger\(binder|Messenger\(service|new Messenger\([^n]' "$L" && bad "CarPlayLink may only receive on its Messenger (above)"
 
 # 4. Local shell (the unit's own ADB on 127.0.0.1): one class, fixed commands, nothing near the car.
 hits=$(grep -rlwE 'Socket|ServerSocket|SocketChannel|ProcessBuilder|getRuntime' src)

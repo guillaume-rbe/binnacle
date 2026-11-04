@@ -79,10 +79,12 @@ never() {
     [ -z "$hits" ] || { printf '%s\n' "$hits" >&2; bad "forbidden: $1 (above)"; }
 }
 
-# 1. Binder: only CanFeed.call may transact; no raw service lookup, binder stubs or native code.
-only '\.transact$' 'app/binnacle/CanFeed'
-[ "$(refs '\.transact$' | awk -F'\t' '$2 == "call"' | wc -l | tr -d ' ')" = 1 ] || bad "CanFeed.call must hold the one and only transact"
-[ "$(refs '\.transact$' | wc -l | tr -d ' ')" = 1 ] || bad "exactly one transact allowed"
+# 1. Binder: only CanFeed.call (the CAN feed) and CarPlayLink.binderCall (xcertplay's CarPlay
+#    service, see 2b) may transact; no raw service lookup, binder stubs or native code.
+only '\.transact$' 'app/binnacle/(CanFeed|CarPlayLink)'
+[ "$(refs '\.transact$' | awk -F'\t' '$1 == "app/binnacle/CanFeed" && $2 == "call"' | wc -l | tr -d ' ')" = 1 ] || bad "CanFeed.call must hold CanFeed's one and only transact"
+[ "$(refs '\.transact$' | awk -F'\t' '$1 == "app/binnacle/CarPlayLink" && $2 == "binderCall"' | wc -l | tr -d ' ')" = 1 ] || bad "CarPlayLink.binderCall must hold CarPlayLink's one and only transact"
+[ "$(refs '\.transact$' | wc -l | tr -d ' ')" = 2 ] || bad "exactly two transacts allowed (CanFeed.call, CarPlayLink.binderCall)"
 never '^android/os/(ServiceManager|HwBinder|HwParcel|SystemProperties)'
 never '^android/os/Messenger\.send$'               # we only ever receive on our Messenger
 never '\.(queryLocalInterface|linkToDeath)$'
@@ -106,6 +108,36 @@ sites=$(printf '%s\n' "$TABLE" | awk -F'\t' '
     END { for (i = 1; i <= NR; i++) if (r[i] == "app/binnacle/CanFeed.call") print op[i-2] }')
 [ "$(printf '%s\n' "$sites" | sort | tr '\n' ' ')" = "iconst_1 iconst_2 " ] || bad "CanFeed.call may only be called with 1 and 2 (got: $sites)"
 
+# 2b. CarPlayLink.binderCall: exactly the pinned code. It refuses any code outside 1..10 (the
+#     ICarPlayEmbed calls) before it touches the binder and passes its txn argument unchanged.
+#     Any edit to the method changes this list and fails the build until it is reviewed here.
+LINK_CLASS=$(printf '%s\n' "$files" | grep '/app/binnacle/CarPlayLink\.class$')
+if [ -n "$LINK_CLASS" ]; then
+    link_dump=$(javap -c -p "$LINK_CLASS" 2>/dev/null) || bad "javap failed on CarPlayLink"
+    bc=$(printf '%s\n' "$link_dump" | awk '/ binderCall\(int, android.os.Parcel, android.os.Parcel, boolean\);/{on=1;next} on && /^  [a-z]/{exit} on')
+    ops=$(printf '%s\n' "$bc" | grep -E '^ +[0-9]+:' | awk '{print $2}' | tr '\n' ' ')
+    [ "$ops" = "iload_1 iconst_1 if_icmplt iload_1 bipush if_icmple new dup ldc invokespecial athrow aload_0 getfield astore aload ifnonnull iconst_0 ireturn aload iload_1 aload_2 aload_3 iload ifeq iconst_1 goto iconst_0 invokeinterface ifne iconst_0 ireturn aload_3 ifnull aload_3 invokevirtual iconst_1 ireturn astore ldc new dup invokespecial ldc invokevirtual iload_1 invokevirtual ldc invokevirtual aload invokevirtual invokevirtual invokestatic pop iconst_0 ireturn " ] \
+        || bad "CarPlayLink.binderCall changed: review it, then update this guard (got: $ops)"
+    printf '%s\n' "$bc" | grep -qE '^ +6: bipush +10$' || bad "CarPlayLink.binderCall must refuse codes above 10"
+    # its strings: the one service it binds, the interface token and log text, nothing else
+    got=$(refs '^String:' | awk -F'\t' '$1 ~ /^app\/binnacle\/CarPlayLink(\$|$)/ { print $4 }' | sort -u)
+    expected=$(sort -u <<'EOF'
+String: failed:
+String:, need
+String:CarPlay link call
+String:CarPlay link not allowed:
+String:CarPlay link: xcertplay API
+String:binnacle
+String:com.shilapi.xcertplay
+String:com.shilapi.xcertplay.CarPlayEmbedService
+String:com.shilapi.xcertplay.embed.ICarPlayEmbed
+String:not an ICarPlayEmbed call
+String:stage
+String:video
+EOF
+)
+    [ "$got" = "$expected" ] || { diff <(printf '%s\n' "$expected") <(printf '%s\n' "$got") >&2; bad "CarPlayLink strings changed: review, then update this guard"; }
+fi
 # 3. No reflection, dynamic code or native libraries (each could reach any API by name).
 never '^java/lang/reflect/'
 never '^java/lang/invoke/(MethodHandles?|VarHandle)'
@@ -135,7 +167,7 @@ never '^android/content/(ContentProviderClient|ContentValues)|^android/provider/
 
 # 7. Talking to other apps: fixed places only (CAN bind in CanFeed; camera close broadcast in Launch;
 #    logger query in DashApp; logger start in DashActivity). No ordered or sticky broadcasts.
-only '\.bindService$' 'app/binnacle/CanFeed'
+only '\.bindService$' 'app/binnacle/(CanFeed|CarPlayLink)'
 only '\.sendBroadcast$' 'app/binnacle/(Launch|DashApp)'
 only '\.(startService|startForegroundService)$' 'app/binnacle/DashActivity'
 never '\.(sendOrderedBroadcast|sendStickyBroadcast|sendBroadcastAsUser|startInstrumentation)$'
