@@ -98,6 +98,8 @@ internal object CarPlaySession {
         internal var display: DisplaySize? = null
         internal var layout = DisplayLayout(splitScreen = false, portrait = false)
         internal var displayStamp = 0L
+        /** Sizes this client may switch between, declared to the phone as extra view areas. */
+        internal var declaredSizes: List<DisplaySize> = emptyList()
     }
 
     val log = SessionLog()
@@ -256,6 +258,13 @@ internal object CarPlaySession {
         shownSurfaces.clear()
         listOf(SCREEN_TYPE_MAIN, SCREEN_TYPE_ALT).forEach(::showBestSurface)
     }
+
+    /** Sizes [client] may show CarPlay at; used from the next connection on. */
+    fun declareSizes(client: Client, sizes: List<DisplaySize>) {
+        client.declaredSizes = sizes
+    }
+
+    private fun declaredSizes(): List<DisplaySize> = clients.flatMap { it.declaredSizes }.distinct()
 
     fun setDisplay(client: Client, size: DisplaySize, layout: DisplayLayout) {
         client.display = size
@@ -597,7 +606,7 @@ internal object CarPlaySession {
         notifySessionChanged()
         val microphone = granted(Manifest.permission.RECORD_AUDIO)
         val config = settings.runtimeConfig()
-        val areas = settings.viewAreas(app, size)
+        val areas = settings.viewAreas(app, size, declaredSizes())
         val airPlayConfig = settings.airPlayConfig(app, size, areas, microphone)
         val vehicle = settings.vehicleDataSource(app).also { it.start() }
         vehicleProvider = vehicle

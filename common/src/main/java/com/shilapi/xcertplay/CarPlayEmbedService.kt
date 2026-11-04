@@ -11,7 +11,8 @@ import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.Surface
 import com.shilapi.xcertplay.embed.ICarPlayEmbed
-import com.shilapi.xcertplay.embed.ICarPlayEmbedListener
+import android.os.Message
+import android.os.Messenger
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
@@ -26,7 +27,7 @@ class CarPlayEmbedService : Service() {
     private val mainHandler = Handler(Looper.getMainLooper())
     private val session = CarPlaySession
     private val client = EmbedClient()
-    private var listener: ICarPlayEmbedListener? = null
+    private var listener: Messenger? = null
     private var listenerDeath: IBinder.DeathRecipient? = null
     private var surface: Surface? = null
     private var surfaceWidth = 0
@@ -58,16 +59,16 @@ class CarPlayEmbedService : Service() {
     private val binder = object : ICarPlayEmbed.Stub() {
         override fun getApiVersion(): Int = API_VERSION
 
-        override fun setListener(next: ICarPlayEmbedListener?) {
+        override fun setListener(next: Messenger?) {
             onMain {
-                listenerDeath?.let { death -> runCatching { listener?.asBinder()?.unlinkToDeath(death, 0) } }
+                listenerDeath?.let { death -> runCatching { listener?.binder?.unlinkToDeath(death, 0) } }
                 listener = next
                 listenerDeath = null
                 lastState = -1
                 if (next != null) {
                     val death = IBinder.DeathRecipient { onMain { dropClient("embedding client died") } }
                     try {
-                        next.asBinder().linkToDeath(death, 0)
+                        next.binder.linkToDeath(death, 0)
                         listenerDeath = death
                     } catch (_: RemoteException) {
                         listener = null
@@ -151,6 +152,18 @@ class CarPlayEmbedService : Service() {
                 )
             }
         }
+
+        override fun declareSizes(widthHeightPairs: IntArray?) {
+            val pairs = widthHeightPairs ?: IntArray(0)
+            val sizes = (0 until pairs.size / 2)
+                .map { DisplaySize(pairs[2 * it], pairs[2 * it + 1]) }
+                .filter { it.width in 1..MAX_SIZE && it.height in 1..MAX_SIZE }
+                .take(MAX_DECLARED_SIZES)
+            onMain {
+                session.declareSizes(client, sizes)
+                session.appendLog("Embedding app declared sizes ${sizes.joinToString { "${it.width}x${it.height}" }}")
+            }
+        }
     }
 
     /** The session's view of this service; callbacks arrive on the main thread. */
@@ -164,7 +177,7 @@ class CarPlayEmbedService : Service() {
             val target = listener ?: return false
             if (!session.isShowing(this)) return false
             return try {
-                target.onHostUiRequested()
+                target.send(Message.obtain(null, MSG_HOST_UI))
                 true
             } catch (_: RemoteException) {
                 false
@@ -189,7 +202,7 @@ class CarPlayEmbedService : Service() {
         lastState = state
         lastStage = stage
         try {
-            target.onStateChanged(state, stage)
+            target.send(Message.obtain(null, MSG_STATE, state, 0).apply { data = android.os.Bundle().apply { putString("stage", stage) } })
         } catch (error: RemoteException) {
             Log.w(TAG, "embedding client unreachable", error)
         }
@@ -205,7 +218,7 @@ class CarPlayEmbedService : Service() {
 
     private fun dropClient(reason: String) {
         releaseSurface(reason)
-        listenerDeath?.let { death -> runCatching { listener?.asBinder()?.unlinkToDeath(death, 0) } }
+        listenerDeath?.let { death -> runCatching { listener?.binder?.unlinkToDeath(death, 0) } }
         listenerDeath = null
         listener = null
         if (audioFocusRetained) {
@@ -247,7 +260,11 @@ class CarPlayEmbedService : Service() {
 
     companion object {
         private const val TAG = "xcertplay-embed"
-        const val API_VERSION = 1
+        const val API_VERSION = 2
+        const val MSG_STATE = 1
+        const val MSG_HOST_UI = 2
+        private const val MAX_SIZE = 8192
+        private const val MAX_DECLARED_SIZES = 4
         const val STATE_IDLE = 0
         const val STATE_NEEDS_SETUP = 1
         const val STATE_CONNECTING = 2
