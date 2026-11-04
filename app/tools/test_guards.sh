@@ -87,11 +87,11 @@ edit "CanFeed: allow-list widened"       CanFeed.java    's|if (txn != TX_REGIST
 edit "LocalShell: concatenated command"  LocalShell.java 's|        BT_AUTOCONNECT_OFF("settings put system xbs_isautoconnect false \&\& echo BINNACLE_OK");|        BT_AUTOCONNECT_OFF("settings put system xbs_isautoconnect false \&\& echo BINNACLE_OK"),\n        EVIL("su 0 sh -c " + "x \&\& echo BINNACLE_OK");|'
 edit "LocalShell: second ADB stream"     LocalShell.java 's|            String text = result.toString("UTF-8").trim();|            send(out, A_OPEN, 2, 0, "exec:su 0 reboot\\0".getBytes(StandardCharsets.UTF_8));\n            String text = result.toString("UTF-8").trim();|'
 edit "LocalShell: another ADB service"   LocalShell.java 's|("shell:" + cmd.shell + "\\0")|("re" + "boot:" + "\\0")|'
-edit "Setup: volume set to another level" SetupActivity.java 's|audio.setStreamVolume(AudioManager.STREAM_MUSIC, max, 0);|audio.setStreamVolume(AudioManager.STREAM_MUSIC, 0, 0);|' any
-edit "Setup: a second audio setting"     SetupActivity.java 's|audio.setStreamVolume(AudioManager.STREAM_MUSIC, max, 0);|audio.setStreamVolume(AudioManager.STREAM_MUSIC, max, 0); audio.setRingerMode(0);|' any
+edit "StartupVolume: another stream"     StartupVolume.java 's|audio.setStreamVolume(AudioManager.STREAM_MUSIC, level, 0);|audio.setStreamVolume(AudioManager.STREAM_RING, level, 0);|' any
+edit "StartupVolume: a second setting"   StartupVolume.java 's|audio.setStreamVolume(AudioManager.STREAM_MUSIC, level, 0);|audio.setStreamVolume(AudioManager.STREAM_MUSIC, level, 0); audio.setRingerMode(0);|' any
 d=$(copy_app)
 printf 'package app.binnacle;\nfinal class Evil { static void go(android.content.Context c) {\n((android.media.AudioManager) c.getSystemService("audio")).setStreamVolume(3, 0, 0);\n} }\n' > "$d/src/app/binnacle/Evil.java"
-expect "volume set outside the setup wizard" any "$(guards "$d" "$d/src" "$T/gen")"
+expect "volume set outside StartupVolume" any "$(guards "$d" "$d/src" "$T/gen")"
 d=$(copy_app); ln -s "$APP/src/app/binnacle/CanFeed.java" "$d/src/app/binnacle/Link.java"
 r=""; bash "$d/tools/check_readonly.sh" >/dev/null 2>&1 || r="source"; expect "symlinked source file" any "${r:-none}"
 

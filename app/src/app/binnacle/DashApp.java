@@ -106,6 +106,7 @@ public class DashApp extends Application implements Feed.Sink, SharedPreferences
         readDrawPrefs();
         startFeed();
         startCompass();
+        StartupVolume.start(this, prefs);
         watchLogger();
         new Thread(new Runnable() {
             @Override public void run() { CarPacks.removeLegacy(DashApp.this); }

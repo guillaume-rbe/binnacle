@@ -32,15 +32,15 @@ for f in $(grep -rlE 'startService|startForegroundService|bindService' src); do
 done
 grep -rnE 'sendOrderedBroadcast|sendStickyBroadcast' src && bad "ordered/sticky broadcasts are not allowed (above)"
 
-# 1e. Audio settings: only the setup wizard's media volume to full (owner OK 4 Nov), exactly once.
+# 1e. Audio settings: only the start-up media volume (owner OK 4 Nov), exactly once, in StartupVolume.
 #     Android's own music volume, which the wheel keys change too; nothing else (ringer, other
 #     streams, mute) may be set.
-VOL='src/app/binnacle/SetupActivity.java'
+VOL='src/app/binnacle/StartupVolume.java'
 for f in $(grep -rlE 'set(Stream|Ringer|Mode)Volume|adjust(Stream|Suggested)?Volume|setRingerMode|setMicrophoneMute|setMasterMute|setStreamMute|setSpeakerphoneOn|setMode\(' src); do
-  [ "$f" = "$VOL" ] || bad "audio setting changed outside the setup wizard: $f"
+  [ "$f" = "$VOL" ] || bad "audio setting changed outside StartupVolume: $f"
 done
-[ "$(grep -cE 'set(Stream|Ringer|Mode)Volume|adjust(Stream|Suggested)?Volume|setRingerMode|setMicrophoneMute|setMasterMute|setStreamMute|setSpeakerphoneOn|setMode\(' "$VOL")" = 1 ] || bad "the setup wizard may change exactly one audio setting"
-grep -qxE '\s*audio\.setStreamVolume\(AudioManager\.STREAM_MUSIC, max, 0\);' "$VOL" || bad "the setup wizard may only set the music volume to its maximum"
+[ "$(grep -cE 'set(Stream|Ringer|Mode)Volume|adjust(Stream|Suggested)?Volume|setRingerMode|setMicrophoneMute|setMasterMute|setStreamMute|setSpeakerphoneOn|setMode\(' "$VOL")" = 1 ] || bad "StartupVolume may change exactly one audio setting"
+grep -qxE '\s*audio\.setStreamVolume\(AudioManager\.STREAM_MUSIC, level, 0\);' "$VOL" || bad "StartupVolume may only set the music volume"
 
 # 1a. What javac reads must be what this script reads: no symlinks (grep -r skips them, find and
 #     javac follow them) and no \u escapes (javac decodes them before parsing, anywhere in a file,
