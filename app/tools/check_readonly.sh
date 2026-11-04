@@ -125,13 +125,29 @@ grep -q 'DECODER_DIR = "/sys/ziqi/camera", INPUT = "2", SIGNAL = "AHD_1080P_30";
 grep -q 'if (!isInside(tmp, out)) throw' src/app/binnacle/CarPacks.java || bad "CarPacks must check every entry stays inside the pack folder"
 grep -q 'File root = c.getExternalFilesDir(null);' src/app/binnacle/CarPacks.java || bad "CarPacks must write only under the app's own files dir"
 
-# 6. Internet: only CarPacks, only GET from the project's own GitHub release, HTTPS.
+# 6. Internet: only CarPacks and Updater, only GET from the project's own GitHub releases, HTTPS.
 for f in $(grep -rlE 'HttpURLConnection|HttpsURLConnection|new URL\(|openConnection|URLConnection' src); do
-  [ "$f" = "src/app/binnacle/CarPacks.java" ] || bad "network access outside CarPacks: $f"
+  case "$f" in src/app/binnacle/CarPacks.java|src/app/binnacle/Updater.java) ;; *) bad "network access outside CarPacks/Updater: $f";; esac
 done
 grep -qF 'RELEASE_BASE = "https://github.com/lotech/binnacle/releases/download/cars-v3/";' src/app/binnacle/CarPacks.java || bad "CarPacks download source changed"
 [ "$(grep -c 'new URL(' src/app/binnacle/CarPacks.java)" = 1 ] && grep -qF 'new URL(RELEASE_BASE + packName(hand, colour))' src/app/binnacle/CarPacks.java || bad "CarPacks may only fetch RELEASE_BASE + packName"
 grep -nE 'setRequestMethod|setDoOutput|getOutputStream' src/app/binnacle/CarPacks.java && bad "CarPacks may only download (GET), never send (above)"
+
+# 6b. Updater (Advanced -> Updates): GET only, from the latest release's two fixed files, and it may
+#     install only this app itself (the session is locked to our own package name; Android then
+#     insists on the same signing key and asks the user). Nothing else may use the installer.
+U=src/app/binnacle/Updater.java
+grep -qxF '    static final String RELEASE_BASE = "https://github.com/lotech/binnacle/releases/latest/download/";' "$U" || bad "Updater download source changed"
+grep -qxF '    static final String INFO = "binnacle-update.txt";' "$U" && grep -qxF '    static final String APK = "Binnacle.apk";' "$U" || bad "Updater file names changed"
+[ "$(grep -c 'new URL(' "$U")" = 1 ] && grep -qxF '        HttpURLConnection http = (HttpURLConnection) new URL(RELEASE_BASE + file).openConnection();' "$U" || bad "Updater may only fetch RELEASE_BASE + file"
+grep -qxF '        if (!INFO.equals(file) && !APK.equals(file)) throw new IOException("not an update file");' "$U" || bad "Updater may only fetch INFO or APK"
+grep -nE 'setRequestMethod|setDoOutput|getOutputStream' "$U" && bad "Updater may only download (GET), never send (above)"
+for f in $(grep -rlE 'PackageInstaller|getPackageInstaller|INSTALL_PACKAGE|package-archive' src); do
+  [ "$f" = "$U" ] || bad "app installs outside Updater: $f"
+done
+[ "$(grep -c 'setAppPackageName(' "$U")" = 1 ] && grep -qxF '            params.setAppPackageName(c.getPackageName());' "$U" || bad "Updater's install session must be locked to this app's own package"
+[ "$(grep -c 'createSession(' "$U")" = 1 ] || bad "Updater may create exactly one install session"
+grep -nE '\.uninstall\(|setInstallerPackageName|setInstallReason|setGrantedRuntimePermissions|setWhitelistedRestrictedPermissions' "$U" && bad "Updater may only install this app (above)"
 
 [ $fail -eq 0 ] && echo "check_readonly: OK (receive-only: IMcuService register/unregister only)"
 exit $fail

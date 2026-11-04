@@ -49,10 +49,12 @@ On a ship, the binnacle is the stand in front of the helm that holds the compass
 
 ## Install
 No computer or adb needed for the basics.
-1. Download the latest `Binnacle-<version>.apk` from this project's [Releases](https://github.com/lotech/binnacle/releases).
+1. Download the latest `Binnacle.apk` (or `Binnacle-<version>.apk` on older releases) from this project's [Releases](https://github.com/lotech/binnacle/releases).
 2. Copy it to a USB stick, plug the stick into the unit, open it in the unit's file manager and tap the APK. Android asks once to allow installing apps from the file manager.
 3. Open **Binnacle**. The setup wizard asks about your car (model, steering-wheel side, colour), offers to make Binnacle the Home app, and asks for the compass (location) and in-dash camera. Any step can be skipped; **Apps → Advanced → Run setup** shows it again.
 4. Optional extras that hide the stock camera screen and stock pop-ups need a one-time change on the unit itself: see `docs/UNIT-CHANGES.md` (and `docs/ADB-GUIDE.md` for network ADB). **End CarPlay** and **Bluetooth auto-connect** also use network ADB; without it, End CarPlay opens Android's Wi-Fi screen instead.
+
+To update it later: **Apps → Advanced → Updates → Check for updates** (from 0.8 on). It checks this project's latest release over Wi-Fi only when you tap, downloads the new version and hands it to Android's installer, which asks you to confirm. The first time, Android asks you to allow Binnacle to install apps. Only in Park, because the dash restarts while it installs; settings and car images are kept. Details: [docs/UPDATES.md](docs/UPDATES.md).
 
 To remove it: **Apps → Advanced → Remove Binnacle**. The stock dash was never removed and comes straight back.
 

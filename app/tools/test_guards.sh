@@ -92,6 +92,13 @@ edit "CarPlayLink: binds the CAN app"      CarPlayLink.java 's|    private stati
 edit "CarPlayLink: txn changed on the way" CarPlayLink.java 's|            if (!b.transact(txn, data, reply, oneway ? IBinder.FLAG_ONEWAY : 0)) return false;|            if (!b.transact(txn + 1, data, reply, oneway ? IBinder.FLAG_ONEWAY : 0)) return false;|'
 edit "CarPlayLink: sends on a Messenger"   CarPlayLink.java 's|    void start() { call(TX_START, token(), false); }|    void start() { call(TX_START, token(), false); try { new Messenger(binder).send(Message.obtain()); } catch (RemoteException e) { } }|'
 edit "CarPlayLink: a second transact"      CarPlayLink.java 's|    void disconnect() { call(TX_DISCONNECT, token(), false); }|    void disconnect() { try { binder.transact(99, token(), null, 0); } catch (RemoteException e) { } }|'
+evil "network outside CarPacks/Updater"   'new java.net.URL("https://example.com/x").openConnection().getInputStream();'
+evil "PackageInstaller outside Updater"  'c.getPackageManager().getPackageInstaller().createSession(new android.content.pm.PackageInstaller.SessionParams(1));'
+edit "Updater: another address"          Updater.java 's|releases/latest/download/";|releases/download/other/";|'
+edit "Updater: installs another package" Updater.java 's|            params.setAppPackageName(c.getPackageName());|            params.setAppPackageName("com.xbs.canapp");|'
+edit "Updater: session not locked"       Updater.java 's|            params.setAppPackageName(c.getPackageName());|            params.setSize(1);|'
+edit "Updater: fetches any file"         Updater.java 's|        if (!INFO.equals(file) \&\& !APK.equals(file)) throw new IOException("not an update file");|        if (file == null) throw new IOException("not an update file");|' any
+edit "Updater: sends a body"             Updater.java 's|        http.setConnectTimeout(TIMEOUT_MS);|        http.setConnectTimeout(TIMEOUT_MS); http.setDoOutput(true);|'
 edit "StartupVolume: another stream"     StartupVolume.java 's|audio.setStreamVolume(AudioManager.STREAM_MUSIC, level, 0);|audio.setStreamVolume(AudioManager.STREAM_RING, level, 0);|' any
 edit "StartupVolume: a second setting"   StartupVolume.java 's|audio.setStreamVolume(AudioManager.STREAM_MUSIC, level, 0);|audio.setStreamVolume(AudioManager.STREAM_MUSIC, level, 0); audio.setRingerMode(0);|' any
 d=$(copy_app)
