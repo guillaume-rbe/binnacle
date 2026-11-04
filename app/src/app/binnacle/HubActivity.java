@@ -257,6 +257,10 @@ public class HubActivity extends Activity {
                             new String[]{"100", "115", "130"}, new String[]{"100%", "115%", "130%"}),
                     choiceCard("Menu side", null, "menu_side", "right",
                             new String[]{"left", "right"}, new String[]{"Left", "Right"}),
+                    choiceCard("Start-up volume", "Media volume set when the dash starts and when the car's Bluetooth audio "
+                                    + "connects. The car sets the loudness, so full is best",
+                            StartupVolume.KEY, StartupVolume.DEFAULT,
+                            new String[]{"100", "75", "50", "off"}, new String[]{"100%", "75%", "50%", "Leave as is"}),
                     btAutoConnectCard(),
                     actionCard("End CarPlay", null,
                             "End CarPlay", LocalShell.Command.END_CARPLAY),
