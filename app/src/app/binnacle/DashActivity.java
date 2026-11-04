@@ -45,7 +45,7 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
     private int focus = -1;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable clearFocus = new Runnable() {
-        @Override public void run() { setFocus(-1); }
+        @Override public void run() { setFocus(-1); }   // the dock times out: the wheel goes back to CarPlay
     };
 
     @Override protected void onCreate(Bundle state) {
@@ -127,9 +127,11 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
             if (connected) {
                 declaredSizes = null;
                 noteCarPlaySizes();     // before the surface goes over, so the session starts knowing both
-                if (carplayMode != CARPLAY_OFF) carplay.reattach();   // also asks for CarPlay
-                else if (restoreCarplayMode != CARPLAY_OFF) showCarPlay(restoreCarplayMode);
+                if (carplayMode == CARPLAY_OFF && restoreCarplayMode != CARPLAY_OFF) showCarPlay(restoreCarplayMode);
                 restoreCarplayMode = CARPLAY_OFF;
+                // a pane already on screen tried to hand over its surface before the link was up
+                // (after a restart its surface already exists, so nothing else would resend it)
+                if (carplayMode != CARPLAY_OFF) carplay.requestAttach();   // also asks for CarPlay
             } else if (carplayMode != CARPLAY_OFF) {
                 showCarPlay(CARPLAY_OFF);       // xcertplay went away; the dock opens its own screen now
             }
@@ -163,17 +165,24 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
     private void showCarPlay(int mode) {
         if (mode == carplayMode) return;
         carplayMode = mode;
+        wheelOnDock = false;                      // a newly shown CarPlay gets the wheel
         boolean full = mode == CARPLAY_FULL;
         left.setVisibility(full ? View.GONE : View.VISIBLE);
         right.setVisibility(full ? View.GONE : View.VISIBLE);
         carplay.setVisibility(mode == CARPLAY_OFF ? View.GONE : View.VISIBLE);
+        carplay.setRounded(!full);
         centreFrame.requestLayout();
+        if (mode != CARPLAY_OFF) carplay.requestAttach();   // the new size, or a surface that already existed
+        else setFocus(-1);
     }
 
     /**
-     * Wheel keys while CarPlay is shown: BACK leaves full screen, then CarPlay; scroll, OK and
-     * media keys go to CarPlay. With the camera up, the dash's own keys apply (BACK closes it).
+     * With CarPlay in the centre, the wheel is either CarPlay's (scroll, OK and media keys go to
+     * the phone) or the dock's (scroll and OK pick a dash button). Left tilt (BACK) moves it
+     * between them; full screen has no dock, so there BACK drops back to the centre window.
      */
+    private boolean wheelOnDock;
+
     @Override public boolean dispatchKeyEvent(KeyEvent event) {
         // BACK is decided on its press: a press that closed the camera must not also step CarPlay
         // back on its release (the camera is gone by then)
@@ -184,15 +193,36 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
                 if (event.getAction() == KeyEvent.ACTION_UP) {
                     backForCarPlay = false;
                     if (event.isCanceled()) return true;
-                    if (focus >= 0) setFocus(-1);    // as elsewhere: BACK first clears the dock highlight
-                    else showCarPlay(carplayMode == CARPLAY_FULL ? CARPLAY_CENTRE : CARPLAY_OFF);
+                    if (carplayMode == CARPLAY_FULL) showCarPlay(CARPLAY_CENTRE);
+                    else if (wheelOnDock || focus >= 0) setFocus(-1);                   // wheel back to CarPlay
+                    else { setFocus(RightPanelView.DOCK_PHONE); wheelOnDock = true; }   // wheel to the dock
                 }
                 return true;
             }
             return super.dispatchKeyEvent(event);
         }
-        if (carplayMode != CARPLAY_OFF && !camera.isRunning() && carplayLink.key(event)) return true;
+        // Who gets a key is decided on its press and kept for its release, so a dock OK that hands
+        // the wheel back can't send CarPlay a release without a press. While the dock has the wheel,
+        // scroll and OK stay with the dash; media keys still go to CarPlay.
+        int code = event.getKeyCode();
+        if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
+            boolean toCarPlay = carplayMode != CARPLAY_OFF && !camera.isRunning() && !(wheelOnDock && isNavKey(code));
+            keysToCarPlay.put(code, toCarPlay);
+        }
+        boolean toCarPlay = keysToCarPlay.get(code, false);
+        if (event.getAction() == KeyEvent.ACTION_UP) keysToCarPlay.put(code, false);   // this press is over
+        if (toCarPlay && carplayLink.key(event)) return true;
         return super.dispatchKeyEvent(event);
+    }
+
+    /** Per key code: whether its current press went to CarPlay. */
+    private final android.util.SparseBooleanArray keysToCarPlay = new android.util.SparseBooleanArray();
+
+    private static boolean isNavKey(int code) {
+        return code == KeyEvent.KEYCODE_DPAD_UP || code == KeyEvent.KEYCODE_DPAD_DOWN
+                || code == KeyEvent.KEYCODE_DPAD_LEFT || code == KeyEvent.KEYCODE_DPAD_RIGHT
+                || code == KeyEvent.KEYCODE_ENTER || code == KeyEvent.KEYCODE_DPAD_CENTER
+                || code == KeyEvent.KEYCODE_NUMPAD_ENTER;
     }
 
     /** The current BACK press belongs to CarPlay (decided on its key-down). */
@@ -254,6 +284,7 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
         super.onResume();
         firstStartQuestions();
         resumed = true;
+        carplayLink.retry();    // a bind refused at boot (power manager not ready yet) connects now
         lastFrontCam = app.car.frontCamRequest;     // seed the edge detector with the current state
         if (!dashCamera()) return;
         if (Build.VERSION.SDK_INT >= 23 && checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
@@ -450,6 +481,7 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
     }
 
     @Override public void onDock(int index) {
+        wheelOnDock = false;
         setFocus(-1);
         switch (index) {
             case RightPanelView.DOCK_PHONE:
@@ -475,6 +507,7 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
 
     private void setFocus(int i) {
         focus = i;
+        if (i < 0) wheelOnDock = false;      // no highlight: the wheel is CarPlay's again (when it is shown)
         right.setFocusIndex(i);
         handler.removeCallbacks(clearFocus);
         if (i >= 0) handler.postDelayed(clearFocus, FOCUS_TIMEOUT_MS);
@@ -492,7 +525,10 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
                 return true;
             case KeyEvent.KEYCODE_ENTER:
             case KeyEvent.KEYCODE_DPAD_CENTER:
-                if (focus >= 0) onDock(focus); else setFocus(0);
+            case KeyEvent.KEYCODE_NUMPAD_ENTER:
+                if (wheelOnDock && focus == RightPanelView.DOCK_PHONE && carplayMode == CARPLAY_CENTRE) {
+                    setFocus(-1);      // OK on CarPlay: the wheel goes back to CarPlay
+                } else if (focus >= 0) onDock(focus); else setFocus(0);
                 return true;
             case KeyEvent.KEYCODE_BACK:
                 if (focus >= 0) { setFocus(-1); return true; }

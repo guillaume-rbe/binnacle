@@ -37,7 +37,55 @@ final class CarPlayPane extends FrameLayout implements SurfaceHolder.Callback {
         status.setGravity(Gravity.CENTER);
         status.setBackgroundColor(Color.BLACK);
         addView(status, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
+        corners = new CornerMask(c);
+        addView(corners, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
         showState(CarPlayLink.STATE_CONNECTING, "");
+    }
+
+    private final CornerMask corners;
+
+    /** Rounded like the centre window (on), or square edge to edge for full screen (off). */
+    void setRounded(boolean rounded) {
+        corners.setVisibility(rounded ? VISIBLE : GONE);
+    }
+
+    /**
+     * The centre window's rounded corners over the video. A SurfaceView ignores clipping to an
+     * outline on Android 10, so the corners are painted over it in the dash's background, with
+     * the window's edge line, the same radius as the camera pane (16 px at 692 high).
+     */
+    private static final class CornerMask extends View {
+        private final android.graphics.Paint fill = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+        private final android.graphics.Paint edge = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+        private final android.graphics.Path path = new android.graphics.Path();
+        private final android.graphics.RectF box = new android.graphics.RectF();
+
+        CornerMask(Context c) {
+            super(c);
+            edge.setStyle(android.graphics.Paint.Style.STROKE);
+        }
+
+        @Override protected void onDraw(android.graphics.Canvas canvas) {
+            int w = getWidth(), h = getHeight();
+            if (w <= 0 || h <= 0) return;
+            fill.setColor(Style.BG);            // read each time: the theme can change
+            edge.setColor(Style.LINE);
+            float r = 16f * h / 692f, stroke = Math.max(1f, 1.5f * h / 692f);
+            box.set(0, 0, w, h);
+            path.reset();
+            path.addRoundRect(box, r, r, android.graphics.Path.Direction.CW);
+            path.setFillType(android.graphics.Path.FillType.INVERSE_WINDING);
+            canvas.drawPath(path, fill);            // only the four corners outside the rounded rect
+            edge.setStrokeWidth(stroke);
+            box.inset(stroke / 2, stroke / 2);
+            canvas.drawRoundRect(box, r, r, edge);
+        }
+    }
+
+    /** Hands the surface over once the layout has settled, e.g. when the pane is shown again. */
+    void requestAttach() {
+        removeCallbacks(attachNow);
+        postDelayed(attachNow, SETTLE_MS);
     }
 
     /** Video view placement from xcertplay: left, top, width, height in this view; empty = fill. */
@@ -56,6 +104,7 @@ final class CarPlayPane extends FrameLayout implements SurfaceHolder.Callback {
     @Override protected void onLayout(boolean changed, int l, int t, int r, int b) {
         int w = r - l, h = b - t;
         status.layout(0, 0, w, h);
+        corners.layout(0, 0, w, h);
         if (videoLayout.length == 4 && videoLayout[2] > 0 && videoLayout[3] > 0) {
             int vl = videoLayout[0], vt = videoLayout[1];
             video.measure(MeasureSpec.makeMeasureSpec(videoLayout[2], MeasureSpec.EXACTLY),
@@ -70,8 +119,7 @@ final class CarPlayPane extends FrameLayout implements SurfaceHolder.Callback {
     /** Centre ↔ full screen: a new CarPlay size, even when the (enlarged) video view keeps its size. */
     @Override protected void onSizeChanged(int w, int h, int oldw, int oldh) {
         super.onSizeChanged(w, h, oldw, oldh);
-        removeCallbacks(attachNow);
-        postDelayed(attachNow, SETTLE_MS);
+        requestAttach();
     }
 
     /** Touches go to CarPlay in this view's coordinates (what xcertplay maps), unless the status line is up. */
@@ -101,7 +149,12 @@ final class CarPlayPane extends FrameLayout implements SurfaceHolder.Callback {
     }
 
     /** Taps on the status line (no picture yet): set up, retry or connect. */
-    void setOnStatusTap(OnClickListener l) { status.setOnClickListener(l); }
+    void setOnStatusTap(OnClickListener l) {
+        status.setOnClickListener(l);
+        // touch only: a clickable view is focusable by default, and the wheel's OK would click it
+        status.setFocusable(false);
+        status.setFocusableInTouchMode(false);
+    }
 
     /** The surface goes to xcertplay once its size has settled: a size seen mid-layout would reconnect CarPlay. */
     private static final long SETTLE_MS = 250;
@@ -132,8 +185,7 @@ final class CarPlayPane extends FrameLayout implements SurfaceHolder.Callback {
         holder = h;
         surfaceW = w;
         surfaceH = height;
-        removeCallbacks(attachNow);
-        postDelayed(attachNow, SETTLE_MS);
+        requestAttach();
     }
 
     @Override public void surfaceDestroyed(SurfaceHolder h) {
