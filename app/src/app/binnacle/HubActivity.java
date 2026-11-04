@@ -1143,7 +1143,7 @@ public class HubActivity extends Activity {
 
     private void startUpdate(final Updater.Release r, final TextView b) {
         final DashApp app = DashApp.get(this);
-        if (app.car.moving()) {
+        if (app.car.gear != CarState.GEAR_P) {   // Park only, not just "not D or R": Neutral or no car data aren't safe
             Toast.makeText(this, "Update in Park: installing restarts the dash", Toast.LENGTH_LONG).show();
             return;
         }
