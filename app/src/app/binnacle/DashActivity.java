@@ -45,7 +45,7 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
     private int focus = -1;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable clearFocus = new Runnable() {
-        @Override public void run() { setFocus(-1); wheelOnDock = false; }   // the dock times out: wheel back to CarPlay
+        @Override public void run() { setFocus(-1); }   // the dock times out: the wheel goes back to CarPlay
     };
 
     @Override protected void onCreate(Bundle state) {
@@ -194,18 +194,29 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
                     backForCarPlay = false;
                     if (event.isCanceled()) return true;
                     if (carplayMode == CARPLAY_FULL) showCarPlay(CARPLAY_CENTRE);
-                    else if (wheelOnDock) { wheelOnDock = false; setFocus(-1); }        // wheel back to CarPlay
-                    else { wheelOnDock = true; setFocus(RightPanelView.DOCK_PHONE); }   // wheel to the dock
+                    else if (wheelOnDock || focus >= 0) setFocus(-1);                   // wheel back to CarPlay
+                    else { setFocus(RightPanelView.DOCK_PHONE); wheelOnDock = true; }   // wheel to the dock
                 }
                 return true;
             }
             return super.dispatchKeyEvent(event);
         }
-        // while the dock has the wheel, scroll and OK stay with the dash; media keys still go to CarPlay
-        boolean dockKey = wheelOnDock && isNavKey(event.getKeyCode());
-        if (carplayMode != CARPLAY_OFF && !camera.isRunning() && !dockKey && carplayLink.key(event)) return true;
+        // Who gets a key is decided on its press and kept for its release, so a dock OK that hands
+        // the wheel back can't send CarPlay a release without a press. While the dock has the wheel,
+        // scroll and OK stay with the dash; media keys still go to CarPlay.
+        int code = event.getKeyCode();
+        if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
+            boolean toCarPlay = carplayMode != CARPLAY_OFF && !camera.isRunning() && !(wheelOnDock && isNavKey(code));
+            keysToCarPlay.put(code, toCarPlay);
+        }
+        boolean toCarPlay = keysToCarPlay.get(code, false);
+        if (event.getAction() == KeyEvent.ACTION_UP) keysToCarPlay.put(code, false);   // this press is over
+        if (toCarPlay && carplayLink.key(event)) return true;
         return super.dispatchKeyEvent(event);
     }
+
+    /** Per key code: whether its current press went to CarPlay. */
+    private final android.util.SparseBooleanArray keysToCarPlay = new android.util.SparseBooleanArray();
 
     private static boolean isNavKey(int code) {
         return code == KeyEvent.KEYCODE_DPAD_UP || code == KeyEvent.KEYCODE_DPAD_DOWN
@@ -496,6 +507,7 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
 
     private void setFocus(int i) {
         focus = i;
+        if (i < 0) wheelOnDock = false;      // no highlight: the wheel is CarPlay's again (when it is shown)
         right.setFocusIndex(i);
         handler.removeCallbacks(clearFocus);
         if (i >= 0) handler.postDelayed(clearFocus, FOCUS_TIMEOUT_MS);
@@ -513,8 +525,9 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
                 return true;
             case KeyEvent.KEYCODE_ENTER:
             case KeyEvent.KEYCODE_DPAD_CENTER:
+            case KeyEvent.KEYCODE_NUMPAD_ENTER:
                 if (wheelOnDock && focus == RightPanelView.DOCK_PHONE && carplayMode == CARPLAY_CENTRE) {
-                    wheelOnDock = false; setFocus(-1);      // OK on CarPlay: the wheel goes back to CarPlay
+                    setFocus(-1);      // OK on CarPlay: the wheel goes back to CarPlay
                 } else if (focus >= 0) onDock(focus); else setFocus(0);
                 return true;
             case KeyEvent.KEYCODE_BACK:

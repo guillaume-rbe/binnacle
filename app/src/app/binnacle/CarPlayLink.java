@@ -86,13 +86,21 @@ final class CarPlayLink implements ServiceConnection {
             bound = context.bindService(i, this, Context.BIND_AUTO_CREATE);
         } catch (SecurityException e) {
             Log.i(TAG, "CarPlay link not allowed: " + e.getMessage());
+            refused = true;             // another signing key: no point asking again
             bound = false;
         }
         if (!bound) {
             try { context.unbindService(this); } catch (RuntimeException ignored) { }
         }
+        boundAt = android.os.SystemClock.elapsedRealtime();
         return bound;
     }
+
+    /** Refused for good (other signing key, or an xcertplay without API 2). */
+    private boolean refused;
+    private long boundAt;
+    /** A bind that hasn't connected after this long was dropped (the power manager at boot). */
+    private static final long CONNECT_WAIT_MS = 5000;
 
     /**
      * Binds again when there is no link yet. Right after boot the unit's power manager (Unisoc
@@ -100,8 +108,10 @@ final class CarPlayLink implements ServiceConnection {
      * bind never connects, so the dash retries each time it comes to the front.
      */
     void retry() {
-        if (binder != null) return;
+        if (binder != null || refused) return;
         if (bound) {
+            // still connecting: leave it be; only a bind that never connected is replaced
+            if (android.os.SystemClock.elapsedRealtime() - boundAt < CONNECT_WAIT_MS) return;
             bound = false;
             try { context.unbindService(this); } catch (RuntimeException ignored) { }
         }
@@ -131,6 +141,7 @@ final class CarPlayLink implements ServiceConnection {
         int version = version();
         if (version != API_VERSION) {
             Log.i(TAG, "CarPlay link: xcertplay API " + version + ", need " + API_VERSION);
+            refused = true;
             binder = null;
             listener.onLinkChanged(false);
             return;
@@ -150,6 +161,7 @@ final class CarPlayLink implements ServiceConnection {
 
     /** xcertplay was updated or reinstalled: this binding is dead for good, so bind afresh. */
     @Override public void onBindingDied(ComponentName name) {
+        refused = false;            // the new xcertplay may well be the right one
         unbind();
         bind();
     }

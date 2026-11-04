@@ -62,8 +62,6 @@ final class CarPlayPane extends FrameLayout implements SurfaceHolder.Callback {
 
         CornerMask(Context c) {
             super(c);
-
-
             edge.setStyle(android.graphics.Paint.Style.STROKE);
         }
 
@@ -106,7 +104,6 @@ final class CarPlayPane extends FrameLayout implements SurfaceHolder.Callback {
     @Override protected void onLayout(boolean changed, int l, int t, int r, int b) {
         int w = r - l, h = b - t;
         status.layout(0, 0, w, h);
-        corners.measure(MeasureSpec.makeMeasureSpec(w, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(h, MeasureSpec.EXACTLY));
         corners.layout(0, 0, w, h);
         if (videoLayout.length == 4 && videoLayout[2] > 0 && videoLayout[3] > 0) {
             int vl = videoLayout[0], vt = videoLayout[1];
@@ -122,8 +119,7 @@ final class CarPlayPane extends FrameLayout implements SurfaceHolder.Callback {
     /** Centre ↔ full screen: a new CarPlay size, even when the (enlarged) video view keeps its size. */
     @Override protected void onSizeChanged(int w, int h, int oldw, int oldh) {
         super.onSizeChanged(w, h, oldw, oldh);
-        removeCallbacks(attachNow);
-        postDelayed(attachNow, SETTLE_MS);
+        requestAttach();
     }
 
     /** Touches go to CarPlay in this view's coordinates (what xcertplay maps), unless the status line is up. */
@@ -189,8 +185,7 @@ final class CarPlayPane extends FrameLayout implements SurfaceHolder.Callback {
         holder = h;
         surfaceW = w;
         surfaceH = height;
-        removeCallbacks(attachNow);
-        postDelayed(attachNow, SETTLE_MS);
+        requestAttach();
     }
 
     @Override public void surfaceDestroyed(SurfaceHolder h) {
