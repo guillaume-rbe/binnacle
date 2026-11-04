@@ -11,6 +11,8 @@ import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.Surface
 import com.shilapi.xcertplay.embed.ICarPlayEmbed
+import com.shilapi.xcertplay.media.CarPlayNowPlaying
+import com.shilapi.xcertplay.media.CarPlayNowPlayingFeed
 import android.os.Message
 import android.os.Messenger
 import java.util.concurrent.CountDownLatch
@@ -36,11 +38,21 @@ class CarPlayEmbedService : Service() {
     private var lastLayout: IntArray? = null
     private var lastStage = ""
     private var audioFocusRetained = false
+    private var nowPlaying: CarPlayNowPlaying? = null
+    private var nowPlayingArt: ByteArray? = null       // the cover, made small for the client
+    private var nowPlayingArtId = -1
+    private var sentArtId = -1                          // the cover this listener already has
+    private var nowPlayingSent = false
 
     override fun onCreate() {
         super.onCreate()
         session.init(this)
         session.register(client)
+        CarPlayNowPlayingFeed.observe { next ->
+            // iAP2 thread: shrink a new cover here, then hand over on the main thread
+            val art = next?.artwork?.takeIf { next.artworkId != nowPlayingArtId }?.let { smallCover(it) }
+            mainHandler.post { onNowPlaying(next, art) }
+        }
     }
 
     override fun onBind(intent: Intent?): IBinder = binder
@@ -52,6 +64,7 @@ class CarPlayEmbedService : Service() {
     }
 
     override fun onDestroy() {
+        CarPlayNowPlayingFeed.observe(null)
         dropClient("embed service destroyed")
         session.unregister(client)
         super.onDestroy()
@@ -67,6 +80,8 @@ class CarPlayEmbedService : Service() {
                 listenerDeath = null
                 lastState = -1
                 lastLayout = null
+                sentArtId = -1
+                nowPlayingSent = false
                 if (next != null) {
                     val death = IBinder.DeathRecipient { onMain { dropClient("embedding client died") } }
                     try {
@@ -77,6 +92,7 @@ class CarPlayEmbedService : Service() {
                         return@onMain
                     }
                     publishState()
+                    publishNowPlaying()
                 }
             }
         }
@@ -242,6 +258,73 @@ class CarPlayEmbedService : Service() {
         }
     }
 
+    private fun onNowPlaying(next: CarPlayNowPlaying?, art: ByteArray?) {
+        nowPlaying = next
+        if (next == null) {
+            nowPlayingArt = null
+            nowPlayingArtId = -1
+        } else if (next.artworkId != nowPlayingArtId) {
+            nowPlayingArt = art
+            nowPlayingArtId = if (art != null) next.artworkId else -1
+        }
+        publishNowPlaying()
+    }
+
+    /**
+     * What the iPhone is playing, for the client's own card: what 4, arg1 1 = playing something
+     * (data: "title", "artist", "album", "app", long "duration" and "position" in ms, "playing",
+     * "controls", int "artId" and, when the cover is new to this client, byte[] "art", a JPEG of
+     * at most 256 px), arg1 0 = nothing. Play/pause, next and previous go back as media keys
+     * through sendKey, like the steering wheel's.
+     */
+    private fun publishNowPlaying() {
+        val target = listener ?: return
+        val now = nowPlaying
+        if (now == null && !nowPlayingSent) return
+        val data = android.os.Bundle()
+        if (now != null) {
+            data.putString("title", now.title)
+            data.putString("artist", now.artist)
+            data.putString("album", now.album)
+            data.putString("app", now.appName)
+            data.putLong("duration", now.durationMillis)
+            data.putLong("position", now.positionMillis)
+            data.putBoolean("playing", now.playing)
+            data.putBoolean("controls", now.controls)
+            data.putInt("artId", nowPlayingArtId)
+            val art = nowPlayingArt
+            if (art != null && nowPlayingArtId != sentArtId) data.putByteArray("art", art)
+        }
+        try {
+            target.send(Message.obtain(null, MSG_NOW_PLAYING, if (now != null) 1 else 0, 0).apply { this.data = data })
+            nowPlayingSent = now != null
+            if (now != null && data.containsKey("art")) sentArtId = nowPlayingArtId
+        } catch (error: RemoteException) {
+            Log.w(TAG, "embedding client unreachable", error)
+        }
+    }
+
+    /** The iPhone's cover scaled to fit 256 px and re-encoded, so it stays well inside a binder call. */
+    private fun smallCover(data: ByteArray): ByteArray? = runCatching {
+        val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        android.graphics.BitmapFactory.decodeByteArray(data, 0, data.size, bounds)
+        var sample = 1
+        while (bounds.outWidth / (sample * 2) >= COVER_PX && bounds.outHeight / (sample * 2) >= COVER_PX) sample *= 2
+        val decoded = android.graphics.BitmapFactory.decodeByteArray(
+            data, 0, data.size, android.graphics.BitmapFactory.Options().apply { inSampleSize = sample },
+        ) ?: return@runCatching null
+        val scale = minOf(1f, COVER_PX.toFloat() / maxOf(decoded.width, decoded.height))
+        val bitmap = if (scale < 1f) {
+            android.graphics.Bitmap.createScaledBitmap(
+                decoded, Math.round(decoded.width * scale), Math.round(decoded.height * scale), true,
+            ).also { if (it !== decoded) decoded.recycle() }
+        } else decoded
+        val out = java.io.ByteArrayOutputStream()
+        bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, out)
+        bitmap.recycle()
+        out.toByteArray()
+    }.getOrNull()
+
     private fun releaseSurface(reason: String) {
         val current = surface ?: return
         surface = null
@@ -298,6 +381,8 @@ class CarPlayEmbedService : Service() {
         const val MSG_STATE = 1
         const val MSG_HOST_UI = 2
         const val MSG_LAYOUT = 3
+        const val MSG_NOW_PLAYING = 4
+        private const val COVER_PX = 256
         private const val MAX_SIZE = 8192
         private const val MAX_DECLARED_SIZES = 4
         const val STATE_IDLE = 0

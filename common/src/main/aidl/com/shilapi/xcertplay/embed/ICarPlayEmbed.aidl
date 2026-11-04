@@ -27,7 +27,11 @@ interface ICarPlayEmbed {
      * change; what 2 = CarPlay's car-maker tile was pressed while this client's view was showing;
      * what 3 = where to put the video view inside the client's view (int array "video": left, top,
      * width, height; empty = fill it). The stream covers every declared area, so for a smaller
-     * area the video view is larger than the client's view and must be clipped by it.
+     * area the video view is larger than the client's view and must be clipped by it; what 4 =
+     * now playing (arg1 1 = something, 0 = nothing; data "title", "artist", "album", "app",
+     * long "duration" / "position" ms, boolean "playing" / "controls", int "artId", byte[] "art"
+     * = a JPEG cover of at most 256 px, only when new to this listener). Controls go back as
+     * media keys through sendKey.
      */
     void setListener(in Messenger listener);
 

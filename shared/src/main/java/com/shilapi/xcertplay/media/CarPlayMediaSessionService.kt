@@ -60,6 +60,7 @@ internal object CarPlayMediaSessionBridge {
             observer to snapshot
         }
         update.first?.invoke(update.second)
+        notifyHost(update.second)
     }
 
     fun detach(context: Context, owner: Any) {
@@ -78,6 +79,7 @@ internal object CarPlayMediaSessionBridge {
             observer to snapshot
         }
         update.first?.invoke(update.second)
+        notifyHost(update.second)
     }
 
     fun publish(owner: Any, nowPlaying: Iap2NowPlayingState) = update(owner) {
@@ -111,6 +113,25 @@ internal object CarPlayMediaSessionBridge {
 
     fun setControlsAvailable(owner: Any, available: Boolean) = update(owner) {
         it.copy(controlsAvailable = available)
+    }
+
+    private var hostObserver: ((CarPlayNowPlaying?) -> Unit)? = null
+
+    /**
+     * A second, public observer for an app that shows now playing itself (Binnacle, through
+     * CarPlayEmbedService). Gets null when nothing is playing or no session owns the media.
+     */
+    fun observeForHost(observer: ((CarPlayNowPlaying?) -> Unit)?) {
+        val initial = synchronized(this) {
+            hostObserver = observer
+            snapshot
+        }
+        observer?.invoke(CarPlayNowPlaying.from(initial))
+    }
+
+    private fun notifyHost(next: CarPlayMediaSnapshot) {
+        val target = synchronized(this) { hostObserver } ?: return
+        target(CarPlayNowPlaying.from(next))
     }
 
     fun observe(observer: ((CarPlayMediaSnapshot) -> Unit)?) {
@@ -150,6 +171,7 @@ internal object CarPlayMediaSessionBridge {
             observer to next
         }
         update.first?.invoke(update.second)
+        notifyHost(update.second)
     }
 }
 
