@@ -2,6 +2,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <!-- Apps signed with the same key may show CarPlay in their own view (CarPlayEmbedService). -->
+    <permission
+        android:name="com.shilapi.xcertplay.permission.EMBED_CARPLAY"
+        android:protectionLevel="signature" />
     <!-- Read-only vehicle data through standard Android Automotive permissions. -->
     <uses-permission android:name="android.car.permission.CAR_INFO" />
     <uses-permission android:name="android.car.permission.CAR_SPEED" />
@@ -56,6 +61,15 @@
             android:exported="false"
             android:screenOrientation="fullSensor"
             android:theme="@style/Theme.Xcertplay" />
+
+        <service
+            android:name="com.shilapi.xcertplay.CarPlayEmbedService"
+            android:exported="true"
+            android:permission="com.shilapi.xcertplay.permission.EMBED_CARPLAY">
+            <intent-filter>
+                <action android:name="com.shilapi.xcertplay.action.EMBED_CARPLAY" />
+            </intent-filter>
+        </service>
 
         <receiver
             android:name="com.shilapi.xcertplay.BootReceiver"
