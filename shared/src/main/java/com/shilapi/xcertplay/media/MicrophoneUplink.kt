@@ -59,7 +59,15 @@ internal class MicrophoneUplink(
     }
 
     private fun startCapture() {
-        audioModeLease = MicrophoneAudioMode.acquire(context)
+        // Communication mode moves all output off Bluetooth music (A2DP). Calls have their own
+        // route to the car (BluetoothCallRoute), but Siri doesn't: with the car on A2DP, keeping
+        // normal mode is what sends Siri's voice to the car instead of the dash speaker (4 Nov).
+        if (CallVoiceProcessing.isCall(config.audioType) || !CarLinkVolume.musicGoesToBluetooth(context)) {
+            audioModeLease = MicrophoneAudioMode.acquire(context)
+        } else {
+            Log.i(TAG, "microphone uplink type=${config.audioType} keeps normal audio mode (car on Bluetooth music)")
+            debugLog("microphone ${config.audioType}: normal audio mode, voice to the car over Bluetooth music")
+        }
 
         if (config.codec == AudioCodecKind.OPUS) {
             opusEncoder = OpusEncoder(

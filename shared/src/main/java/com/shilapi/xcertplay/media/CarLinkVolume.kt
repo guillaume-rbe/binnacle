@@ -37,6 +37,12 @@ internal object CarLinkVolume {
         }
     }
 
+    /** Whether music output goes to a Bluetooth audio device (the car link) right now. */
+    fun musicGoesToBluetooth(context: Context): Boolean {
+        val audio = context.applicationContext.getSystemService(AudioManager::class.java) ?: return false
+        return musicGoesToBluetooth(audio)
+    }
+
     private fun musicGoesToBluetooth(audio: AudioManager): Boolean =
         audio.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any { it.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP } &&
             @Suppress("DEPRECATION") audio.isBluetoothA2dpOn

@@ -37,6 +37,9 @@
 >   and echo cancelling; the dash-mic clean-up is skipped). With the "CarPlay" calling account
 >   enabled, calls are also mirrored into Android Telecom, so the car shows the caller and its
 >   answer, hang-up and keypad buttons reach the iPhone as CarPlay telephony keys
+> - Siri's voice goes to the car too: while the car plays the head unit's music over Bluetooth,
+>   Siri and other non-call microphone streams keep Android's normal audio mode (communication
+>   mode would move the voice to the head unit's own speaker)
 > - Restores the music volume on the Bluetooth link to the car when it starts at zero (the stock
 >   CAN app zeroes it when the car sleeps and only restores the built-in speaker on wake)
 > - The video decoder keeps running on a hidden surface while another app is in front, so
