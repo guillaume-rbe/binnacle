@@ -1889,6 +1889,10 @@ class CarPlayHostActivity : ComponentActivity() {
      * pending it holds the session back; the session itself checks the permissions it needs.
      */
     private fun updateStartupHold() {
+        // VPN consent given earlier (e.g. to the screen that started an adopted session) counts too.
+        if (!wirelessEnabled && !vpnReady && !awaitingVpnConsent) {
+            vpnReady = CarPlayVpnService.prepare(this) == null
+        }
         val transportReady = if (wirelessEnabled) wirelessPermissionsReady else vpnReady
         val locationReady = !locationReportingEnabled || locationPermissionAvailable
         if (transportReady && locationReady && microphonePermissionResolved) {
