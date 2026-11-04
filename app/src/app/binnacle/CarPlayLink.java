@@ -35,6 +35,8 @@ final class CarPlayLink implements ServiceConnection {
         void onCarPlayState(int state, String stage);
         /** CarPlay's car-maker tile, pressed while our view was showing. */
         void onHostUi();
+        /** Where the video view goes inside ours: left, top, width, height; empty = fill. */
+        void onVideoLayout(int[] video);
     }
 
     static final int STATE_IDLE = 0, STATE_NEEDS_SETUP = 1, STATE_CONNECTING = 2, STATE_STREAMING = 3,
@@ -48,7 +50,7 @@ final class CarPlayLink implements ServiceConnection {
     /** ICarPlayEmbed transaction codes (FIRST_CALL_TRANSACTION + position), fixed by API 2. */
     private static final int TX_VERSION = 1, TX_LISTENER = 2, TX_ATTACH = 3, TX_DETACH = 4, TX_TOUCH = 5,
             TX_KEY = 6, TX_START = 7, TX_DISCONNECT = 8, TX_SETTINGS = 9, TX_SIZES = 10;
-    private static final int MSG_STATE = 1, MSG_HOST_UI = 2;
+    private static final int MSG_STATE = 1, MSG_HOST_UI = 2, MSG_LAYOUT = 3;
 
     private final Context context;
     private final Listener listener;
@@ -68,6 +70,9 @@ final class CarPlayLink implements ServiceConnection {
                     listener.onCarPlayState(state, stage);
                 } else if (m.what == MSG_HOST_UI) {
                     listener.onHostUi();
+                } else if (m.what == MSG_LAYOUT) {
+                    int[] video = m.peekData() != null ? m.peekData().getIntArray("video") : null;
+                    listener.onVideoLayout(video != null && video.length == 4 ? video : new int[0]);
                 }
             }
         });

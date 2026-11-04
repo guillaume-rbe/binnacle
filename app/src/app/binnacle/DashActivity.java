@@ -134,6 +134,9 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
                 showCarPlay(CARPLAY_OFF);       // xcertplay went away; the dock opens its own screen now
             }
         }
+        @Override public void onVideoLayout(int[] video) {
+            carplay.setVideoLayout(video);
+        }
         @Override public void onCarPlayState(int state, String stage) {
             carplay.showState(state, stage);
         }
@@ -172,18 +175,28 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
      * media keys go to CarPlay. With the camera up, the dash's own keys apply (BACK closes it).
      */
     @Override public boolean dispatchKeyEvent(KeyEvent event) {
-        if (carplayMode != CARPLAY_OFF && !camera.isRunning()) {
-            if (event.getKeyCode() == KeyEvent.KEYCODE_BACK) {
-                if (event.getAction() == KeyEvent.ACTION_UP && !event.isCanceled()) {
+        // BACK is decided on its press: a press that closed the camera must not also step CarPlay
+        // back on its release (the camera is gone by then)
+        if (event.getKeyCode() == KeyEvent.KEYCODE_BACK) {
+            if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0)
+                backForCarPlay = carplayMode != CARPLAY_OFF && !camera.isRunning();
+            if (backForCarPlay) {
+                if (event.getAction() == KeyEvent.ACTION_UP) {
+                    backForCarPlay = false;
+                    if (event.isCanceled()) return true;
                     if (focus >= 0) setFocus(-1);    // as elsewhere: BACK first clears the dock highlight
                     else showCarPlay(carplayMode == CARPLAY_FULL ? CARPLAY_CENTRE : CARPLAY_OFF);
                 }
                 return true;
             }
-            if (carplayLink.key(event)) return true;
+            return super.dispatchKeyEvent(event);
         }
+        if (carplayMode != CARPLAY_OFF && !camera.isRunning() && carplayLink.key(event)) return true;
         return super.dispatchKeyEvent(event);
     }
+
+    /** The current BACK press belongs to CarPlay (decided on its key-down). */
+    private boolean backForCarPlay;
 
     /**
      * First start: the setup wizard (SetupActivity), until it has been finished or skipped once.

@@ -37,13 +37,52 @@ final class CarPlayPane extends FrameLayout implements SurfaceHolder.Callback {
         status.setGravity(Gravity.CENTER);
         status.setBackgroundColor(Color.BLACK);
         addView(status, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
-        video.setOnTouchListener(new OnTouchListener() {
-            @Override public boolean onTouch(View v, MotionEvent e) {
-                CarPlayPane.this.link.touch(e);
-                return true;
-            }
-        });
         showState(CarPlayLink.STATE_CONNECTING, "");
+    }
+
+    /** Video view placement from xcertplay: left, top, width, height in this view; empty = fill. */
+    private int[] videoLayout = new int[0];
+
+    void setVideoLayout(int[] v) {
+        if (java.util.Arrays.equals(v, videoLayout)) return;
+        videoLayout = v;
+        requestLayout();
+    }
+
+    /**
+     * The decoder draws the whole stream, which spans every declared size; for a smaller one the
+     * video view is made larger and this view clips it, so only the active area shows.
+     */
+    @Override protected void onLayout(boolean changed, int l, int t, int r, int b) {
+        int w = r - l, h = b - t;
+        status.layout(0, 0, w, h);
+        if (videoLayout.length == 4 && videoLayout[2] > 0 && videoLayout[3] > 0) {
+            int vl = videoLayout[0], vt = videoLayout[1];
+            video.measure(MeasureSpec.makeMeasureSpec(videoLayout[2], MeasureSpec.EXACTLY),
+                    MeasureSpec.makeMeasureSpec(videoLayout[3], MeasureSpec.EXACTLY));
+            video.layout(vl, vt, vl + videoLayout[2], vt + videoLayout[3]);
+        } else {
+            video.measure(MeasureSpec.makeMeasureSpec(w, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(h, MeasureSpec.EXACTLY));
+            video.layout(0, 0, w, h);
+        }
+    }
+
+    /** Centre ↔ full screen: a new CarPlay size, even when the (enlarged) video view keeps its size. */
+    @Override protected void onSizeChanged(int w, int h, int oldw, int oldh) {
+        super.onSizeChanged(w, h, oldw, oldh);
+        removeCallbacks(attachNow);
+        postDelayed(attachNow, SETTLE_MS);
+    }
+
+    /** Touches go to CarPlay in this view's coordinates (what xcertplay maps), unless the status line is up. */
+    @Override public boolean onInterceptTouchEvent(MotionEvent e) {
+        return status.getVisibility() != VISIBLE;
+    }
+
+    @Override public boolean onTouchEvent(MotionEvent e) {
+        if (status.getVisibility() == VISIBLE) return super.onTouchEvent(e);
+        link.touch(e);
+        return true;
     }
 
     /** What the status line says for an xcertplay state; hidden once the picture is drawing. */
@@ -73,8 +112,9 @@ final class CarPlayPane extends FrameLayout implements SurfaceHolder.Callback {
     /** (Re)sends the surface and asks for CarPlay, e.g. after the link came back. */
     void reattach() {
         removeCallbacks(attachNow);
-        if (holder == null || surfaceW <= 0 || surfaceH <= 0 || !link.connected()) return;
-        link.attach(holder.getSurface(), surfaceW, surfaceH);
+        // the size is this view's (the area CarPlay lays out for), not the video view's, which can be larger
+        if (holder == null || surfaceW <= 0 || surfaceH <= 0 || getWidth() <= 0 || getHeight() <= 0 || !link.connected()) return;
+        link.attach(holder.getSurface(), getWidth(), getHeight());
         attached = true;
         link.start();       // no-op when CarPlay is already running
     }

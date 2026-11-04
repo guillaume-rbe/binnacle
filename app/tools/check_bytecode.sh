@@ -133,6 +133,7 @@ String:com.shilapi.xcertplay.CarPlayEmbedService
 String:com.shilapi.xcertplay.embed.ICarPlayEmbed
 String:not an ICarPlayEmbed call
 String:stage
+String:video
 EOF
 )
     [ "$got" = "$expected" ] || { diff <(printf '%s\n' "$expected") <(printf '%s\n' "$got") >&2; bad "CarPlayLink strings changed: review, then update this guard"; }
