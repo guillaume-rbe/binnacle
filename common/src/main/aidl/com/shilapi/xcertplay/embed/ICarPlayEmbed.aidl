@@ -24,7 +24,10 @@ interface ICarPlayEmbed {
      * 2. Where state goes; null removes it. Messages: what 1 = state (arg1: 0 idle, 1 needs setup,
      * 2 connecting, 3 streaming, 4 stopped after failed retries, 5 paused while xcertplay's
      * settings are open; data string "stage": the state in words), sent at once and on every
-     * change; what 2 = CarPlay's car-maker tile was pressed while this client's view was showing.
+     * change; what 2 = CarPlay's car-maker tile was pressed while this client's view was showing;
+     * what 3 = where to put the video view inside the client's view (int array "video": left, top,
+     * width, height; empty = fill it). The stream covers every declared area, so for a smaller
+     * area the video view is larger than the client's view and must be clipped by it.
      */
     void setListener(in Messenger listener);
 

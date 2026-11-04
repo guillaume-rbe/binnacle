@@ -33,6 +33,7 @@ class CarPlayEmbedService : Service() {
     private var surfaceWidth = 0
     private var surfaceHeight = 0
     private var lastState = -1
+    private var lastLayout: IntArray? = null
     private var lastStage = ""
     private var audioFocusRetained = false
 
@@ -65,6 +66,7 @@ class CarPlayEmbedService : Service() {
                 listener = next
                 listenerDeath = null
                 lastState = -1
+                lastLayout = null
                 if (next != null) {
                     val death = IBinder.DeathRecipient { onMain { dropClient("embedding client died") } }
                     try {
@@ -194,7 +196,39 @@ class CarPlayEmbedService : Service() {
         else -> STATE_IDLE
     }
 
+    /**
+     * Where the client's video view goes inside its view, as left, top, width, height ("video";
+     * empty = fill the view). The decoder always renders the whole stream (the envelope of every
+     * declared area) into the surface, so for a smaller area the view is made larger and clipped
+     * by its parent, exactly as xcertplay's own screen does (mainAreaPlacement); touch already
+     * maps to the visible area. Sent when it changes.
+     */
+    private fun publishLayout() {
+        val target = listener ?: return
+        val w = surfaceWidth
+        val h = surfaceHeight
+        val video = if (surface == null || w <= 0 || h <= 0) {
+            IntArray(0)
+        } else {
+            val web = session.settings?.mainWebDisplay ?: CarPlayWebDisplayConfig()
+            session.mainAreaPlacement(w, h, web)?.let { (rect, share) ->
+                intArrayOf(
+                    Math.round(rect[0]).toInt(), Math.round(rect[1]).toInt(),
+                    Math.round(rect[2] / share[0]).toInt(), Math.round(rect[3] / share[1]).toInt(),
+                )
+            } ?: IntArray(0)
+        }
+        if (video.contentEquals(lastLayout)) return
+        lastLayout = video
+        try {
+            target.send(Message.obtain(null, MSG_LAYOUT).apply { data = android.os.Bundle().apply { putIntArray("video", video) } })
+        } catch (error: RemoteException) {
+            Log.w(TAG, "embedding client unreachable", error)
+        }
+    }
+
     private fun publishState() {
+        publishLayout()
         val target = listener ?: return
         val state = state()
         val stage = session.connectionStage
@@ -263,6 +297,7 @@ class CarPlayEmbedService : Service() {
         const val API_VERSION = 2
         const val MSG_STATE = 1
         const val MSG_HOST_UI = 2
+        const val MSG_LAYOUT = 3
         private const val MAX_SIZE = 8192
         private const val MAX_DECLARED_SIZES = 4
         const val STATE_IDLE = 0
