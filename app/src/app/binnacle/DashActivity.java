@@ -75,6 +75,9 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
             }
             @Override public void onCameraState(boolean on) {
                 if (right != null) right.setCameraOn(on);
+                // the Camera button keeps its highlight while the camera is up (no timeout), so OK
+                // closes it again; once it closes, the highlight times out as usual
+                if (focus == RightPanelView.DOCK_CAMERA) setFocus(focus);
             }
         });
         camera.setVisibility(View.GONE);
@@ -189,7 +192,8 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
     /**
      * With CarPlay in the centre, the wheel is either CarPlay's (scroll, OK and media keys go to
      * the phone) or the dock's (scroll and OK pick a dash button). Left tilt (BACK) moves it
-     * between them; full screen has no dock, so there BACK drops back to the centre window.
+     * between them; full screen has no dock, so there BACK drops back to the centre window. OK on
+     * the dock's CarPlay button (as a tap) makes the centre window full screen.
      */
     private boolean wheelOnDock;
 
@@ -532,7 +536,8 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
         if (i < 0) wheelOnDock = false;      // no highlight: the wheel is CarPlay's again (when it is shown)
         right.setFocusIndex(i);
         handler.removeCallbacks(clearFocus);
-        if (i >= 0) handler.postDelayed(clearFocus, FOCUS_TIMEOUT_MS);
+        if (i >= 0 && !(i == RightPanelView.DOCK_CAMERA && camera.isRunning()))
+            handler.postDelayed(clearFocus, FOCUS_TIMEOUT_MS);
     }
 
     @Override public boolean onKeyDown(int keyCode, KeyEvent event) {
@@ -548,9 +553,13 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
             case KeyEvent.KEYCODE_ENTER:
             case KeyEvent.KEYCODE_DPAD_CENTER:
             case KeyEvent.KEYCODE_NUMPAD_ENTER:
-                if (wheelOnDock && focus == RightPanelView.DOCK_PHONE && carplayMode == CARPLAY_CENTRE) {
-                    setFocus(-1);      // OK on CarPlay: the wheel goes back to CarPlay
-                } else if (focus >= 0) onDock(focus); else setFocus(0);
+                if (focus == RightPanelView.DOCK_CAMERA) {
+                    // the camera opens or closes and the highlight stays, so OK again undoes it
+                    boolean dock = wheelOnDock;
+                    onDock(focus);
+                    setFocus(RightPanelView.DOCK_CAMERA);
+                    wheelOnDock = dock;
+                } else if (focus >= 0) onDock(focus); else setFocus(0);   // OK on CarPlay in the centre: full screen
                 return true;
             case KeyEvent.KEYCODE_BACK:
                 if (focus >= 0) { setFocus(-1); return true; }
