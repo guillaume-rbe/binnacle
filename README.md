@@ -16,7 +16,7 @@ Aimed at fixing some of the jank in the shipped software. We were promised over 
 On a ship, the binnacle is the stand in front of the helm that holds the compass, lit so the helmsman can read it at a glance.
 
 ## Features
-- **Live car data, never written to:** speed, gear (R P N D), speed-limit sign, indicators and lights, power and regen bar, tyre pressures (psi or bar), parking sensors, doors, boot and frunk, outside temperature, odometer.
+- **Live car data, never written to:** speed, gear (R P N D), speed-limit sign, indicators and lights, power and regen bar*, tyre pressures (psi or bar), parking sensors, doors, boot and frunk, outside temperature, odometer.
 - **Your car, in rendered 3D:** Shows whichever door is open, opens it, and highlights the boot and frunk. In Drive it sits on a moving road with headlight glow, and on Autopilot the lane turns blue (or a rainbow road, if you like). Model 3 or Model Y (asked on first start), left- or right-hand drive, in the original dash's colour options. Different car colours are available via the app and downloaded from this repo.
 - **Left/Right hand drive:** Graphics are correct to your car's side of the road with easier to access touch targets for your spare hand.
 - **Real battery %:** decoded from a field the stock software mislabels (see below), with a range estimate and charging animation.
@@ -31,11 +31,12 @@ On a ship, the binnacle is the stand in front of the helm that holds the compass
 - **Rainbow road on Autopilot** 'nuf said.
 
 ## What it fixes compared with the stock dash
-- **Model Y Support:** the stock dash only showed a Model 3 - now the Model Y is supported as a graphic.
+- **Model Y Support:** the stock dash only showed a Model 3 - now the Model Y is supported as a graphic option.
 - **Android Settings Access:** the stock dash went out of its way to hide the normal Android Settings app, Binnacle restores this.
 - **Battery %:** on some cars (mine included) had the stock "battery level" field stuck at 77%, and the stock dash shows another field as "km" when it isn't range at all. Binnacle decodes the real % from that second field, checked against a full 13 % to 100 % charge.
 - **Camera that works:** the stock camera could fail with "camera error 4" after a reboot and judders on the 56 Hz panel. Binnacle sets up the camera input itself, paces frames evenly, and hides the start-up roll.
 - **CarPlay that doesn't hijack your phone:** with the stock setup, CarPlay grabbed the phone and the unit's Wi-Fi whenever it could. Now it only connects when asked.
+- **Media/Call Information on Tesla:** Stock dash’s info showed only the Bluetooth device name and had no real media controls and no true phone controls. Artwork is not supported by Android 10 so is not shown unfortunately.
 - **No stray Popups:** the stock dash's background pop-ups over the screen are gone. No more full-screen picture up every time a door or the boot opens. Binnacle keeps your dash in view and shows the doors on its own car instead.
 - **Warnings that clear on time:** the attention warning goes away when the car clears it, not seconds later.
 - **Theme that doesn't flip-flop:** Auto waits for the car's light level to settle before switching.
@@ -87,7 +88,9 @@ In daily use on my 2023 Model 3 since 27 Oct 2026, as the unit's Home app (it re
 - ✅ Re-enabled unit bluetooth not just the MCU Bluetooth. Battled crappy Microphone support and added echo cancellation.
 - ✅ Test Zlink alternative (xcertplay) and match factory functionality of Zlink.
 - ✅ Implement initial setup wizard that enables (or disables) functionality from the default dashboard app.
-- 🟡 Still open: split-screen CarPlay (ZLink draws at the wrong width), a phone-call/mic test.
+- 🟡 In progress: Replace Zlink with xcertplay for Carplay support, add support for different CarPlay window sizes - currently full screen only.
+- 🟡 Fix Power and Regen CANBUS values broken in 2026.38.6.1 Tesla software update. This was working perfectly until the latest Tesla update but other platforms (S3XY commander for example) are also now broken.
+
 
 ## Layout
 | Folder | What |
