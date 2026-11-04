@@ -38,6 +38,7 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
     private int[] declaredSizes;
     /** The centre window's inner size, from the last layout that wasn't full screen. */
     private int centreW, centreH;
+    private boolean destroying;
     /** Theme the views were built in (Style.light at onCreate). */
     private boolean lightBuilt;
     private boolean lastFrontCam, askedCamera, permissionDialogOpen, resumed, manualCameraPending;
@@ -115,6 +116,9 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
     }
 
     @Override protected void onDestroy() {
+        destroying = true;      // the unbind below is not xcertplay going away
+        // closed for good (not recreated): nothing will hear CarPlay end, so scanning goes back on now
+        if (!isChangingConfigurations()) WifiScans.forCarPlay(app.prefs(), false);
         carplay.release();      // xcertplay lets go of the surface while we are still bound
         carplayLink.unbind();   // the CarPlay session itself keeps running in xcertplay
         super.onDestroy();
@@ -135,12 +139,16 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
             } else if (carplayMode != CARPLAY_OFF) {
                 showCarPlay(CARPLAY_OFF);       // xcertplay went away; the dock opens its own screen now
             }
+            // xcertplay went away (not just this screen closing, whose unbind also lands here):
+            // no CarPlay without it, so scanning back on
+            if (!connected && !destroying) WifiScans.forCarPlay(app.prefs(), false);
         }
         @Override public void onVideoLayout(int[] video) {
             carplay.setVideoLayout(video);
         }
         @Override public void onCarPlayState(int state, String stage) {
             carplay.showState(state, stage);
+            WifiScans.forCarPlay(app.prefs(), CarPlayLink.running(state));
         }
         @Override public void onHostUi() {
             // CarPlay's Binnacle tile: from full screen back to the dash with CarPlay in the centre;
@@ -285,6 +293,8 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
         firstStartQuestions();
         resumed = true;
         carplayLink.retry();    // a bind refused at boot (power manager not ready yet) connects now
+        // a pause setting changed in Settings applies on return (once xcertplay has said where it is)
+        if (carplayLink.connected()) WifiScans.forCarPlay(app.prefs(), CarPlayLink.running(carplayLink.state()));
         lastFrontCam = app.car.frontCamRequest;     // seed the edge detector with the current state
         if (!dashCamera()) return;
         if (Build.VERSION.SDK_INT >= 23 && checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
@@ -372,6 +382,9 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
     };
     private boolean apOn;
 
+    /** The network icon's last state (RightPanelView.NET_*). */
+    private int netMode = RightPanelView.NET_NONE;
+
     private void updateNet() {
         int mode = RightPanelView.NET_NONE;
         try {
@@ -381,6 +394,7 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
             else if (ni != null && ni.isConnected() && ni.getType() == android.net.ConnectivityManager.TYPE_WIFI) mode = RightPanelView.NET_WIFI;
         } catch (RuntimeException ignored) {
         }
+        netMode = mode;
         right.setNet(mode);
     }
 
@@ -391,7 +405,13 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
      */
     @Override public void onNetIcon() {
         final boolean hotspot = apOn;
-        if (!hotspot && Launch.hasXcertplay(this)) return;
+        if (!hotspot && Launch.hasXcertplay(this)) {
+            // xcertplay keeps the dash on home Wi-Fi; off it (scanning paused, out of range), the
+            // icon rejoins the saved network (WifiScans)
+            if (netMode == RightPanelView.NET_WIFI) Toast.makeText(this, "On home Wi-Fi", Toast.LENGTH_SHORT).show();
+            else WifiScans.rejoin(this, app.prefs(), carplayLink.connected() && CarPlayLink.running(carplayLink.state()));
+            return;
+        }
         BinnacleDialog.show(this, hotspot ? "On CarPlay's hotspot" : "On home Wi-Fi",
                 hotspot ? "End CarPlay and switch back to home Wi-Fi?" : "Start CarPlay? The dash leaves home Wi-Fi while CarPlay is on.",
                 new String[]{"Cancel", hotspot ? "Switch to Wi-Fi" : "Start CarPlay"}, true, new BinnacleDialog.Choice() {

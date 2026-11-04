@@ -105,7 +105,10 @@ cmds=$(grep -oE '^ *[A-Z_]+\("[^"]*"\)' src/app/binnacle/LocalShell.java | sed -
 expected='END_CARPLAY("svc wifi disable && sleep 2 && svc wifi enable && echo BINNACLE_OK")
 BT_AUTOCONNECT_GET("settings get system xbs_isautoconnect && echo BINNACLE_OK")
 BT_AUTOCONNECT_ON("settings put system xbs_isautoconnect true && echo BINNACLE_OK")
-BT_AUTOCONNECT_OFF("settings put system xbs_isautoconnect false && echo BINNACLE_OK")'
+BT_AUTOCONNECT_OFF("settings put system xbs_isautoconnect false && echo BINNACLE_OK")
+WIFI_SCANS_ON("service call wifi 58 i32 1 && echo BINNACLE_OK")
+WIFI_SCANS_OFF("service call wifi 58 i32 0 && echo BINNACLE_OK")
+WIFI_REJOIN("service call wifi 58 i32 1 && svc wifi enable && echo BINNACLE_OK")'
 [ "$cmds" = "$expected" ] || bad "LocalShell command list changed: review it, then update this guard"
 [ "$(grep -c 'shell:' src/app/binnacle/LocalShell.java)" = 1 ] && grep -qF '("shell:" + cmd.shell + "\0")' src/app/binnacle/LocalShell.java || bad "LocalShell may only open shell:<Command.shell>"
 [ "$(grep -cw 'A_OPEN' src/app/binnacle/LocalShell.java)" = 2 ] || bad "LocalShell may open exactly one ADB stream"
