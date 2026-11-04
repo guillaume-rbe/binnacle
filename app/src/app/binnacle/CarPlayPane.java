@@ -22,7 +22,7 @@ final class CarPlayPane extends FrameLayout implements SurfaceHolder.Callback {
     /** Shown until the picture draws: a spinner while connecting, a title and a hint line. */
     private final FrameLayout status;
     private final TextView statusTitle, statusDetail;
-    private final android.widget.ProgressBar statusSpinner;
+    private final CarPlayBadge statusIcon;
     private SurfaceHolder holder;
     private int surfaceW, surfaceH;
     private boolean attached;
@@ -42,12 +42,11 @@ final class CarPlayPane extends FrameLayout implements SurfaceHolder.Callback {
         android.widget.LinearLayout col = new android.widget.LinearLayout(c);
         col.setOrientation(android.widget.LinearLayout.VERTICAL);
         col.setGravity(Gravity.CENTER_HORIZONTAL);
-        statusSpinner = new android.widget.ProgressBar(c);
-        statusSpinner.setIndeterminate(true);
-        int spin = Math.round(44f * px);
-        android.widget.LinearLayout.LayoutParams sp = new android.widget.LinearLayout.LayoutParams(spin, spin);
-        sp.bottomMargin = Math.round(22f * px);
-        col.addView(statusSpinner, sp);
+        statusIcon = new CarPlayBadge(c);
+        int icon = Math.round(CarPlayBadge.SIZE * px);
+        android.widget.LinearLayout.LayoutParams ip = new android.widget.LinearLayout.LayoutParams(icon, icon);
+        ip.bottomMargin = Math.round(24f * px);
+        col.addView(statusIcon, ip);
         statusTitle = new TextView(c);
         statusTitle.setTypeface(Style.BODY_BOLD);
         statusTitle.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, 30f * px);
@@ -213,21 +212,21 @@ final class CarPlayPane extends FrameLayout implements SurfaceHolder.Callback {
     /** What the status line says for an xcertplay state; hidden once the picture is drawing. */
     void showState(int state, String stage) {
         String title, detail;
-        boolean busy = false;
+        int icon;
         switch (state) {
             case CarPlayLink.STATE_STREAMING: status.setVisibility(GONE); return;
-            case CarPlayLink.STATE_NEEDS_SETUP: title = "CarPlay needs setting up once"; detail = "Tap to open CarPlay settings"; break;
-            case CarPlayLink.STATE_FAILED: title = "CarPlay couldn't connect"; detail = "Tap to try again"; break;
-            case CarPlayLink.STATE_PAUSED: title = "CarPlay settings are open"; detail = ""; break;
-            case CarPlayLink.STATE_IDLE: title = "CarPlay is off"; detail = "Tap to connect"; break;
-            default: title = "Connecting to CarPlay"; detail = stage == null ? "" : stage; busy = true; break;
+            case CarPlayLink.STATE_NEEDS_SETUP: title = "CarPlay needs setting up once"; detail = "Tap to open CarPlay settings"; icon = CarPlayBadge.SETTINGS; break;
+            case CarPlayLink.STATE_FAILED: title = "CarPlay couldn't connect"; detail = "Tap to try again"; icon = CarPlayBadge.FAILED; break;
+            case CarPlayLink.STATE_PAUSED: title = "CarPlay settings are open"; detail = ""; icon = CarPlayBadge.SETTINGS; break;
+            case CarPlayLink.STATE_IDLE: title = "CarPlay is off"; detail = "Tap to connect"; icon = CarPlayBadge.OFF; break;
+            default: title = "Connecting to CarPlay"; detail = stage == null ? "" : stage; icon = CarPlayBadge.CONNECTING; break;
         }
         // read each time: the theme can change while the dash runs
         status.setBackgroundColor(Style.SCREEN);
         statusTitle.setTextColor(Style.FG);
         statusDetail.setTextColor(Style.MUTED);
-        statusSpinner.setIndeterminateTintList(android.content.res.ColorStateList.valueOf(Style.ACCENT));
-        statusSpinner.setVisibility(busy ? VISIBLE : GONE);
+        statusIcon.setKind(icon);
+        statusIcon.invalidate();
         statusTitle.setText(title);
         statusDetail.setText(detail);
         statusDetail.setVisibility(detail.isEmpty() ? GONE : VISIBLE);
