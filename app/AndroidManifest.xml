@@ -13,6 +13,9 @@
     <!-- Only so the forward-camera trigger may open the camera while CarPlay is in front (Android 10
          blocks background activity starts otherwise). Grant: adb shell appops set <APP_ID> SYSTEM_ALERT_WINDOW allow -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <!-- CarPlay in the dash's own window: binds xcertplay's CarPlay service (an app on the unit; a
+         signature permission, so only when xcertplay is signed with this app's key). -->
+    <uses-permission android:name="com.shilapi.xcertplay.permission.EMBED_CARPLAY" />
     <!-- Only for the EXPERIMENTAL in-dash camera (Dash settings, off by default). -->
     <uses-permission android:name="android.permission.CAMERA" />
     <!-- Only to reach the unit's own ADB daemon on 127.0.0.1 (LocalShell: fixed commands such as End CarPlay). -->

@@ -41,8 +41,15 @@ Approved so far: Bluetooth auto-connect (`settings put system xbs_isautoconnect`
 
 ## Must-keep features — never break these
 - **Forward/reverse camera**: separate app `com.xbs.frontcam`, activity `com.xbs.frontcam.CameraActivity` (also responds to intent `com.xbs.action.reqcam`). Auto-shows on Drive via the CAN `frontcamstate` flag — a replacement Home re-does that (watch the flag, launch the camera). Independent of the Home app otherwise.
-- **CarPlay / Android Auto**: CarPlay opens xcertplay (`com.shilapi.xcertplay/.CarPlayHostActivity`) when it is installed (owner, 1 Nov), otherwise ZLink (`com.zjinnova.zlink`, the licensed *xinbasi-a007* build, which also does Android Auto). Launch by intent. Never uninstall or disable ZLink; with xcertplay installed it is only hidden from Binnacle's app list.
+- **CarPlay / Android Auto**: CarPlay opens xcertplay (`com.shilapi.xcertplay/.CarPlayHostActivity`) when it is installed (owner, 1 Nov), otherwise ZLink (`com.zjinnova.zlink`, the licensed *xinbasi-a007* build, which also does Android Auto). Launch by intent, or, when xcertplay is signed with the dash's key, draw it in the dash (see "CarPlay in the dash"). Never uninstall or disable ZLink; with xcertplay installed it is only hidden from Binnacle's app list.
 - Keep the stock launcher `com.xbs.launcher1` installed as the **fallback Home**.
+
+## CarPlay in the dash (CarPlayLink, proposed 4 Nov 2026, needs the owner's OK in review)
+The dash can draw CarPlay in its own window (centre or full screen) so it stays the top activity and the CAN app keeps the door pop-up hidden. xcertplay (an app on the unit) runs the session; `CarPlayLink` binds its `CarPlayEmbedService` and hands it a Surface, touch and wheel keys. This is the second binder exception after `CanFeed`, pinned the same way:
+- one class (`CarPlayLink`), one `bindService` to the fixed component `com.shilapi.xcertplay/.CarPlayEmbedService`, one `transact` that refuses any code outside ICarPlayEmbed's 1..10 before touching the binder;
+- state comes back on a Messenger the dash only receives on (never `Messenger.send`);
+- both guards pin the class (source text; compiled opcodes and strings), and `test_guards.sh` has cases for a widened code check, another package, a changed txn, a Messenger send and a second transact.
+It needs xcertplay signed with the dash's key (the service is signature-protected); otherwise binding fails and the CarPlay button opens xcertplay's own screen as before. Nothing in this path reaches the car or the MCU.
 
 ## ADB / network facts
 - `adb connect <unit-ip>:5555` (persistent, no key auth on the LAN).

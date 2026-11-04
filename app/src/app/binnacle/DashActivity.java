@@ -27,6 +27,15 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
     private LeftPanelView left;
     private CentreView centre;
     private CameraPane camera;
+    /** CarPlay in the dash's own window (xcertplay's service), when xcertplay allows it. */
+    private CarPlayLink carplayLink;
+    private CarPlayPane carplay;
+    private static final int CARPLAY_OFF = 0, CARPLAY_CENTRE = 1, CARPLAY_FULL = 2;
+    private int carplayMode = CARPLAY_OFF;
+    private LinearLayout root;
+    private FrameLayout centreFrame;
+    /** The sizes last declared to xcertplay (centre w, h, full w, h). */
+    private int[] declaredSizes;
     /** Theme the views were built in (Style.light at onCreate). */
     private boolean lightBuilt;
     private boolean lastFrontCam, askedCamera, permissionDialogOpen, resumed, manualCameraPending;
@@ -44,6 +53,7 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
             themeCamera = state.getBoolean(KEY_THEME_CAMERA);
             themeCameraAuto = state.getBoolean(KEY_THEME_CAMERA_AUTO, true);
         }
+        if (state != null) restoreCarplayMode = state.getInt(KEY_CARPLAY_MODE, CARPLAY_OFF);
         app = DashApp.get(this);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
@@ -52,7 +62,7 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
         right = new RightPanelView(this, app);
         right.setDockListener(this);
 
-        LinearLayout root = new LinearLayout(this);
+        root = new LinearLayout(this);
         root.setOrientation(LinearLayout.HORIZONTAL);
         root.setBackgroundColor(Style.BG);
         root.addView(left, new LinearLayout.LayoutParams(0, -1, Style.SIDE_W));
@@ -65,22 +75,108 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
             }
         });
         camera.setVisibility(View.GONE);
-        // the camera sits exactly over the centre's rounded window (14 design px inset)
-        FrameLayout centreFrame = new FrameLayout(this) {
+        carplayLink = new CarPlayLink(this, carplayListener);
+        carplay = new CarPlayPane(this, carplayLink);
+        carplay.setVisibility(View.GONE);
+        carplay.setOnStatusTap(new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                int s = carplayLink.state();
+                if (s == CarPlayLink.STATE_NEEDS_SETUP || s == CarPlayLink.STATE_PAUSED) carplayLink.openSettings();
+                else carplayLink.start();
+            }
+        });
+        // the camera and CarPlay sit exactly over the centre's rounded window (14 design px inset);
+        // full-screen CarPlay fills it edge to edge (the side panels are hidden then)
+        centreFrame = new FrameLayout(this) {
             @Override protected void onLayout(boolean changed, int l, int t, int r, int b) {
                 int w = r - l, h = b - t, inset = Math.round(14f * h / Style.DESIGN_H);
                 centre.layout(0, 0, w, h);
+                int ci = carplayMode == CARPLAY_FULL ? 0 : inset;
+                carplay.measure(View.MeasureSpec.makeMeasureSpec(w - 2 * ci, View.MeasureSpec.EXACTLY),
+                        View.MeasureSpec.makeMeasureSpec(h - 2 * ci, View.MeasureSpec.EXACTLY));
+                carplay.layout(ci, ci, w - ci, h - ci);
                 camera.layout(inset, inset, w - inset, h - inset);
                 centre.attentionOverlay.layout(0, 0, w, h);
+                if (carplayMode != CARPLAY_FULL) noteCarPlaySizes(w - 2 * inset, h - 2 * inset);   // declared before CarPlay is first shown
             }
         };
         centreFrame.addView(centre);
+        centreFrame.addView(carplay);      // below the camera: the camera covers CarPlay, its sound goes on
         centreFrame.addView(camera);
         centreFrame.addView(centre.attentionOverlay);   // above the camera
         root.addView(centreFrame, new LinearLayout.LayoutParams(0, -1, 1920f - 2 * Style.SIDE_W));
         root.addView(right, new LinearLayout.LayoutParams(0, -1, Style.SIDE_W));
         setContentView(root);
         // no storage permission: the car renders are bundled (or in this app's own files dir)
+        carplayLink.bind();     // false when xcertplay is missing or signed differently: its own screen then
+    }
+
+    @Override protected void onDestroy() {
+        carplayLink.unbind();   // the CarPlay session itself keeps running in xcertplay
+        super.onDestroy();
+    }
+
+    // ---- CarPlay in the dash ----
+
+    private final CarPlayLink.Listener carplayListener = new CarPlayLink.Listener() {
+        @Override public void onLinkChanged(boolean connected) {
+            if (connected) {
+                declaredSizes = null;
+                if (centreFrame != null) centreFrame.requestLayout();   // declares the sizes again
+                if (carplayMode != CARPLAY_OFF) carplay.reattach();   // also asks for CarPlay
+                else if (restoreCarplayMode != CARPLAY_OFF) showCarPlay(restoreCarplayMode);
+                restoreCarplayMode = CARPLAY_OFF;
+            } else if (carplayMode != CARPLAY_OFF) {
+                showCarPlay(CARPLAY_OFF);       // xcertplay went away; the dock opens its own screen now
+            }
+        }
+        @Override public void onCarPlayState(int state, String stage) {
+            carplay.showState(state, stage);
+        }
+        @Override public void onHostUi() {
+            // CarPlay's Binnacle tile: from full screen back to the dash with CarPlay in the centre;
+            // from the centre, back to the dash's own centre view (CarPlay keeps running)
+            showCarPlay(carplayMode == CARPLAY_FULL ? CARPLAY_CENTRE : CARPLAY_OFF);
+        }
+    };
+
+    /**
+     * The centre window's size (measured) and the whole screen: both are declared to xcertplay, so
+     * switching between them needs no reconnect. Sent again whenever either changes.
+     */
+    private void noteCarPlaySizes(int centreW, int centreH) {
+        int fullW = root.getWidth(), fullH = root.getHeight();
+        if (centreW <= 0 || centreH <= 0 || fullW <= 0 || fullH <= 0 || !carplayLink.connected()) return;
+        int[] sizes = {centreW, centreH, fullW, fullH};
+        if (java.util.Arrays.equals(sizes, declaredSizes)) return;
+        declaredSizes = sizes;
+        carplayLink.declareSizes(sizes);
+    }
+
+    private void showCarPlay(int mode) {
+        if (mode == carplayMode) return;
+        carplayMode = mode;
+        boolean full = mode == CARPLAY_FULL;
+        left.setVisibility(full ? View.GONE : View.VISIBLE);
+        right.setVisibility(full ? View.GONE : View.VISIBLE);
+        carplay.setVisibility(mode == CARPLAY_OFF ? View.GONE : View.VISIBLE);
+        centreFrame.requestLayout();
+    }
+
+    /**
+     * Wheel keys while CarPlay is shown: BACK leaves full screen, then CarPlay; scroll, OK and
+     * media keys go to CarPlay. With the camera up, the dash's own keys apply (BACK closes it).
+     */
+    @Override public boolean dispatchKeyEvent(KeyEvent event) {
+        if (carplayMode != CARPLAY_OFF && !camera.isRunning()) {
+            if (event.getKeyCode() == KeyEvent.KEYCODE_BACK) {
+                if (event.getAction() == KeyEvent.ACTION_UP && !event.isCanceled())
+                    showCarPlay(carplayMode == CARPLAY_FULL ? CARPLAY_CENTRE : CARPLAY_OFF);
+                return true;
+            }
+            if (carplayLink.key(event)) return true;
+        }
+        return super.dispatchKeyEvent(event);
     }
 
     /**
@@ -160,11 +256,15 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
     private boolean cameraWasRunning, themeCameraAuto;
     private static final String KEY_THEME_CAMERA_AUTO = "theme_camera_auto";
     private static final String KEY_THEME_CAMERA = "theme_camera";
+    private static final String KEY_CARPLAY_MODE = "carplay_mode";
+    /** CarPlay shown before a theme recreation; shown again once the link is back. */
+    private int restoreCarplayMode = CARPLAY_OFF;
 
     @Override protected void onSaveInstanceState(Bundle out) {
         super.onSaveInstanceState(out);
         out.putBoolean(KEY_THEME_CAMERA, cameraWasRunning);
         out.putBoolean(KEY_THEME_CAMERA_AUTO, cameraAuto);
+        out.putInt(KEY_CARPLAY_MODE, carplayMode);
     }
 
     /** The in-dash camera closes itself above this speed (the owner, 29 Oct), or with the Camera button. */
@@ -333,7 +433,12 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
     @Override public void onDock(int index) {
         setFocus(-1);
         switch (index) {
-            case RightPanelView.DOCK_PHONE: Launch.phone(this); break;
+            case RightPanelView.DOCK_PHONE:
+                // CarPlay in the centre window, then full screen; xcertplay's own screen (or ZLink)
+                // when the dash can't draw it
+                if (carplayLink.connected()) showCarPlay(carplayMode == CARPLAY_CENTRE ? CARPLAY_FULL : CARPLAY_CENTRE);
+                else Launch.phone(this);
+                break;
             case RightPanelView.DOCK_CAMERA:
                 if (dashCamera()) {
                     if (camera.isRunning()) camera.stop();
