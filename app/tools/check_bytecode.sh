@@ -292,7 +292,11 @@ SHELL_CLASSES=$(printf '%s\n' "$files" | grep -E '/app/binnacle/LocalShell(\$[^/
 if [ -n "$SHELL_CLASSES" ]; then
     shell_code=$(javap -c -p $SHELL_CLASSES 2>/dev/null | grep -v '^Compiled from' \
         | sed -E 's/^ +[0-9]+: /  /; s/#[0-9]+(, *[0-9]+)?/#/; s/^( +)ldc(_w|2_w)? /\1ldc /; s/^( +(if[a-z_]*|goto(_w)?|jsr(_w)?)) +[0-9]+$/\1/; s/^ +[0-9-]+: [0-9]+$/  case/; s/ +$//; s/  +/ /g')
-    sum=$(printf '%s\n' "$shell_code" | sha256sum | cut -c1-64)
+    # sha256sum (Linux, GNU coreutils) or shasum (macOS); no tool means no hash, which fails below.
+    if command -v sha256sum >/dev/null 2>&1; then hash_cmd='sha256sum'
+    elif command -v shasum >/dev/null 2>&1; then hash_cmd='shasum -a 256'
+    else bad "no sha256sum or shasum found: cannot check LocalShell's code"; hash_cmd='false'; fi
+    sum=$(printf '%s\n' "$shell_code" | $hash_cmd | cut -c1-64)
     [ "$sum" = '731bb438af6fa6ed7ad9fb682d4641c6eada025c1d734ecd177c44a7148620a9' ] || { printf '%s\n' "$shell_code" >&2; bad "LocalShell's code changed (hash $sum): review the listing above, then update this guard"; }
     # and, readably: send() only from run(), four times (connect, open the one shell stream, ack, close)
     [ "$(refs '^app/binnacle/LocalShell\.send$' | awk -F'\t' '$1 == "app/binnacle/LocalShell" && $2 == "run"' | wc -l | tr -d ' ')" = 4 ] \
