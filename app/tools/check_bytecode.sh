@@ -224,7 +224,9 @@ String:END_CARPLAY
 String:WIFI_REJOIN
 String:WIFI_SCANS_OFF
 String:WIFI_SCANS_ON
+String:SCREENSHOT
 String:XCERTPLAY_LOCATION
+String:mkdir -p /sdcard/Binnacle/screenshots && screencap -p /sdcard/Binnacle/screenshots/$(date +%Y%m%d-%H%M%S).png && echo BINNACLE_OK
 String:appops set --uid com.shilapi.xcertplay COARSE_LOCATION allow && echo BINNACLE_OK
 String:service call wifi 58 i32 0 && echo BINNACLE_OK
 String:service call wifi 58 i32 1 && echo BINNACLE_OK
