@@ -66,6 +66,17 @@ final class Launch {
         start(c, new Intent(c, HubActivity.class), true);
     }
 
+    /** The overlay app-op Android 10 needs before the camera may open from behind CarPlay (manifest). */
+    static final String OVERLAY_GRANT = "adb shell appops set com.xbs.launcher SYSTEM_ALERT_WINDOW allow";
+
+    /**
+     * Android lets this app start screens from the background: without it, the camera on Drive is
+     * silently blocked whenever another app is in front (audit D6). Read only.
+     */
+    static boolean canOpenOverApps(Context c) {
+        return android.os.Build.VERSION.SDK_INT < 23 || android.provider.Settings.canDrawOverlays(c);
+    }
+
     static boolean isDefaultHome(Context c) {
         Intent home = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME);
         ResolveInfo ri = c.getPackageManager().resolveActivity(home, 0);
