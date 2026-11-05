@@ -95,9 +95,13 @@ edit "CarPlayLink: a second transact"      CarPlayLink.java 's|    void disconne
 evil "network outside CarPacks/Updater"   'new java.net.URL("https://example.com/x").openConnection().getInputStream();'
 evil "PackageInstaller outside Updater"  'c.getPackageManager().getPackageInstaller().createSession(new android.content.pm.PackageInstaller.SessionParams(1));'
 edit "Updater: another address"          Updater.java 's|releases/latest/download/";|releases/download/other/";|'
-edit "Updater: installs another package" Updater.java 's|            params.setAppPackageName(c.getPackageName());|            params.setAppPackageName("com.xbs.canapp");|'
-edit "Updater: session not locked"       Updater.java 's|            params.setAppPackageName(c.getPackageName());|            params.setSize(1);|'
-edit "Updater: fetches any file"         Updater.java 's|        if (!INFO.equals(file) \&\& !APK.equals(file)) throw new IOException("not an update file");|        if (file == null) throw new IOException("not an update file");|' any
+edit "Updater: installs another package" Updater.java 's|            params.setAppPackageName(target(c, carplay));|            params.setAppPackageName("com.xbs.canapp");|'
+edit "Updater: session not locked"       Updater.java 's|            params.setAppPackageName(target(c, carplay));|            params.setSize(1);|'
+edit "Updater: CarPlay target is another app" Updater.java 's|CARPLAY_PACKAGE = "com.shilapi.xcertplay";|CARPLAY_PACKAGE = "com.xbs.canapp";|'
+edit "Updater: target() from other text" Updater.java 's|        return carplay ? CARPLAY_PACKAGE : c.getPackageName();|        return carplay ? CARPLAY_PACKAGE : c.getString(1);|'
+edit "Updater: target() is caller's choice" Updater.java 's|        return carplay ? CARPLAY_PACKAGE : c.getPackageName();|        return carplay ? CARPLAY_PACKAGE : c.getPackageName() + "x";|'
+edit "Updater: fetches any file"         Updater.java 's|        if (!INFO.equals(file) \&\& !APK.equals(file) \&\& !CARPLAY_APK.equals(file)) throw new IOException("not an update file");|        if (file == null) throw new IOException("not an update file");|' any
+edit "Updater: another CarPlay file"     Updater.java 's|CARPLAY_APK = "BinnacleCarPlay.apk";|CARPLAY_APK = "Other.apk";|'
 edit "Updater: sends a body"             Updater.java 's|        http.setConnectTimeout(TIMEOUT_MS);|        http.setConnectTimeout(TIMEOUT_MS); http.setDoOutput(true);|'
 edit "StartupVolume: another stream"     StartupVolume.java 's|audio.setStreamVolume(AudioManager.STREAM_MUSIC, level, 0);|audio.setStreamVolume(AudioManager.STREAM_RING, level, 0);|' any
 edit "StartupVolume: mute instead"       StartupVolume.java 's|AudioManager.ADJUST_UNMUTE, 0);|AudioManager.ADJUST_MUTE, 0);|' any

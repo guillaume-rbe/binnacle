@@ -1092,13 +1092,16 @@ public class HubActivity extends Activity {
 
     /**
      * Updates: checks this project's latest GitHub release on a tap (never by itself) and, if it is
-     * newer, downloads it into Android's installer, which asks before it installs (Updater). Only
-     * in Park: installing restarts the dash.
+     * newer, downloads it into Android's installer, which asks before it installs (Updater). The
+     * CarPlay app in the same release is offered too, when it is installed and older. Only in
+     * Park: installing restarts the dash (or stops CarPlay).
      */
     private View updateCard() {
         LinearLayout card = card("Updates", "Binnacle " + versionName() + " · checks GitHub over Wi-Fi when you tap");
         final TextView b = chip(Updater.installing() ? "Downloading…" : "Check for updates");
         b.setEnabled(!Updater.installing());
+        final TextView cp = chip("Update CarPlay");
+        cp.setVisibility(View.GONE);
         b.setOnClickListener(new View.OnClickListener() {
             @Override public void onClick(View v) {
                 b.setEnabled(false);
@@ -1121,11 +1124,26 @@ public class HubActivity extends Activity {
                                     b.setText("Check for updates");
                                     Toast.makeText(HubActivity.this, "Couldn't check for updates: " + problem
                                             + "\nIs the dash on Wi-Fi?", Toast.LENGTH_LONG).show();
-                                } else if (r.versionCode <= Updater.installedCode(HubActivity.this)) {
-                                    b.setText("Up to date");
-                                } else {
-                                    b.setText("Update to " + r.versionName);
-                                    offerUpdate(r, b);
+                                    return;
+                                }
+                                boolean dash = r.versionCode > Updater.installedCode(HubActivity.this);
+                                int cpHave = Updater.installedCode(HubActivity.this, true);
+                                boolean carplay = r.carplay != null && cpHave > 0 && r.carplay.versionCode > cpHave;
+                                b.setText(dash ? "Update to " + r.versionName : "Up to date");
+                                if (carplay) {
+                                    cp.setText("Update CarPlay to " + r.carplay.versionName);
+                                    cp.setVisibility(View.VISIBLE);
+                                    cp.setOnClickListener(new View.OnClickListener() {
+                                        @Override public void onClick(View v) { offerUpdate(r, cp, true); }
+                                    });
+                                }
+                                // the CarPlay app first: a dash update restarts the dash
+                                if (carplay) offerUpdate(r, cp, true);
+                                else if (dash) offerUpdate(r, b, false);
+                                if (dash) {
+                                    b.setOnClickListener(new View.OnClickListener() {
+                                        @Override public void onClick(View v) { offerUpdate(r, b, false); }
+                                    });
                                 }
                             }
                         });
@@ -1134,27 +1152,34 @@ public class HubActivity extends Activity {
             }
         });
         card.addView(b, new LinearLayout.LayoutParams(dp(260), dp(BUTTON_DP)));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(260), dp(BUTTON_DP));
+        lp.topMargin = dp(8);
+        card.addView(cp, lp);
         return card;
     }
 
-    /** Asks, then downloads r into Android's installer (b shows progress). */
-    private void offerUpdate(final Updater.Release r, final TextView b) {
-        long mb = Math.max(1, (r.size + (1 << 19)) >> 20);
-        BinnacleDialog.show(this, "Update to Binnacle " + r.versionName + "?",
+    /** Asks, then downloads the dash (or with carplay its CarPlay app) into Android's installer (b shows progress). */
+    private void offerUpdate(final Updater.Release r, final TextView b, final boolean carplay) {
+        final Updater.Release part = carplay ? r.carplay : r;
+        long mb = Math.max(1, (part.size + (1 << 19)) >> 20);
+        BinnacleDialog.show(this, carplay ? "Update the CarPlay app to " + part.versionName + "?" : "Update to Binnacle " + part.versionName + "?",
                 "Downloads " + mb + " MB from GitHub, then Android asks you to confirm the install.\n"
-                        + "The dash closes and comes back while it installs. Settings and car images are kept.",
+                        + (carplay ? "CarPlay stops while it installs; tap CarPlay again afterwards. Its settings are kept."
+                                   : "The dash closes and comes back while it installs. Settings and car images are kept."),
                 new String[]{"Not now", "Update"}, true, new BinnacleDialog.Choice() {
                     @Override public void chosen(int index) {
                         if (index != 1) return;
                         b.setOnClickListener(new View.OnClickListener() {
-                            @Override public void onClick(View v) { offerUpdate(r, b); }
+                            @Override public void onClick(View v) { offerUpdate(r, b, carplay); }
                         });
-                        startUpdate(r, b);
+                        startUpdate(r, b, carplay);
                     }
                 });
     }
 
-    private void startUpdate(final Updater.Release r, final TextView b) {
+    private void startUpdate(final Updater.Release r, final TextView b, final boolean carplay) {
+        final Updater.Release part = carplay ? r.carplay : r;
+        final String again = carplay ? "Update CarPlay to " + part.versionName : "Update to " + part.versionName;
         final DashApp app = DashApp.get(this);
         if (app.car.gear != CarState.GEAR_P) {   // Park only, not just "not D or R": Neutral or no car data aren't safe
             Toast.makeText(this, "Update in Park: installing restarts the dash", Toast.LENGTH_LONG).show();
@@ -1183,7 +1208,7 @@ public class HubActivity extends Activity {
             @Override public void run() {
                 String err = null;
                 try {
-                    Updater.install(app, r, new Updater.Progress() {
+                    Updater.install(app, r, carplay, new Updater.Progress() {
                         long shownMb = -1;
                         @Override public void onProgress(final long bytes) {
                             final long mbNow = bytes >> 20;
@@ -1201,7 +1226,7 @@ public class HubActivity extends Activity {
                 main.post(new Runnable() {
                     @Override public void run() {
                         b.setEnabled(true);
-                        b.setText(problem == null ? "Installing…" : "Update to " + r.versionName);
+                        b.setText(problem == null ? "Installing…" : again);
                         if (problem != null) Toast.makeText(app, "Couldn't update: " + problem, Toast.LENGTH_LONG).show();
                     }
                 });

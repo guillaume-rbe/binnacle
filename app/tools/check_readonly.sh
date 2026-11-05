@@ -180,19 +180,27 @@ grep -qF 'RELEASE_BASE = "https://github.com/lotech/binnacle/releases/download/c
 [ "$(grep -c 'new URL(' src/app/binnacle/CarPacks.java)" = 1 ] && grep -qF 'new URL(RELEASE_BASE + packName(hand, colour))' src/app/binnacle/CarPacks.java || bad "CarPacks may only fetch RELEASE_BASE + packName"
 grep -nE 'setRequestMethod|setDoOutput|getOutputStream' src/app/binnacle/CarPacks.java && bad "CarPacks may only download (GET), never send (above)"
 
-# 6b. Updater (Advanced -> Updates): GET only, from the latest release's two fixed files, and it may
-#     install only this app itself (the session is locked to our own package name; Android then
-#     insists on the same signing key and asks the user). Nothing else may use the installer.
+# 6b. Updater (Advanced -> Updates): GET only, from the latest release's three fixed files, and it
+#     may install only this app itself or, when it is already installed, Binnacle's CarPlay app
+#     (com.shilapi.xcertplay, carplay/ in this repo): the session is locked to one of those two
+#     package names (target()); Android then insists on the installed copy's signing key and asks
+#     the user. Nothing else may use the installer.
 U=src/app/binnacle/Updater.java
 grep -qxF '    static final String RELEASE_BASE = "https://github.com/lotech/binnacle/releases/latest/download/";' "$U" || bad "Updater download source changed"
-grep -qxF '    static final String INFO = "binnacle-update.txt";' "$U" && grep -qxF '    static final String APK = "Binnacle.apk";' "$U" || bad "Updater file names changed"
+grep -qxF '    static final String INFO = "binnacle-update.txt";' "$U" && grep -qxF '    static final String APK = "Binnacle.apk";' "$U" \
+    && grep -qxF '    static final String CARPLAY_APK = "BinnacleCarPlay.apk";' "$U" || bad "Updater file names changed"
 [ "$(grep -c 'new URL(' "$U")" = 1 ] && grep -qxF '        HttpURLConnection http = (HttpURLConnection) new URL(RELEASE_BASE + file).openConnection();' "$U" || bad "Updater may only fetch RELEASE_BASE + file"
-grep -qxF '        if (!INFO.equals(file) && !APK.equals(file)) throw new IOException("not an update file");' "$U" || bad "Updater may only fetch INFO or APK"
+grep -qxF '        if (!INFO.equals(file) && !APK.equals(file) && !CARPLAY_APK.equals(file)) throw new IOException("not an update file");' "$U" || bad "Updater may only fetch INFO, APK or CARPLAY_APK"
 grep -nE 'setRequestMethod|setDoOutput|getOutputStream' "$U" && bad "Updater may only download (GET), never send (above)"
 for f in $(grep -rlE 'PackageInstaller|getPackageInstaller|INSTALL_PACKAGE|package-archive' src); do
   [ "$f" = "$U" ] || bad "app installs outside Updater: $f"
 done
-[ "$(grep -c 'setAppPackageName(' "$U")" = 1 ] && grep -qxF '            params.setAppPackageName(c.getPackageName());' "$U" || bad "Updater's install session must be locked to this app's own package"
+[ "$(grep -c 'setAppPackageName(' "$U")" = 1 ] && grep -qxF '            params.setAppPackageName(target(c, carplay));' "$U" || bad "Updater's install session must be locked to target()"
+# target(): this app's own package, or the CarPlay app's fixed name; nothing else
+grep -qxF '    static final String CARPLAY_PACKAGE = "com.shilapi.xcertplay";' "$U" || bad "Updater's CarPlay package changed"
+[ "$(grep -v '^ *\*' "$U" | grep -c 'CARPLAY_PACKAGE')" = 3 ] || bad "Updater: CARPLAY_PACKAGE used somewhere new (declared, target(), success toast)"
+grep -qxF '    private static String target(Context c, boolean carplay) {' "$U" \
+    && grep -qxF '        return carplay ? CARPLAY_PACKAGE : c.getPackageName();' "$U" || bad "Updater's target() changed"
 [ "$(grep -c 'createSession(' "$U")" = 1 ] || bad "Updater may create exactly one install session"
 grep -nE '\.uninstall\(|setInstallerPackageName|setInstallReason|setGrantedRuntimePermissions|setWhitelistedRestrictedPermissions' "$U" && bad "Updater may only install this app (above)"
 
