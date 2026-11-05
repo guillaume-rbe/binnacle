@@ -65,7 +65,14 @@ public class RightPanelView extends View {
         super(c);
         this.app = app;
         this.car = app.car;
-        pinned = app.prefs().getInt("card_pinned", -1);
+        pinned = app.prefs().getInt(PIN_KEY, -1);
+        if (!app.prefs().contains(PIN_KEY) && app.prefs().contains("card_pinned")) {
+            // the old order was sensors, tyres, efficiency
+            int old = app.prefs().getInt("card_pinned", -1);
+            pinned = old == 0 ? PAGE_SENSORS : old == 1 ? PAGE_TYRES : old == 2 ? PAGE_EFFICIENCY
+                    : old == 3 ? PAGE_MEDIA : -1;
+            app.prefs().edit().putInt(PIN_KEY, pinned).remove("card_pinned").apply();
+        }
         if (pinned >= PAGES) pinned = -1;
     }
 
@@ -231,7 +238,9 @@ public class RightPanelView extends View {
     }
 
     /**
-     * Middle card, three pages left to right: parking sensors, tyres, efficiency. Automatic choice:
+     * Middle card, pages left to right: tyres, efficiency, parking sensors, and Now playing while
+     * CarPlay plays (owner, 5 Nov: sensors next to Now playing, so switching between the two
+     * doesn't slide past the others). Automatic choice:
      * sensors whenever the car isn't driving (below 10 km/h, or speed not known yet: the dash nearly
      * always starts parked, and tyre pressures only arrive once driving), tyres while driving. A
      * swipe moves one page and holds until the car next drives off. Holding a finger on the card pins
@@ -249,7 +258,8 @@ public class RightPanelView extends View {
         return shownPage;
     }
 
-    /** Pinned page, or -1: automatic (saved in "card_pinned"). */
+    /** Pinned page, or -1: automatic (saved in PIN_KEY). */
+    private static final String PIN_KEY = "card_pinned_v2";
     private int pinned;
     private final Paint pinFill = Style.fill(Style.MUTED), pinStroke = Style.stroke(Style.MUTED, 2f);
     private static final long HOLD_MS = 600;
@@ -267,7 +277,7 @@ public class RightPanelView extends View {
 
     private void setPinned(int page) {
         pinned = page;
-        app.prefs().edit().putInt("card_pinned", page).apply();
+        app.prefs().edit().putInt(PIN_KEY, page).apply();
         invalidate();
     }
 
@@ -280,7 +290,7 @@ public class RightPanelView extends View {
         c.restore();
     }
 
-    static final int PAGE_SENSORS = 0, PAGE_TYRES = 1, PAGE_EFFICIENCY = 2, PAGE_MEDIA = 3, PAGES = 4;
+    static final int PAGE_TYRES = 0, PAGE_EFFICIENCY = 1, PAGE_SENSORS = 2, PAGE_MEDIA = 3, PAGES = 4;
 
     /** What CarPlay is playing; the Now playing page is there only while this isn't null. */
     private NowPlaying nowPlaying;
@@ -310,9 +320,13 @@ public class RightPanelView extends View {
      */
     private void drawMiddleCard(Canvas c) {
         int page = cardPage();
+        int count = pageCount();
         long now = android.os.SystemClock.uptimeMillis();
+        if (Float.isNaN(cardPos)) cardPos = page;    // no slide on the first frame
+        // the pages loop (owner, 5 Nov): slide the short way round, from last to first included
         float goal = page;
-        if (cardPos < 0) cardPos = goal;    // no slide on the first frame
+        while (goal - cardPos > count / 2f) goal -= count;
+        while (cardPos - goal > count / 2f) goal += count;
         // the clock starts at the switch itself: the panel may not have drawn for minutes, and the
         // time since that last draw used to finish the slide in one frame (in-car: animated ~20%)
         if (!cardMoving) { cardLastMs = now; cardMoving = cardPos != goal; }
@@ -325,9 +339,11 @@ public class RightPanelView extends View {
         c.save();
         r.set(X0, CARD_TOP, X1, CARD_BOTTOM);
         c.clipRect(r);
-        for (int p = 0; p < PAGES; p++) {
-            if (p == PAGE_MEDIA && nowPlaying == null) continue;
-            float off = (p - pos) * width;
+        for (int p = 0; p < count; p++) {
+            float d = p - pos;
+            while (d >= count / 2f) d -= count;      // the page's nearest copy round the loop
+            while (d < -count / 2f) d += count;
+            float off = d * width;
             if (Math.abs(off) >= width) continue;
             c.save();
             c.translate(off, 0);
@@ -342,10 +358,11 @@ public class RightPanelView extends View {
         drawPin(c);
         cardMoving = cardPos != goal;
         if (cardMoving) postInvalidateOnAnimation();
+        else cardPos = page;                         // settled: back inside 0..count-1
     }
 
     private static final long CARD_SLIDE_MS = 280;
-    private float cardPos = -1;     // set on the first draw
+    private float cardPos = Float.NaN;    // set on the first draw (negative is a valid looped position)
     private long cardLastMs;
     private boolean cardMoving;
 
@@ -665,7 +682,8 @@ public class RightPanelView extends View {
                 cardTouch = false;
                 if (Float.isNaN(swipeX)) return true;
                 if (Math.abs(x - swipeX) > SWIPE_MIN && Math.abs(x - swipeX) > Math.abs(y - swipeY)) {
-                    int next = Math.max(0, Math.min(pageCount() - 1, shownPage + (x < swipeX ? 1 : -1)));
+                    int n = pageCount();                            // the pages loop round
+                    int next = ((shownPage + (x < swipeX ? 1 : -1)) % n + n) % n;
                     if (pinned >= 0) setPinned(next);               // the pin moves with the page
                     else manual = next;                             // held until driving off
                     invalidate();
