@@ -294,7 +294,7 @@ class RemoteMfiAuthenticationClient(
         private const val BAA_PACKAGE_HEADER_BYTES = 8
 
         /** True for a server on this device: a token sent there never crosses a network. */
-        internal fun isLoopback(address: String): Boolean {
+        fun isLoopback(address: String): Boolean {
             val host = runCatching { java.net.URI(address).host }.getOrNull()?.lowercase() ?: return false
             return host == "localhost" || host == "[::1]" || Regex("127(\\.\\d{1,3}){3}").matches(host)
         }

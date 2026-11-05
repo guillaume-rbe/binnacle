@@ -219,6 +219,10 @@ connecting to a local MFi chip for authentication.
 
 ## Build
 
+Fork: there is no CI on this fork, so run `./gradlew :mobile:assembleDebug` on a pull request
+before merging it (each module is compiled on its own there, which a single combined compile
+check misses, such as an `internal` member used from another module).
+
 On Windows PowerShell:
 
 ```powershell
