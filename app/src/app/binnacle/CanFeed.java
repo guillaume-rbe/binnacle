@@ -74,6 +74,20 @@ final class CanFeed implements Feed {
     }
 
     /** True if the stock CAN service exists on this device (false in the emulator). */
+    /**
+     * The stock CAN app is installed at all. Only its absence (an emulator, another device) means
+     * demo data: a service that doesn't resolve once at boot is retried like any other bind failure,
+     * never silently replaced by simulated speed and gear (code audit 5 Nov, D3).
+     */
+    static boolean installed(Context ctx) {
+        try {
+            ctx.getPackageManager().getPackageInfo(SVC_PKG, 0);
+            return true;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
     static boolean available(Context ctx) {
         try {
             Intent i = new Intent(SVC_ACTION).setPackage(SVC_PKG);

@@ -56,6 +56,7 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
         lightBuilt = Style.light;
+        driveCamera = state == null && getIntent() != null && getIntent().getBooleanExtra(Launch.EXTRA_DRIVE_CAMERA, false);
         if (state != null && state.containsKey(KEY_THEME_CAMERA)) {
             themeCamera = state.getBoolean(KEY_THEME_CAMERA);
             themeCameraAuto = state.getBoolean(KEY_THEME_CAMERA_AUTO, true);
@@ -279,7 +280,8 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
      * Home activity) to the front over the wizard, which then carries on from where it was.
      */
     private void firstStartQuestions() {
-        if (!SetupActivity.done(app.prefs())) SetupActivity.start(this);
+        // not while driving: the wizard closes itself when the car drives off and comes back in Park (audit D2)
+        if (!SetupActivity.done(app.prefs()) && DriveWatch.parked(app.car)) SetupActivity.start(this);
     }
 
     @Override public void onRequestPermissionsResult(int code, String[] perms, int[] results) {
@@ -325,15 +327,29 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
         onCarChanged(-1);
     }
 
+    /** Brought forward by DashApp because the car shifted into Drive behind another screen (audit D1). */
+    private boolean driveCamera;
+
+    @Override protected void onNewIntent(android.content.Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        if (intent.getBooleanExtra(Launch.EXTRA_DRIVE_CAMERA, false)) driveCamera = true;
+    }
+
     @Override protected void onResume() {
         super.onResume();
         firstStartQuestions();
         resumed = true;
+        app.setDashResumed(true);
+        boolean drive = driveCamera && !app.isDemo();
+        driveCamera = false;
         carplayLink.retry();    // a bind refused at boot (power manager not ready yet) connects now
         // a pause setting changed in Settings applies on return (once xcertplay has said where it is)
         if (carplayLink.connected()) WifiScans.forCarPlay(app.prefs(), CarPlayLink.running(carplayLink.state()));
         lastFrontCam = app.car.frontCamRequest;     // seed the edge detector with the current state
         if (!dashCamera()) return;
+        // demo data never opens the real camera (audit D3)
+        boolean flag = (lastFrontCam || drive) && !app.isDemo();
         if (Build.VERSION.SDK_INT >= 23 && checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
             // ask once per screen session; a denial must not re-prompt on every resume
             if (!askedCamera && !permissionDialogOpen) {
@@ -341,7 +357,7 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
                 permissionDialogOpen = true;
                 requestPermissions(new String[]{Manifest.permission.CAMERA}, REQ_CAMERA);
             }
-        } else if (themeCamera != null ? themeCamera : lastFrontCam) {
+        } else if (themeCamera != null ? themeCamera : flag) {
             startDashCamera();
             cameraAuto = themeCamera == null || themeCameraAuto;   // a restored dock-opened camera stays manual
         }
@@ -381,7 +397,7 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
         if (req != lastFrontCam) {
             lastFrontCam = req;
             // only the flag's own opening is automatic: a camera already opened from the dock stays manual
-            if (req && dashCamera() && resumed && !camera.isRunning()) { startDashCamera(); cameraAuto = true; }
+            if (req && dashCamera() && resumed && !app.isDemo() && !camera.isRunning()) { startDashCamera(); cameraAuto = true; }
         }
         // Park closes it on the change into Park, not on the gear value: code 16 can arrive before the
         // code 11 that leaves Park, and a stale P must not close the camera the flag just opened
@@ -392,7 +408,8 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
     }
 
     @Override protected void onPause() {
-        resumed = false;             // paused: feed updates must not reopen the camera; onResume reconciles
+        resumed = false;
+        app.setDashResumed(false);             // paused: feed updates must not reopen the camera; onResume reconciles
         cameraWasRunning = camera.isRunning();   // onSaveInstanceState runs after this (API 28+)
         camera.stop();               // never hold the camera while another app (or stock frontcam) is in front
         super.onPause();

@@ -95,6 +95,29 @@ public final class SetupActivity extends Activity {
         if (step == 2) show(2);     // back from Android's Home picker: show whether it took
     }
 
+    /**
+     * The car started to drive: out of the way of the cluster (audit D2). The step is kept, so the
+     * dash brings the wizard back where it was once the car is in Park again.
+     */
+    private final DriveWatch drive = new DriveWatch();
+    private final DashApp.Listener driveListener = new DashApp.Listener() {
+        @Override public void onCarChanged(int code) {
+            DashApp app = DashApp.get(SetupActivity.this);
+            if (drive.startedDriving(app.car) && !app.isDemo()) finish();   // show() already saved the step
+        }
+    };
+
+    @Override protected void onStart() {
+        super.onStart();
+        drive.seed(DashApp.get(this).car);
+        DashApp.get(this).addListener(driveListener);
+    }
+
+    @Override protected void onStop() {
+        DashApp.get(this).removeListener(driveListener);
+        super.onStop();
+    }
+
     @Override public void onBackPressed() {
         if (step > 0) show(step - 1); else finishSetup();
     }
