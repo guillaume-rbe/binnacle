@@ -48,6 +48,14 @@ class CarPlayVpnService : VpnService() {
         val mfi: MfiAuthenticator?,
         val listener: AirPlaySessionListener,
         val media: AirPlayMediaHandler,
+        /**
+         * Wireless only: the hotspot's interface (Wi-Fi Direct group). The listener binds every
+         * interface, so a connection that arrives on any other one (home Wi-Fi, a LAN media server
+         * probing port 7000) is closed before it is served.
+         */
+        val allowedInterface: String? = null,
+        /** Wireless: nothing but pairing and /info is served before pair-verify completes. */
+        val requirePairVerify: Boolean = false,
     )
 
     private val binder = LocalBinder()
@@ -129,6 +137,7 @@ class CarPlayVpnService : VpnService() {
         mfi: MfiAuthenticator?,
         listener: AirPlaySessionListener,
         media: AirPlayMediaHandler,
+        hotspotInterface: String?,
     ): AttachResult {
         if (active.get()) {
             Log.i(TAG, "replacing stale local-only Wi-Fi attachment")
@@ -147,8 +156,13 @@ class CarPlayVpnService : VpnService() {
                     mfi,
                     listener,
                     media,
+                    allowedInterface = hotspotInterface,
+                    requirePairVerify = true,
                 ),
             )
+            if (hotspotInterface == null) {
+                Log.w(TAG, "hotspot interface unknown: AirPlay connections are not limited to it")
+            }
             AttachResult.Started
         } catch (error: Exception) {
             releaseLocked()
@@ -208,6 +222,15 @@ class CarPlayVpnService : VpnService() {
                         socket.close()
                         return
                     }
+                    if (!arrivedOnAllowedInterface(socket, current.allowedInterface)) {
+                        Log.w(
+                            TAG,
+                            "airplay connection from ${socket.remoteSocketAddress} refused: " +
+                                "not on the CarPlay hotspot (${current.allowedInterface})",
+                        )
+                        runCatching { socket.close() }
+                        return@synchronized null
+                    }
                     AirPlaySession(
                         socket = socket,
                         config = current.config,
@@ -221,8 +244,9 @@ class CarPlayVpnService : VpnService() {
                             }
                         },
                         media = current.media,
+                        requirePairVerify = current.requirePairVerify,
                     ).also(::addSession)
-                }
+                } ?: continue
                 session.start()
             }
         } catch (error: IOException) {
@@ -230,6 +254,17 @@ class CarPlayVpnService : VpnService() {
                 attachment?.listener?.let { onTransportError(generation, it, error) }
             }
         }
+    }
+
+    /**
+     * The connection came in on [allowed] (no limit when null). Judged by the local address the peer
+     * connected to, which belongs to the interface the connection arrived on.
+     */
+    private fun arrivedOnAllowedInterface(socket: Socket, allowed: String?): Boolean {
+        if (allowed == null) return true
+        val local = socket.localAddress ?: return false
+        val iface = runCatching { java.net.NetworkInterface.getByName(allowed) }.getOrNull() ?: return false
+        return iface.inetAddresses.toList().any { it.address.contentEquals(local.address) }
     }
 
     private fun addSession(session: AirPlaySession) {

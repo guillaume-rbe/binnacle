@@ -61,6 +61,9 @@
 >   forwards touch and wheel keys; state comes back as Messages, and the sizes it switches between are
 >   declared to the phone as view areas (no reconnect on a switch). Meant for a head-unit launcher
 >   that shows CarPlay in part of its screen. xcertplay's own screen works as before
+> - Wireless CarPlay's port 7000 only answers on the CarPlay hotspot: a connection from any other
+>   network (home Wi-Fi, a media server probing the port) is closed at once, and nothing but
+>   pairing and `/info` is served until the phone has completed pair-verify
 
 ## Features
 

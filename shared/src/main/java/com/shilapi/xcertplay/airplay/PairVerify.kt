@@ -23,7 +23,8 @@ class PairVerify(
     val isVerified: Boolean get() = verified
     val verifiedControllerId: String? get() = controllerId
     val controlKeys: ControlKeys? get() = keys
-    val shared: ByteArray? get() = sharedSecret
+    /** The X25519 secret, only once the controller's signature has checked out (M4). */
+    val shared: ByteArray? get() = if (verified) sharedSecret else null
 
     fun handle(body: ByteArray): ByteArray {
         val tlv = Tlv8Codec.decode(body)
