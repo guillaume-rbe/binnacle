@@ -261,7 +261,8 @@ internal object CarPlaySession {
 
     /**
      * Sizes [client] may show CarPlay at. A running session whose view areas lack one of them
-     * reconnects once, so later switches between them need no reconnect.
+     * reconnects once, now rather than at the first switch to that size (mid-drive, perhaps), so
+     * later switches between them need no reconnect. ICarPlayEmbed.declareSizes documents this.
      */
     fun declareSizes(client: Client, sizes: List<DisplaySize>) {
         if (client.declaredSizes == sizes) return
