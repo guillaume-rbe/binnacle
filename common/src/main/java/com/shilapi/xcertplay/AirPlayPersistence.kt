@@ -1,6 +1,7 @@
 package com.shilapi.xcertplay
 
 import android.content.Context
+import android.content.SharedPreferences
 import android.os.Build
 import com.shilapi.xcertplay.airplay.AirPlayDisplaySettings
 import com.shilapi.xcertplay.airplay.AirPlayPhysicalSizeBasis
@@ -28,6 +29,7 @@ object AirPlayPersistence {
     private const val KEY_IDENT_PUBLIC = "identity_public"
     private const val KEY_PAIRING_ID = "pairing_id"
     private const val KEY_PAIRING_IDS = "pairing_ids"
+    private const val KEY_PAIRING_ORDER = "pairing_order"
     private const val KEY_LOCKDOWN_HOST_ID = "lockdown_host_id"
     private const val KEY_LOCKDOWN_SYSTEM_BUID = "lockdown_system_buid"
     private const val KEY_LOCKDOWN_WIFI_MAC = "lockdown_wifi_mac"
@@ -719,8 +721,11 @@ object AirPlayPersistence {
 
     fun loadPairings(context: Context, onSave: (String, ByteArray) -> Unit): PairingStore {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        val store = PairingStore(onSave)
-        for (identifier in prefs.getStringSet(KEY_PAIRING_IDS, emptySet()).orEmpty()) {
+        val store = PairingStore(onSave = onSave, onEvict = { removePairing(context, it) })
+        val known = prefs.getStringSet(KEY_PAIRING_IDS, emptySet()).orEmpty()
+        // oldest first; pairings saved before the order was kept go first, in no set order
+        val ordered = pairingOrder(prefs).filter { it in known }
+        for (identifier in (known - ordered.toSet()) + ordered) {
             prefs.getString("pairing.$identifier", null)?.let { store.save(identifier, it.decodeHex()) }
         }
         return store
@@ -730,11 +735,28 @@ object AirPlayPersistence {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val identifiers = prefs.getStringSet(KEY_PAIRING_IDS, emptySet()).orEmpty().toMutableSet()
         identifiers.add(identifier)
+        val order = pairingOrder(prefs).filter { it != identifier } + identifier
         prefs.edit()
             .putString("pairing.$identifier", longTermPublicKey.toHex())
             .putStringSet(KEY_PAIRING_IDS, identifiers)
+            .putString(KEY_PAIRING_ORDER, order.joinToString("\n"))
             .apply()
     }
+
+    /** Drops a pairing that [PairingStore] evicted to stay within its cap. */
+    private fun removePairing(context: Context, identifier: String) {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val identifiers = prefs.getStringSet(KEY_PAIRING_IDS, emptySet()).orEmpty().toMutableSet()
+        identifiers.remove(identifier)
+        prefs.edit()
+            .remove("pairing.$identifier")
+            .putStringSet(KEY_PAIRING_IDS, identifiers)
+            .putString(KEY_PAIRING_ORDER, pairingOrder(prefs).filter { it != identifier }.joinToString("\n"))
+            .apply()
+    }
+
+    private fun pairingOrder(prefs: SharedPreferences): List<String> =
+        prefs.getString(KEY_PAIRING_ORDER, null)?.split('\n')?.filter { it.isNotEmpty() }.orEmpty()
 
     fun loadLockdownRecord(context: Context): LockdownPairRecord? {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)

@@ -66,6 +66,7 @@
 > - Malformed control messages can't crash the app: the binary-plist reader refuses cycles, deep
 >   nesting, exponential expansion and sizes past the end of the data, the control channel caps
 >   header and body sizes, and a failing request costs one error reply instead of the process
+> - At most 8 saved AirPlay pairings (oldest dropped), since pair-setup uses a fixed PIN
 > - Wireless CarPlay's port 7000 only answers on the CarPlay hotspot: a connection from any other
 >   network (home Wi-Fi, a media server probing the port) is closed at once, and nothing but
 >   pairing and `/info` is served until the phone has completed pair-verify
