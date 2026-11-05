@@ -98,7 +98,10 @@ class CarPlayEmbedService : Service() {
 
         override fun attachSurface(next: Surface?, width: Int, height: Int) {
             if (next == null || width <= 0 || height <= 0) return
-            onMainAndWait {
+            // Not waited for (audit I3): the client calls this from its main thread, and nothing it
+            // does next depends on the attach having finished. Calls still run in order, so a
+            // following detach (which is waited for) comes after it.
+            onMain {
                 surface?.takeIf { it !== next }?.let { session.detachSurface(client, CarPlaySession.SCREEN_TYPE_MAIN, it) }
                 surface = next
                 surfaceWidth = width
@@ -128,6 +131,9 @@ class CarPlayEmbedService : Service() {
                         val settings = session.settings ?: return@onMain
                         if (settings.mainWebDisplay.enabled && !settings.mainWebDisplay.preview) return@onMain
                         session.sendTouch(copy, surfaceWidth, surfaceHeight, settings.mainWebDisplay)
+                    } else if (copy.actionMasked == MotionEvent.ACTION_UP || copy.actionMasked == MotionEvent.ACTION_CANCEL) {
+                        // the end of a gesture that outlived the surface: lift the finger (audit I1)
+                        session.cancelTouch()
                     }
                 } finally {
                     copy.recycle()
@@ -331,6 +337,8 @@ class CarPlayEmbedService : Service() {
     private fun releaseSurface(reason: String) {
         val current = surface ?: return
         surface = null
+        // a finger still down on this client's CarPlay is lifted, or the phone keeps it pressed (I1)
+        session.cancelTouch()
         session.detachSurface(client, CarPlaySession.SCREEN_TYPE_MAIN, current)
         session.appendLog(reason)
         publishState()

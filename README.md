@@ -69,6 +69,8 @@
 > - Smaller hardening: no Android backups of the app (its keys and pairings stay on the unit), call
 >   keypad digits are no longer written to the session log, a Remote MFI token is only sent over
 >   https (or to a server on the unit itself), and the car-app service only binds known car hosts
+> - Embedding: a finger is lifted on the phone when the head unit lets go of the surface or a gesture
+>   ends after it, and attaching a surface no longer makes the head unit wait for xcertplay's main thread
 > - Wireless CarPlay's port 7000 only answers on the CarPlay hotspot: a connection from any other
 >   network (home Wi-Fi, a media server probing the port) is closed at once, and nothing but
 >   pairing and `/info` is served until the phone has completed pair-verify
