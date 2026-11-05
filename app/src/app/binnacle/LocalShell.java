@@ -54,6 +54,12 @@ final class LocalShell {
          * the unit resets this uid mode on every reboot and every xcertplay update, and CarPlay then
          * fails with "createGroup failed: generic error". Shell user, the dash only.
          */
+        /**
+         * A screenshot of the whole screen, CarPlay and the camera included (owner, 5 Nov: to capture
+         * the dash while driving): the shell's screencap, to the dash's own storage, named by the
+         * time. Pull them with `adb pull /sdcard/Binnacle/screenshots`.
+         */
+        SCREENSHOT("mkdir -p /sdcard/Binnacle/screenshots && screencap -p /sdcard/Binnacle/screenshots/$(date +%Y%m%d-%H%M%S).png && echo BINNACLE_OK"),
         XCERTPLAY_LOCATION("appops set --uid com.shilapi.xcertplay COARSE_LOCATION allow && echo BINNACLE_OK"),
         /** The Wi-Fi icon only: scanning on and Wi-Fi itself on, so the saved home network is joined. */
         WIFI_REJOIN("service call wifi 58 i32 1 && svc wifi enable && echo BINNACLE_OK");

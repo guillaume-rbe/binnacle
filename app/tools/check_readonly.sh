@@ -110,6 +110,7 @@ BT_AUTOCONNECT_ON("settings put system xbs_isautoconnect true && echo BINNACLE_O
 BT_AUTOCONNECT_OFF("settings put system xbs_isautoconnect false && echo BINNACLE_OK")
 WIFI_SCANS_ON("service call wifi 58 i32 1 && echo BINNACLE_OK")
 WIFI_SCANS_OFF("service call wifi 58 i32 0 && echo BINNACLE_OK")
+SCREENSHOT("mkdir -p /sdcard/Binnacle/screenshots && screencap -p /sdcard/Binnacle/screenshots/$(date +%Y%m%d-%H%M%S).png && echo BINNACLE_OK")
 XCERTPLAY_LOCATION("appops set --uid com.shilapi.xcertplay COARSE_LOCATION allow && echo BINNACLE_OK")
 WIFI_REJOIN("service call wifi 58 i32 1 && svc wifi enable && echo BINNACLE_OK")'
 [ "$cmds" = "$expected" ] || bad "LocalShell command list changed: review it, then update this guard"

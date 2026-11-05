@@ -44,6 +44,32 @@ public class LeftPanelView extends View {
         unitP.setTextAlign(Paint.Align.CENTER);
     }
 
+    /** Tapped on the power bar (the hidden screenshot button, when it is switched on). */
+    private Runnable onPowerTap;
+    void setOnPowerTap(Runnable r) { onPowerTap = r; }
+
+    /** The power bar with its label and scale (design px): an easy target while driving. */
+    private static final float TAP_TOP = 612, TAP_BOTTOM = 712;
+    private boolean powerTouch;
+
+    @Override public boolean onTouchEvent(android.view.MotionEvent e) {
+        if (onPowerTap == null) return false;
+        float y = e.getY() / (getHeight() / Style.DESIGN_H);
+        switch (e.getActionMasked()) {
+            case android.view.MotionEvent.ACTION_DOWN:
+                powerTouch = y >= TAP_TOP && y <= TAP_BOTTOM;
+                return powerTouch;
+            case android.view.MotionEvent.ACTION_UP:
+                if (powerTouch && y >= TAP_TOP - 20 && y <= TAP_BOTTOM + 20) onPowerTap.run();
+                powerTouch = false;
+                return true;
+            case android.view.MotionEvent.ACTION_CANCEL:
+                powerTouch = false;
+                return true;
+        }
+        return powerTouch;
+    }
+
     @Override protected void onDraw(Canvas c) {
         float s = getHeight() / Style.DESIGN_H;
         c.save();

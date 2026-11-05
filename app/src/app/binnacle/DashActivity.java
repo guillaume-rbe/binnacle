@@ -65,6 +65,9 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
         left = new LeftPanelView(this, app.car);
+        left.setOnPowerTap(new Runnable() {
+            @Override public void run() { if (app.prefs().getBoolean(Screenshot.KEY, false)) Screenshot.take(DashActivity.this, left); }
+        });
         centre = new CentreView(this, app);
         right = new RightPanelView(this, app);
         right.setDockListener(this);

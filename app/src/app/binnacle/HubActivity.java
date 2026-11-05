@@ -284,6 +284,7 @@ public class HubActivity extends Activity {
                     pairCard("Autopilot indication", "autopilot_rainbow", "Normal", "Rainbow road"))); break;
             default: content.addView(cards(
                     switchCard("Show raw CAN values", "Latest raw fields over the centre view, for in-car checks", "raw_overlay", false),
+                    switchCard("Screenshot on power bar tap", "Tap the power bar to save a screenshot on the dash (Binnacle/screenshots), CarPlay and camera included", Screenshot.KEY, false),
                     switchCard("Demo data", "Simulated drive instead of the car feed", "demo", false),
                     loggerCards(),
                     stack(updateCard(), setupCard(), resetCard(), aboutCard()))); break;
