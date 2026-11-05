@@ -40,7 +40,13 @@ android {
             optimization {
                 enable = false
             }
-            signingConfig = signingConfigs.getByName("release")
+            // Binnacle's release.sh builds this unsigned (-Pxcertplay.unsigned=true) and signs it
+            // with the dash's release key itself, like the dash.
+            signingConfig = if (providers.gradleProperty("xcertplay.unsigned").isPresent) {
+                null
+            } else {
+                signingConfigs.getByName("release")
+            }
         }
     }
     compileOptions {
@@ -65,4 +71,15 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     debugImplementation(libs.androidx.compose.ui.tooling)
+}
+
+// Binnacle's CarPlay guard (carplay/guard/check_carplay.sh): nothing to the car, and the CAN app
+// gets only the approved call-state broadcast. Runs before every build of this app and stops it on
+// any failure. Never weaken or bypass it.
+val checkCarPlayGuard = tasks.register<Exec>("checkCarPlayGuard") {
+    workingDir(rootDir)
+    commandLine("bash", "guard/check_carplay.sh")
+}
+tasks.named("preBuild") {
+    dependsOn(checkCarPlayGuard)
 }
