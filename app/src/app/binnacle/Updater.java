@@ -6,6 +6,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageInstaller;
 import android.content.pm.PackageManager;
+import android.os.Handler;
+import android.os.Looper;
 import android.widget.Toast;
 
 import java.io.BufferedInputStream;
@@ -127,8 +129,9 @@ final class Updater {
     }
 
     /**
-     * Blocking: downloads the release's APK into an install session and commits it. Android then
-     * shows its confirm screen (Status, below, opens it). Call off the main thread.
+     * Blocking: downloads the release's APK into an install session, then commits it (in Park
+     * only; see Status.ready). Android then shows its confirm screen, which Status opens. Call off
+     * the main thread.
      */
     static void install(Context c, Release r, Progress progress) throws IOException {
         if (r.versionCode <= installedCode(c)) throw new IOException("already up to date");
@@ -140,19 +143,34 @@ final class Updater {
             params.setSize(r.size);
             int id = pi.createSession(params);
             PackageInstaller.Session session = pi.openSession(id);
-            boolean committed = false;
+            boolean written = false;
             try {
                 stream(session, r, progress);
+                written = true;
+            } finally {
+                if (!written) session.abandon();   // never leave a half-written session behind
+                session.close();
+            }
+            Status.ready(c.getApplicationContext(), id);
+        } finally {
+            end();
+        }
+    }
+
+    /** Commits a written session; Android answers on Status. False if the session is gone. */
+    private static boolean commit(Context c, int id) {
+        try {
+            PackageInstaller.Session session = c.getPackageManager().getPackageInstaller().openSession(id);
+            try {
                 Intent status = new Intent(STATUS_ACTION).setClass(c, Status.class);
                 PendingIntent sender = PendingIntent.getBroadcast(c, id, status, PendingIntent.FLAG_UPDATE_CURRENT);
                 session.commit(sender.getIntentSender());
-                committed = true;
             } finally {
-                if (!committed) session.abandon();   // never leave a half-written session behind
                 session.close();
             }
-        } finally {
-            end();
+            return true;
+        } catch (IOException | RuntimeException e) {
+            return false;
         }
     }
 
@@ -215,20 +233,106 @@ final class Updater {
      * replaces this app and restarts it.
      */
     public static final class Status extends BroadcastReceiver {
+        private static final String PREFS = "updater";
+        private static final String PENDING = "pending_session";
+        private static final int UNKNOWN = -2;
+        /**
+         * A downloaded update not yet committed because the car wasn't in Park (audit D7). Its id is
+         * also saved, so it still installs at the next Park if Android restarts the dash meanwhile
+         * (PackageInstaller keeps the written session). -1: none; UNKNOWN: not read yet.
+         */
+        private static int pending = UNKNOWN;
+        /** Android's confirm screen, if the car left Park between the commit and Android's answer. */
+        private static Intent waitingForPark;
+        /** Live data says Park (set by DashApp from each car message; never true in demo). */
+        private static boolean inPark;
+
+        /**
+         * A written session (download thread): committed now in Park, otherwise kept for the next
+         * Park, since Android's install screen covers the cluster.
+         */
+        static void ready(final Context c, int id) {
+            boolean now;
+            synchronized (Status.class) {
+                int old = load(c);
+                if (old >= 0 && old != id) abandon(c, old);   // a newer download replaces it
+                now = inPark;
+                save(c, now ? -1 : id);
+            }
+            if (now) {
+                if (!commit(c, id)) toast(c, "Update failed: the download was lost, check again");
+            } else {
+                toast(c, "Update ready: it installs when the car is in Park");
+            }
+        }
+
         @Override public void onReceive(Context c, Intent intent) {
             int status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE);
             if (status == PackageInstaller.STATUS_PENDING_USER_ACTION) {
                 Intent confirm = intent.getParcelableExtra(Intent.EXTRA_INTENT);
                 if (confirm == null) return;
-                try {
-                    c.startActivity(confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
-                } catch (RuntimeException e) {
-                    Toast.makeText(c, "Couldn't open Android's install screen", Toast.LENGTH_LONG).show();
+                // Committed in Park, but the car may have moved off before Android answered: the
+                // install screen covers the cluster, so it only opens in Park.
+                if (!inPark) {
+                    waitingForPark = confirm;
+                    Toast.makeText(c, "Update ready: it installs when the car is in Park", Toast.LENGTH_LONG).show();
+                    return;
                 }
+                open(c, confirm);
                 return;
             }
             if (status == PackageInstaller.STATUS_SUCCESS) return;
             Toast.makeText(c, reason(status, intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE)), Toast.LENGTH_LONG).show();
+        }
+
+        /** The gear from live data: in Park, a held update is committed and a held screen opens. */
+        static void gear(Context c, boolean park) {
+            int id;
+            synchronized (Status.class) {
+                inPark = park;
+                if (!park) return;
+                id = load(c);
+                if (id >= 0) save(c, -1);
+            }
+            if (id >= 0 && !commit(c, id)) toast(c, "Update failed: the download was lost, check again");
+            Intent confirm = waitingForPark;
+            if (confirm == null) return;
+            waitingForPark = null;
+            open(c, confirm);
+        }
+
+        /** Caller holds Status.class. */
+        private static int load(Context c) {
+            if (pending == UNKNOWN) pending = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getInt(PENDING, -1);
+            return pending;
+        }
+
+        /** Caller holds Status.class. */
+        private static void save(Context c, int id) {
+            pending = id;
+            c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putInt(PENDING, id).apply();
+        }
+
+        private static void abandon(Context c, int id) {
+            try {
+                c.getPackageManager().getPackageInstaller().abandonSession(id);
+            } catch (RuntimeException e) {
+                // already gone
+            }
+        }
+
+        private static void toast(final Context c, final String text) {
+            new Handler(Looper.getMainLooper()).post(new Runnable() {
+                @Override public void run() { Toast.makeText(c, text, Toast.LENGTH_LONG).show(); }
+            });
+        }
+
+        private static void open(Context c, Intent confirm) {
+            try {
+                c.startActivity(confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+            } catch (RuntimeException e) {
+                Toast.makeText(c, "Couldn't open Android's install screen", Toast.LENGTH_LONG).show();
+            }
         }
     }
 

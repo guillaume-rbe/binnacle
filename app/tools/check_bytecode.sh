@@ -135,6 +135,9 @@ String:, need
 String:CarPlay link call
 String:CarPlay link not allowed:
 String:CarPlay link: xcertplay API
+String:CarPlay link: bad message
+String: or later
+String::
 String:binnacle
 String:com.shilapi.xcertplay
 String:com.shilapi.xcertplay.CarPlayEmbedService
@@ -230,9 +233,9 @@ never '\.(sendOrderedBroadcast|sendStickyBroadcast|sendBroadcastAsUser|startInst
 # PendingIntents and IntentSenders deliver an intent later, or as another app: only Updater's one
 # broadcast back to its own Status receiver (the install result). No alarms, no isolated services.
 never '^android/app/PendingIntent\.(getService|getForegroundService|getActivity|getActivities|send)$|^android/content/IntentSender\.sendIntent$|\.bindIsolatedService$|^android/app/AlarmManager(\.|$)'
-only_method '^android/app/PendingIntent\.getBroadcast$|^android/app/PendingIntent\.getIntentSender$' 'app/binnacle/Updater' 'install'
+only_method '^android/app/PendingIntent\.getBroadcast$|^android/app/PendingIntent\.getIntentSender$' 'app/binnacle/Updater' 'commit'
 [ "$(refs '^android/app/PendingIntent\.getBroadcast$' | wc -l | tr -d ' ')" = 1 ] || bad "exactly one PendingIntent allowed (Updater's install result)"
-refs '^class app/binnacle/Updater\$Status$|^app/binnacle/Updater\$Status$' | awk -F'\t' '$1 == "app/binnacle/Updater" && $2 == "install"' | grep -q . \
+refs '^class app/binnacle/Updater\$Status$|^app/binnacle/Updater\$Status$' | awk -F'\t' '$1 == "app/binnacle/Updater" && $2 == "commit"' | grep -q . \
     || bad "Updater's PendingIntent must target its own Status receiver"
 # Activities: only the places that open screens (Launch for other apps, the hub and setup for their
 # own and Android's settings screens, Updater's install confirm screen).
