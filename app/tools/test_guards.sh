@@ -65,7 +65,7 @@ evil "transact(5) in another class"      'b.transact(5, android.os.Parcel.obtain
 evil "space before the paren"            'b.transact (5, android.os.Parcel.obtain(), null, 0);'
 evil "newline before the paren"          'b.transact
 (5, android.os.Parcel.obtain(), null, 0);'
-evil "unicode escape"                    'b.transact(5, android.os.Parcel.obtain(), null, 0);'
+evil "unicode escape"                    'b.\u0074ransact(5, android.os.Parcel.obtain(), null, 0);'
 evil "Settings.System.putInt"            'android.provider.Settings.System.putInt(c.getContentResolver(), "x", 1);'
 evil "reflection"                        'android.os.IBinder.class.getMethod("trans" + "act", int.class, android.os.Parcel.class, android.os.Parcel.class, int.class).invoke(b, 5, null, null, 0);'
 evil "Class.forName"                     'Class.forName("java.lang.Process" + "Builder");'
@@ -102,6 +102,24 @@ edit "Updater: sends a body"             Updater.java 's|        http.setConnect
 edit "StartupVolume: another stream"     StartupVolume.java 's|audio.setStreamVolume(AudioManager.STREAM_MUSIC, level, 0);|audio.setStreamVolume(AudioManager.STREAM_RING, level, 0);|' any
 edit "StartupVolume: mute instead"       StartupVolume.java 's|AudioManager.ADJUST_UNMUTE, 0);|AudioManager.ADJUST_MUTE, 0);|' any
 edit "StartupVolume: a second setting"   StartupVolume.java 's|audio.setStreamVolume(AudioManager.STREAM_MUSIC, level, 0);|audio.setStreamVolume(AudioManager.STREAM_MUSIC, level, 0); audio.setRingerMode(0);|' any
+# audit 5 Nov (B1-B5): bypasses that used to pass both guards
+edit "LocalShell: second stream from bytes" LocalShell.java 's|            String text = result.toString("UTF-8").trim();|            byte[] p = new byte[]{101,120,101,99,58,115,117,32,48,32,105,100,0};\n            send(out, 0x4e45504f, 2, 0, p);\n            String text = result.toString("UTF-8").trim();|'
+edit "LocalShell: a second method sends"  LocalShell.java 's|    private static final class Msg { int cmd, arg0, arg1; byte\[\] data; }|    private static final class Msg { int cmd, arg0, arg1; byte[] data; }\n    static void more(OutputStream out, byte[] p) throws IOException { send(out, A_OPEN, 2, 0, p); }|'
+evil "PendingIntent .send ()"            'android.app.PendingIntent.getBroadcast(c, 0, new android.content.Intent("x").setPackage("com.xbs.canapp"), 0).send ();'
+evil "IntentSender.sendIntent"           'android.app.PendingIntent.getBroadcast(c, 0, new android.content.Intent("x"), 0).getIntentSender().sendIntent(c, 0, null, null, null);'
+evil "PendingIntent.getService"          'android.app.PendingIntent.getService(c, 0, new android.content.Intent().setPackage("com.xbs.canapp"), 0).cancel();'
+evil "AlarmManager"                      '((android.app.AlarmManager) c.getSystemService("alarm")).set(0, 0L, null);'
+evil "bindIsolatedService"               'c.bindIsolatedService(new android.content.Intent().setPackage("com.xbs.canapp"), 1, "x", null, null);'
+evil "startActivity outside its places"  'c.startActivity(new android.content.Intent("x").setPackage("com.xbs.carsetup".substring(0)));'
+evil "AtomicFile"                        'new android.util.AtomicFile(new java.io.File("/dev/" + "x")).startWrite().write(1);'
+evil "openFileOutput"                    'c.openFileOutput("x", 0).write(1);'
+evil "java.util.logging FileHandler"     'new java.util.logging.FileHandler("/sdcard/x").close();'
+edit "CameraPane: path out of the decoder" CameraPane.java 's|        writeDecoder("channel", INPUT);|        writeDecoder("../" + "channel", INPUT);|'
+edit "CameraPane: a second FileWriter"   CameraPane.java 's|    private static void setUpDecoder() {|    static void more(String path) throws java.io.IOException { new java.io.FileWriter(path).close(); }\n\n    private static void setUpDecoder() {|'
+edit "StartupVolume: audio HAL parameters" StartupVolume.java 's|            audio.setStreamVolume(AudioManager.STREAM_MUSIC, level, 0);|            audio.setStreamVolume(AudioManager.STREAM_MUSIC, level, 0);\n            audio.setParameters("x=1");|'
+d=$(copy_app)
+printf 'package app.binnacle;\nfinal class LocalShell$X { static void go() throws Exception { new java.net.Socket("127.0.0.1", 5555).close(); } }\n' > "$d/src/app/binnacle/Evil.java"
+expect "top-level class named LocalShell\$X" both "$(guards "$d" "$d/src" "$T/gen")"
 d=$(copy_app)
 printf 'package app.binnacle;\nfinal class Evil { static void go(android.content.Context c) {\n((android.media.AudioManager) c.getSystemService("audio")).setStreamVolume(3, 0, 0);\n} }\n' > "$d/src/app/binnacle/Evil.java"
 expect "volume set outside StartupVolume" any "$(guards "$d" "$d/src" "$T/gen")"
@@ -123,6 +141,14 @@ cap "socket to adbd"          both 's|    private void register() {|    void evi
 cap "broadcast to canapp"     both 's|    private void register() {|    void evil() { sendBroadcast(new Intent("x").setPackage("com.xbs.canapp")); }\n    private void register() {|'
 cap "Settings.System.putInt"  both 's|    private void register() {|    void evil() { android.provider.Settings.System.putInt(getContentResolver(), "x", 1); }\n    private void register() {|'
 cap "unicode escape"          both 's|    private void register() {|    void evil() throws Exception { binder.\\u0074ransact(5, null, null, 0); }\n    private void register() {|'
+capui() {   # capui <name> <sed on MainActivity.java>: expects both guards to refuse
+    local d; d=$(copy_cap) f="$F/MainActivity.java"
+    sed -i.bak "$2" "$d/$f" && rm "$d/$f.bak"
+    cmp -s "$d/$f" "$CAP/$f" && { printf 'FAIL %-50s (the edit did not apply)\n' "$1"; failures=$((failures + 1)); return; }
+    expect "$1" both "$(guards "$d" "$d/src")"
+}
+capui "insert into any URI"   's|                Uri uri = getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, v);|                Uri uri = getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, v);\n                getContentResolver ().insert(Uri.parse("content://x"), v);|'
+capui "insert, URI from text"  's|getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, v);|getContentResolver().insert(Uri.parse("content://" + "x"), v);|'
 cap "INTERNET permission"     any  'manifest:s|<uses-permission android:name="android.permission.FOREGROUND_SERVICE" />|<uses-permission android:name="android.permission.FOREGROUND_SERVICE" />\n    <uses-permission android:name="android.permission.INTERNET" />|'
 
 echo

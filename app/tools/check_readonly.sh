@@ -19,7 +19,7 @@ grep -rnE "$FORBIDDEN" $SRC; rc=$?
 # 1c. Nothing that could reach an API by name (reflection, loaded code, hidden services), write a
 #     file a way the checks below don't look for, or send on a Messenger (the feed's Messenger only
 #     ever receives). check_bytecode.sh also catches all of these.
-DYNAMIC='java\.lang\.reflect|\.get(Declared)?(Method|Field|Constructor)s?\(|forName\(|newInstance\(|DexClassLoader|PathClassLoader|InMemoryDexClassLoader|loadLibrary|System\.load\(|ServiceManager|java\.nio\.file|java\.nio\.channels|PrintStream|PrintWriter\(\s*(new +File|")|\.send\('
+DYNAMIC='java\.lang\.reflect|\.get(Declared)?(Method|Field|Constructor)s?\(|forName\(|newInstance\(|DexClassLoader|PathClassLoader|InMemoryDexClassLoader|loadLibrary|System\.load\(|ServiceManager|java\.nio\.file|java\.nio\.channels|PrintStream|PrintWriter\(\s*(new +File|")|\.send\b|\.send$'
 grep -rnE "$DYNAMIC" src; rc=$?
 [ $rc = 1 ] || bad "reflection, dynamic code or unchecked file/socket API (above), or grep failed"
 
@@ -39,10 +39,35 @@ VOL='src/app/binnacle/StartupVolume.java'
 for f in $(grep -rlE 'set(Stream|Ringer|Mode)Volume|adjust(Stream|Suggested)?Volume|setRingerMode|setMicrophoneMute|setMasterMute|setStreamMute|setSpeakerphoneOn|setMode\(' src); do
   [ "$f" = "$VOL" ] || bad "audio setting changed outside StartupVolume: $f"
 done
+# nothing that changes the audio mode or passes parameters to the audio HAL (this ROM's HAL may
+# talk to the MCU), anywhere, StartupVolume included
+grep -rnE 'setParameters|AudioSystem|setBluetoothScoOn|startBluetoothSco|setWiredHeadsetOn|setStreamSolo|adjustVolume' src && bad "audio mode or HAL parameters changed (above)"
+for f in $(grep -rlwE 'AudioManager|AUDIO_SERVICE' src); do
+  [ "$f" = "$VOL" ] || bad "AudioManager used outside StartupVolume: $f"
+done
 # two calls: the music level, and unmuting music first (the CAN app mutes it when the car sleeps)
 [ "$(grep -cE 'set(Stream|Ringer|Mode)Volume|adjust(Stream|Suggested)?Volume|setRingerMode|setMicrophoneMute|setMasterMute|setStreamMute|setSpeakerphoneOn|setMode\(' "$VOL")" = 2 ] || bad "StartupVolume may change exactly the music level and its mute"
 grep -qxE '\s*audio\.setStreamVolume\(AudioManager\.STREAM_MUSIC, level, 0\);' "$VOL" || bad "StartupVolume may only set the music volume"
 grep -qxE '\s*if \(muted\) audio\.adjustStreamVolume\(AudioManager\.STREAM_MUSIC, AudioManager\.ADJUST_UNMUTE, 0\);' "$VOL" || bad "StartupVolume may only unmute music"
+
+# 1f. Intents delivered later or as another app: only Updater's one PendingIntent (the install
+#     result, back to its own Status receiver). No alarms, isolated services or intent senders.
+#     Screens open only from Launch, the hub, setup and Updater's install confirm.
+for f in $(grep -rlwE 'PendingIntent|IntentSender|getIntentSender' src); do
+  [ "$f" = src/app/binnacle/Updater.java ] || bad "PendingIntent/IntentSender outside Updater: $f"
+done
+[ "$(grep -cE 'PendingIntent\.get[A-Za-z]*\(' src/app/binnacle/Updater.java)" = 1 ] \
+    && grep -qxF '                PendingIntent sender = PendingIntent.getBroadcast(c, id, status, PendingIntent.FLAG_UPDATE_CURRENT);' src/app/binnacle/Updater.java \
+    || bad "Updater may make exactly one PendingIntent, a broadcast to its Status receiver"
+grep -rnwE 'AlarmManager|ALARM_SERVICE|bindIsolatedService|sendIntent|startIntentSender|startActivities|AtomicFile|openFileOutput|FileHandler' src \
+    && bad "alarms, intent senders, isolated services or other file writers (above)"
+for f in $(grep -rlE 'startActivit' src); do
+  case "$f" in src/app/binnacle/Launch.java|src/app/binnacle/HubActivity.java|src/app/binnacle/SetupActivity.java|src/app/binnacle/Updater.java) ;;
+    *) bad "activity started outside Launch/HubActivity/SetupActivity/Updater: $f";; esac
+done
+# a class named with a '$' would pass for a nested class of another (check_bytecode.sh checks too)
+find src -name '*$*' | grep . && bad "file names with '$' (above)"
+grep -rnE '(class|interface|enum)\s+[A-Za-z0-9_]*\$' --include='*.java' src && bad "class names with '$' (above)"
 
 # 1a. What javac reads must be what this script reads: no symlinks (grep -r skips them, find and
 #     javac follow them) and no \u escapes (javac decodes them before parsing, anywhere in a file,
@@ -116,6 +141,18 @@ WIFI_REJOIN("service call wifi 58 i32 1 && svc wifi enable && echo BINNACLE_OK")
 [ "$cmds" = "$expected" ] || bad "LocalShell command list changed: review it, then update this guard"
 [ "$(grep -c 'shell:' src/app/binnacle/LocalShell.java)" = 1 ] && grep -qF '("shell:" + cmd.shell + "\0")' src/app/binnacle/LocalShell.java || bad "LocalShell may only open shell:<Command.shell>"
 [ "$(grep -cw 'A_OPEN' src/app/binnacle/LocalShell.java)" = 2 ] || bad "LocalShell may open exactly one ADB stream"
+# exactly its four messages (connect, open the one shell stream, ack, close) plus send's own
+# declaration; no payload built from bytes or numbers (a second stream needs no new string)
+LS=src/app/binnacle/LocalShell.java
+[ "$(grep -cE '(^|[^A-Za-z0-9_])send\s*\(' "$LS")" = 5 ] || bad "LocalShell may send exactly its four ADB messages"
+grep -qxF '            send(out, A_CNXN, VERSION, MAX_DATA, "host::\0".getBytes(StandardCharsets.US_ASCII));' "$LS" \
+    && grep -qxF '            send(out, A_OPEN, LOCAL_ID, 0, ("shell:" + cmd.shell + "\0").getBytes(StandardCharsets.UTF_8));' "$LS" \
+    && grep -qxF '                    send(out, A_OKAY, LOCAL_ID, m.arg0, new byte[0]);' "$LS" \
+    && grep -qxF '                    send(out, A_CLSE, LOCAL_ID, remote != 0 ? remote : m.arg0, new byte[0]);' "$LS" \
+    || bad "LocalShell's ADB messages changed"
+[ "$(grep -ciE '0x4e45504f' "$LS")" = 1 ] && grep -qxF '    private static final int A_CNXN = 0x4e584e43, A_OPEN = 0x4e45504f, A_OKAY = 0x59414b4f,' "$LS" \
+    || bad "LocalShell may name the ADB open code once, in its constants"
+grep -nE 'new byte\[\]\s*\{|\(byte\)|\(char\)|1313165391|exec:|root:|reboot:' "$LS" && bad "LocalShell may not build ADB payloads from numbers (above)"
 grep -rnE 'LocalShell\.run\(' src | grep -vE 'LocalShell\.run\(cmd\)' && bad "LocalShell.run must take a Command (above)"
 
 # 5. File writes: only CameraPane (the camera decoder's two nodes: local hardware, not the car) and
@@ -124,7 +161,13 @@ for f in $(grep -rlE 'FileWriter|FileOutputStream|RandomAccessFile' src); do
   case "$f" in src/app/binnacle/CameraPane.java|src/app/binnacle/CarPacks.java) ;; *) bad "file writes outside CameraPane/CarPacks: $f";; esac
 done
 grep -q 'DECODER_DIR = "/sys/ziqi/camera", INPUT = "2", SIGNAL = "AHD_1080P_30";' src/app/binnacle/CameraPane.java || bad "camera decoder write target changed"
-[ "$(grep -cE 'writeDecoder\("' src/app/binnacle/CameraPane.java)" = 2 ] || bad "CameraPane may write only channel and N_P_pre_format"
+CP=src/app/binnacle/CameraPane.java
+[ "$(grep -cE 'writeDecoder\s*\(' "$CP")" = 3 ] \
+    && grep -qxF '        writeDecoder("channel", INPUT);' "$CP" && grep -qxF '        writeDecoder("N_P_pre_format", SIGNAL);' "$CP" \
+    && grep -qxF '    private static void writeDecoder(String node, String value) {' "$CP" \
+    && grep -qxF '        java.io.File file = new java.io.File(DECODER_DIR, node);' "$CP" \
+    || bad "CameraPane may write only channel and N_P_pre_format in DECODER_DIR"
+[ "$(grep -cE 'FileWriter\s*\(' "$CP")" = 1 ] || bad "CameraPane may open one FileWriter (writeDecoder)"
 [ "$(grep -c 'new FileOutputStream(' src/app/binnacle/CarPacks.java)" = 1 ] || bad "CarPacks must write files in one place only"
 grep -q 'if (!isInside(tmp, out)) throw' src/app/binnacle/CarPacks.java || bad "CarPacks must check every entry stays inside the pack folder"
 grep -q 'File root = c.getExternalFilesDir(null);' src/app/binnacle/CarPacks.java || bad "CarPacks must write only under the app's own files dir"

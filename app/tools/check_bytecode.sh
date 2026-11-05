@@ -73,6 +73,11 @@ only() {
     local hits; hits=$(refs "$1" | OK="^($2)([$].*)?$" awk -F'\t' '$1 !~ ENVIRON["OK"]')
     [ -z "$hits" ] || { printf '%s\n' "$hits" >&2; bad "$1 used outside $2 (above)"; }
 }
+# only_method <regex> <class> <method>: the reference may appear only in that one method of that class
+only_method() {
+    local hits; hits=$(refs "$1" | C="$2" M="$3" awk -F'\t' '$1 != ENVIRON["C"] || $2 != ENVIRON["M"]')
+    [ -z "$hits" ] || { printf '%s\n' "$hits" >&2; bad "$1 used outside $2.$3 (above)"; }
+}
 # never <regex>: the reference must not appear at all
 never() {
     local hits; hits=$(refs "$1")
@@ -191,8 +196,24 @@ refs '^String:.*://' | awk -F'\t' '$1 !~ /^app\/binnacle\/(CarPacks|Updater)(\$|
 # 5. Files: FileOutputStream only in CarPacks (its own files dir), FileWriter only in CameraPane
 #    (the camera decoder's sysfs nodes); nothing else may open a file for writing.
 only '^java/io/FileOutputStream' 'app/binnacle/CarPacks'
-only '^java/io/FileWriter' 'app/binnacle/CameraPane'
+only_method '^java/io/FileWriter' 'app/binnacle/CameraPane' 'writeDecoder'
 never '^java/io/(RandomAccessFile|PrintStream\.<init>|PrintWriter\.<init>)$|^java/io/RandomAccessFile|^java/nio/file/|^android/os/ParcelFileDescriptor|^android/system/Os'
+# other ways to open a file for writing: AtomicFile (a FileOutputStream on any path), the app's
+# private files through Context, java.util.logging's file handler
+never '^android/util/AtomicFile|\.openFileOutput$|^java/util/logging/FileHandler'
+# CameraPane: writeDecoder only ever gets the decoder folder and its two nodes. It is called exactly
+# twice, from setUpDecoder, with the fixed node name and value as constants; its File is built on
+# the fixed folder (so no other path, and no "../", can reach the FileWriter).
+only_method '^app/binnacle/CameraPane\.writeDecoder$' 'app/binnacle/CameraPane' 'setUpDecoder'
+got=$(printf '%s\n' "$TABLE" | awk -F'\t' '$1 == "app/binnacle/CameraPane" && $2 == "setUpDecoder" { print $3 " " $4 }')
+[ "$got" = "$(printf '%s\n' 'ldc String:channel' 'ldc String:2' 'invokestatic app/binnacle/CameraPane.writeDecoder' \
+    'ldc String:N_P_pre_format' 'ldc String:AHD_1080P_30' 'invokestatic app/binnacle/CameraPane.writeDecoder' 'return ')" ] \
+    || bad "CameraPane.setUpDecoder may only write channel=2 and N_P_pre_format=AHD_1080P_30 (got: $got)"
+got=$(printf '%s\n' "$TABLE" | awk -F'\t' '$1 == "app/binnacle/CameraPane" && $2 == "writeDecoder" { print $3 " " $4 }' | head -5)
+[ "$got" = "$(printf '%s\n' 'new java/io/File' 'dup ' 'ldc String:/sys/ziqi/camera' 'aload_0 ' 'invokespecial java/io/File.<init>')" ] \
+    || bad "CameraPane.writeDecoder must open DECODER_DIR/<node> (got: $got)"
+[ "$(refs '^java/io/File\.' | awk -F'\t' '$1 == "app/binnacle/CameraPane" && $2 == "writeDecoder" && $4 ~ /<init>/' | wc -l | tr -d ' ')" = 1 ] \
+    || bad "CameraPane.writeDecoder may build exactly one File"
 
 # 6. Content providers and settings: one Settings.System read in StockScreens, nothing else.
 only '^android/content/ContentResolver|\.getContentResolver$|^android/provider/Settings\$' 'app/binnacle/StockScreens'
@@ -206,6 +227,22 @@ only '\.bindService$' 'app/binnacle/(CanFeed|CarPlayLink)'
 only '\.sendBroadcast$' 'app/binnacle/(Launch|DashApp)'
 only '\.(startService|startForegroundService)$' 'app/binnacle/DashActivity'
 never '\.(sendOrderedBroadcast|sendStickyBroadcast|sendBroadcastAsUser|startInstrumentation)$'
+# PendingIntents and IntentSenders deliver an intent later, or as another app: only Updater's one
+# broadcast back to its own Status receiver (the install result). No alarms, no isolated services.
+never '^android/app/PendingIntent\.(getService|getForegroundService|getActivity|getActivities|send)$|^android/content/IntentSender\.sendIntent$|\.bindIsolatedService$|^android/app/AlarmManager(\.|$)'
+only_method '^android/app/PendingIntent\.getBroadcast$|^android/app/PendingIntent\.getIntentSender$' 'app/binnacle/Updater' 'install'
+[ "$(refs '^android/app/PendingIntent\.getBroadcast$' | wc -l | tr -d ' ')" = 1 ] || bad "exactly one PendingIntent allowed (Updater's install result)"
+refs '^class app/binnacle/Updater\$Status$|^app/binnacle/Updater\$Status$' | awk -F'\t' '$1 == "app/binnacle/Updater" && $2 == "install"' | grep -q . \
+    || bad "Updater's PendingIntent must target its own Status receiver"
+# Activities: only the places that open screens (Launch for other apps, the hub and setup for their
+# own and Android's settings screens, Updater's install confirm screen).
+only '\.startActivit(y|ies|yForResult|yIfNeeded|yFromChild|yFromFragment)$' 'app/binnacle/(Launch|HubActivity|SetupActivity|Updater[$]Status)'
+never '\.startActivities$|\.startIntentSender[A-Za-z]*$'
+# Audio: only StartupVolume, and only the music level and its mute (owner OK 4 Nov). Nothing that
+# changes the audio mode or passes parameters to the audio HAL (this ROM's HAL may talk to the MCU).
+only '^android/media/AudioManager\.' 'app/binnacle/StartupVolume'
+never '^android/media/AudioManager\.(setParameters|setMode|setRingerMode|setMicrophoneMute|setSpeakerphoneOn|setBluetoothScoOn|startBluetoothSco|setStreamMute|setStreamSolo|setWiredHeadsetOn|adjustVolume|adjustSuggestedStreamVolume|setAllowedCapturePolicy)$|^android/media/AudioSystem'
+[ "$(refs '^android/media/AudioManager\.(setStreamVolume|adjustStreamVolume)$' | wc -l | tr -d ' ')" = 2 ] || bad "StartupVolume may set the music level and unmute it, once each"
 
 # 8. No string anywhere that names a car-write path, even if nothing calls it yet.
 never '^String:.*(com\.xbs\.carsetup|com\.xbs\.can\.provider|/dev/tty|ttyHS|McuSerial|McuManager|com\.mct\.serial|txMessengerPack|txGeneralProtocol|txPerformUartPack|txUpdateProtocol|setUartNormalTransmitEnable|writeData)'
@@ -245,6 +282,38 @@ String:unexpected ADB reply
 EOF
 )
 [ "$got" = "$expected" ] || { diff <(printf '%s\n' "$expected") <(printf '%s\n' "$got") >&2; bad "LocalShell strings changed: review, then update this guard"; }
+
+# 9b. LocalShell: its whole compiled code is pinned, not just its strings. The ADB message codes
+#     are int constants, so a second stream (an OPEN of "exec:su 0 ..." spelled as bytes) would add
+#     no string at all; it changes this listing instead. The listing leaves out the constant-pool
+#     numbers and offsets, so only a real change to the code fails it. After a reviewed change to
+#     LocalShell: run this script, check the listing it prints, then put its new hash here.
+SHELL_CLASSES=$(printf '%s\n' "$files" | grep -E '/app/binnacle/LocalShell(\$[^/]*)?\.class$')
+if [ -n "$SHELL_CLASSES" ]; then
+    shell_code=$(javap -c -p $SHELL_CLASSES 2>/dev/null | grep -v '^Compiled from' \
+        | sed -E 's/^ +[0-9]+: /  /; s/#[0-9]+(, *[0-9]+)?/#/; s/^( +)ldc(_w|2_w)? /\1ldc /; s/^( +(if[a-z_]*|goto(_w)?|jsr(_w)?)) +[0-9]+$/\1/; s/^ +[0-9-]+: [0-9]+$/  case/; s/ +$//; s/  +/ /g')
+    sum=$(printf '%s\n' "$shell_code" | sha256sum | cut -c1-64)
+    [ "$sum" = '731bb438af6fa6ed7ad9fb682d4641c6eada025c1d734ecd177c44a7148620a9' ] || { printf '%s\n' "$shell_code" >&2; bad "LocalShell's code changed (hash $sum): review the listing above, then update this guard"; }
+    # and, readably: send() only from run(), four times (connect, open the one shell stream, ack, close)
+    [ "$(refs '^app/binnacle/LocalShell\.send$' | awk -F'\t' '$1 == "app/binnacle/LocalShell" && $2 == "run"' | wc -l | tr -d ' ')" = 4 ] \
+        && [ "$(refs '^app/binnacle/LocalShell\.send$' | wc -l | tr -d ' ')" = 4 ] || bad "LocalShell.run must send exactly its four ADB messages"
+fi
+
+# 10. Nested classes are what they say they are: a class whose name holds a '$' is let through the
+#     per-class rules above as part of its outer class, so it must come from that class's own source
+#     file. A top-level class named "LocalShell$X" written in Evil.java is refused.
+#     (check_readonly.sh also refuses a '$' in any class name written in the source.)
+nested=$(printf '%s\n' "$files" | grep '\$')
+if [ -n "$nested" ]; then
+    fake=$(javap $nested 2>/dev/null | awk '
+        /^Compiled from / { src = $3; gsub(/"/, "", src); next }
+        /(class|interface|enum) / {
+            for (i = 1; i <= NF; i++) if ($i == "class" || $i == "interface" || $i == "enum") { n = $(i+1); break }
+            sub(/<.*/, "", n); outer = n; sub(/\$.*/, "", outer); sub(/.*\./, "", outer)
+            if (src != outer ".java") print n " (from " src ")"; src = ""
+        }')
+    [ -z "$fake" ] || { printf '%s\n' "$fake" >&2; bad "classes named like nested ones that are not nested (above)"; }
+fi
 
 [ $fail -eq 0 ] && echo "check_bytecode: OK (compiled code is receive-only)"
 exit $fail
