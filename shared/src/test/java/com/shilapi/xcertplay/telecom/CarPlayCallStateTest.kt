@@ -9,16 +9,16 @@ import org.junit.Test
 class CarPlayCallStateTest {
     @Test
     fun parsesActiveOutgoingCallAsRecorded() {
-        // As received from an iPhone 16 calling voicemail (2 Nov).
+        // As received from an iPhone 16 calling voicemail (2 Nov), with the number replaced by a fictional one.
         val frame = Iap2Messages.buildRaw(CarPlayCallState.MESSAGE_ID) {
-            string(0, "+6421700700")
+            string(0, "+15555550123")
             string(1, "Voicemail")
             u8(2, 4)
             u8(3, 2)
             string(4, "D964DE78-E4DE-4A12-BD76-113316E7ECA5")
         }
         val state = CarPlayCallState.parse(frame)!!
-        assertEquals("+6421700700", state.remoteId)
+        assertEquals("+15555550123", state.remoteId)
         assertEquals("Voicemail", state.displayName)
         assertEquals(CarPlayCallState.STATUS_ACTIVE, state.status)
         assertEquals(CarPlayCallState.DIRECTION_OUTGOING, state.direction)
@@ -28,7 +28,7 @@ class CarPlayCallStateTest {
     @Test
     fun emptyStatusMeansTheCallEnded() {
         val frame = Iap2Messages.buildRaw(CarPlayCallState.MESSAGE_ID) {
-            string(0, "+6421700700")
+            string(0, "+15555550123")
             string(1, "Voicemail")
             raw(2, ByteArray(0))
             u8(3, 2)
