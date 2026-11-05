@@ -215,6 +215,7 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
         left.setVisibility(full ? View.GONE : View.VISIBLE);
         right.setVisibility(full ? View.GONE : View.VISIBLE);
         carplay.setVisibility(mode == CARPLAY_OFF ? View.GONE : View.VISIBLE);
+        centre.setCovered(mode != CARPLAY_OFF);   // the scene under CarPlay stops drawing (audit D9)
         carplay.setRounded(!full);
         centreFrame.requestLayout();
         if (mode != CARPLAY_OFF) carplay.requestAttach();   // the new size, or a surface that already existed
