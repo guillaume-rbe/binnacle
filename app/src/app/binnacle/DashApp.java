@@ -201,6 +201,7 @@ public class DashApp extends Application implements Feed.Sink, SharedPreferences
         cameraPending = false;
         main.removeCallbacks(stalled);
         main.removeCallbacks(staleRetry);
+        staleRecovering = false;
         problem = null;
         for (Listener l : listeners) l.onCarChanged(-1);
         feed.start();
@@ -218,6 +219,7 @@ public class DashApp extends Application implements Feed.Sink, SharedPreferences
         @Override public void run() {
             if (demo || !(feed instanceof CanFeed) || !car.moving() || car.speed <= 0) return;
             android.util.Log.w("binnacle", "no CAN data for " + STALE_MS + " ms while moving: subscribing again");
+            staleRecovering = true;
             onStatus(STALE_PROBLEM);
             resubscribe();
             staleRetryMs = STALE_MS;
@@ -229,11 +231,17 @@ public class DashApp extends Application implements Feed.Sink, SharedPreferences
     /** Longest pause between new subscriptions while the feed stays silent. */
     static final long STALE_RETRY_MAX_MS = 60_000;
     private long staleRetryMs;
+    /**
+     * True from the watchdog firing until live data (or a feed switch) arrives. Kept apart from
+     * the on-screen message: a bind or registration error during a retry replaces that message
+     * but must not end the retries.
+     */
+    private boolean staleRecovering;
 
     /** Still no data since the watchdog fired: subscribe again, waiting twice as long each time. */
     private final Runnable staleRetry = new Runnable() {
         @Override public void run() {
-            if (demo || !(feed instanceof CanFeed) || !STALE_PROBLEM.equals(problem)) return;
+            if (demo || !(feed instanceof CanFeed) || !staleRecovering) return;
             android.util.Log.w("binnacle", "still no CAN data: subscribing again");
             resubscribe();
             staleRetryMs = Math.min(staleRetryMs * 2, STALE_RETRY_MAX_MS);
@@ -336,7 +344,11 @@ public class DashApp extends Application implements Feed.Sink, SharedPreferences
             }
             if (code == 16) onFrontCam(car.frontCamRequest);
             if (code == 9 && !demo) saveLights(data);
-            if (STALE_PROBLEM.equals(problem)) { problem = null; main.removeCallbacks(staleRetry); }   // live data again after a stall
+            if (staleRecovering) {                 // live data again after a stall
+                staleRecovering = false;
+                main.removeCallbacks(staleRetry);
+                problem = null;
+            }
         } catch (Throwable t) {
             android.util.Log.w("binnacle", "bad data for code " + code, t);
             return;
@@ -494,7 +506,10 @@ public class DashApp extends Application implements Feed.Sink, SharedPreferences
     @Override public void onStatus(String p) {
         // A silent feed re-registers fine without sending anything, so "no car data" stays up until
         // live data actually arrives (onData), not just until the new registration succeeds.
-        if (p == null && STALE_PROBLEM.equals(problem)) return;
+        if (p == null && staleRecovering) {
+            if (STALE_PROBLEM.equals(problem)) return;
+            p = STALE_PROBLEM;                     // registered again after an error, still no data
+        }
         problem = p;
         // Feed lost (service died, not found, refused, or silent): nothing on screen is current any
         // more, so clear it rather than keep showing the last speed / gear / indicators as live.
