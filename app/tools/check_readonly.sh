@@ -39,8 +39,10 @@ VOL='src/app/binnacle/StartupVolume.java'
 for f in $(grep -rlE 'set(Stream|Ringer|Mode)Volume|adjust(Stream|Suggested)?Volume|setRingerMode|setMicrophoneMute|setMasterMute|setStreamMute|setSpeakerphoneOn|setMode\(' src); do
   [ "$f" = "$VOL" ] || bad "audio setting changed outside StartupVolume: $f"
 done
-[ "$(grep -cE 'set(Stream|Ringer|Mode)Volume|adjust(Stream|Suggested)?Volume|setRingerMode|setMicrophoneMute|setMasterMute|setStreamMute|setSpeakerphoneOn|setMode\(' "$VOL")" = 1 ] || bad "StartupVolume may change exactly one audio setting"
+# two calls: the music level, and unmuting music first (the CAN app mutes it when the car sleeps)
+[ "$(grep -cE 'set(Stream|Ringer|Mode)Volume|adjust(Stream|Suggested)?Volume|setRingerMode|setMicrophoneMute|setMasterMute|setStreamMute|setSpeakerphoneOn|setMode\(' "$VOL")" = 2 ] || bad "StartupVolume may change exactly the music level and its mute"
 grep -qxE '\s*audio\.setStreamVolume\(AudioManager\.STREAM_MUSIC, level, 0\);' "$VOL" || bad "StartupVolume may only set the music volume"
+grep -qxE '\s*if \(muted\) audio\.adjustStreamVolume\(AudioManager\.STREAM_MUSIC, AudioManager\.ADJUST_UNMUTE, 0\);' "$VOL" || bad "StartupVolume may only unmute music"
 
 # 1a. What javac reads must be what this script reads: no symlinks (grep -r skips them, find and
 #     javac follow them) and no \u escapes (javac decodes them before parsing, anywhere in a file,

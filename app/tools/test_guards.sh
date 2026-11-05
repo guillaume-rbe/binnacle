@@ -100,6 +100,7 @@ edit "Updater: session not locked"       Updater.java 's|            params.setA
 edit "Updater: fetches any file"         Updater.java 's|        if (!INFO.equals(file) \&\& !APK.equals(file)) throw new IOException("not an update file");|        if (file == null) throw new IOException("not an update file");|' any
 edit "Updater: sends a body"             Updater.java 's|        http.setConnectTimeout(TIMEOUT_MS);|        http.setConnectTimeout(TIMEOUT_MS); http.setDoOutput(true);|'
 edit "StartupVolume: another stream"     StartupVolume.java 's|audio.setStreamVolume(AudioManager.STREAM_MUSIC, level, 0);|audio.setStreamVolume(AudioManager.STREAM_RING, level, 0);|' any
+edit "StartupVolume: mute instead"       StartupVolume.java 's|AudioManager.ADJUST_UNMUTE, 0);|AudioManager.ADJUST_MUTE, 0);|' any
 edit "StartupVolume: a second setting"   StartupVolume.java 's|audio.setStreamVolume(AudioManager.STREAM_MUSIC, level, 0);|audio.setStreamVolume(AudioManager.STREAM_MUSIC, level, 0); audio.setRingerMode(0);|' any
 d=$(copy_app)
 printf 'package app.binnacle;\nfinal class Evil { static void go(android.content.Context c) {\n((android.media.AudioManager) c.getSystemService("audio")).setStreamVolume(3, 0, 0);\n} }\n' > "$d/src/app/binnacle/Evil.java"
