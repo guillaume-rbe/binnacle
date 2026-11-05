@@ -319,9 +319,13 @@ public class RightPanelView extends View {
      */
     private void drawMiddleCard(Canvas c) {
         int page = cardPage();
+        int count = pageCount();
         long now = android.os.SystemClock.uptimeMillis();
+        if (cardPos < 0) cardPos = page;    // no slide on the first frame
+        // the pages loop (owner, 5 Nov): slide the short way round, from last to first included
         float goal = page;
-        if (cardPos < 0) cardPos = goal;    // no slide on the first frame
+        while (goal - cardPos > count / 2f) goal -= count;
+        while (cardPos - goal > count / 2f) goal += count;
         // the clock starts at the switch itself: the panel may not have drawn for minutes, and the
         // time since that last draw used to finish the slide in one frame (in-car: animated ~20%)
         if (!cardMoving) { cardLastMs = now; cardMoving = cardPos != goal; }
@@ -334,9 +338,11 @@ public class RightPanelView extends View {
         c.save();
         r.set(X0, CARD_TOP, X1, CARD_BOTTOM);
         c.clipRect(r);
-        for (int p = 0; p < PAGES; p++) {
-            if (p == PAGE_MEDIA && nowPlaying == null) continue;
-            float off = (p - pos) * width;
+        for (int p = 0; p < count; p++) {
+            float d = p - pos;
+            while (d >= count / 2f) d -= count;      // the page's nearest copy round the loop
+            while (d < -count / 2f) d += count;
+            float off = d * width;
             if (Math.abs(off) >= width) continue;
             c.save();
             c.translate(off, 0);
@@ -351,6 +357,7 @@ public class RightPanelView extends View {
         drawPin(c);
         cardMoving = cardPos != goal;
         if (cardMoving) postInvalidateOnAnimation();
+        else cardPos = page;                         // settled: back inside 0..count-1
     }
 
     private static final long CARD_SLIDE_MS = 280;
@@ -674,7 +681,8 @@ public class RightPanelView extends View {
                 cardTouch = false;
                 if (Float.isNaN(swipeX)) return true;
                 if (Math.abs(x - swipeX) > SWIPE_MIN && Math.abs(x - swipeX) > Math.abs(y - swipeY)) {
-                    int next = Math.max(0, Math.min(pageCount() - 1, shownPage + (x < swipeX ? 1 : -1)));
+                    int n = pageCount();                            // the pages loop round
+                    int next = ((shownPage + (x < swipeX ? 1 : -1)) % n + n) % n;
                     if (pinned >= 0) setPinned(next);               // the pin moves with the page
                     else manual = next;                             // held until driving off
                     invalidate();
