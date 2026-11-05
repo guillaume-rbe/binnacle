@@ -182,13 +182,17 @@ internal object CarPlayTelecom {
 
     /** Telecom asked for the connection of a call we added. */
     @Synchronized
-    internal fun createConnection(callUuid: String?, dialledNumber: String? = null): Connection {
-        // Extras should carry the call UUID; only without one, take the single call waiting. A
-        // UUID that is gone ended before Telecom asked.
+    internal fun createConnection(callUuid: String?, outgoing: Boolean, dialledNumber: String? = null): Connection {
+        // Extras should carry the call UUID; only without one, take the single call of that
+        // direction we asked Telecom for and that has no connection yet. Any other UUID-less
+        // outgoing request was dialled on the car. A UUID that is gone ended before Telecom asked.
         val state = if (callUuid != null) {
             calls[callUuid]
         } else {
-            calls.values.singleOrNull { it.callUuid !in connections }
+            calls.values.singleOrNull {
+                it.callUuid !in connections && it.callUuid in requested &&
+                    (it.direction == CarPlayCallState.DIRECTION_OUTGOING) == outgoing
+            }
         }
         if (state == null && callUuid == null && !dialledNumber.isNullOrBlank()) return dialFromCar(dialledNumber)
         if (state == null) {

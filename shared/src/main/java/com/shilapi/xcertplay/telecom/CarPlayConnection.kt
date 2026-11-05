@@ -98,13 +98,14 @@ class CarPlayConnectionService : ConnectionService() {
     override fun onCreateIncomingConnection(
         connectionManagerPhoneAccount: PhoneAccountHandle?,
         request: ConnectionRequest,
-    ): Connection = CarPlayTelecom.createConnection(request.extras?.getString(CarPlayTelecom.EXTRA_CALL_UUID))
+    ): Connection = CarPlayTelecom.createConnection(request.extras?.getString(CarPlayTelecom.EXTRA_CALL_UUID), outgoing = false)
 
     override fun onCreateOutgoingConnection(
         connectionManagerPhoneAccount: PhoneAccountHandle?,
         request: ConnectionRequest,
     ): Connection = CarPlayTelecom.createConnection(
         request.extras?.getString(CarPlayTelecom.EXTRA_CALL_UUID),
+        outgoing = true,
         // a call dialled on the car (no CarPlay call behind it yet) carries only the number
         dialledNumber = request.address?.takeIf { it.scheme == PhoneAccount.SCHEME_TEL }?.schemeSpecificPart,
     )
