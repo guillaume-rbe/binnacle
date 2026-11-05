@@ -51,7 +51,7 @@ import com.shilapi.xcertplay.network.WifiP2pGroupManager
 import com.shilapi.xcertplay.network.WirelessHotspotInfo
 import com.shilapi.xcertplay.network.WirelessHotspotManager
 import com.shilapi.xcertplay.network.WirelessPerformanceLock
-import com.shilapi.xcertplay.network.mfiCertificateWifiP2pCredentials
+import com.shilapi.xcertplay.network.wifiP2pCredentials
 import com.shilapi.xcertplay.telecom.CarPlayCallState
 import com.shilapi.xcertplay.telecom.CarPlayTelecom
 import com.shilapi.xcertplay.telecom.CarPlayTelephonyKeys
@@ -1659,7 +1659,7 @@ class CarPlayController(
         }
         val manager: WirelessHotspotManager = when (hotspotMode) {
             WirelessHotspotMode.WIFI_P2P ->
-                mfiCertificateWifiP2pCredentials(mfi.readCertificate()).let { credentials ->
+                wifiP2pCredentials(appContext, mfi.readCertificate()).let { credentials ->
                     WifiP2pGroupManager(
                         context = appContext,
                         networkName = credentials.ssid,
