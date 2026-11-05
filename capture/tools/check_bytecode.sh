@@ -5,6 +5,9 @@
 #   usage: tools/check_bytecode.sh <classes dir>      the compiled classes
 #          tools/check_bytecode.sh --apk <apk>        the packed APK
 set -uo pipefail
+# One byte order for every sort and match, so the pinned listings hash the same on macOS and Linux
+# (a locale sort put LocalShell.class before LocalShell$1.class on the Mac and changed the hash).
+export LC_ALL=C
 cd "$(dirname "$0")/.."
 P=app/binnacle/logger
 fail=0
