@@ -50,7 +50,10 @@ grep -qF 'static File logDir(Context c) { return new File(c.getFilesDir(), "logs
 for f in $(grep -rlE 'ContentResolver|getContentResolver|ContentValues|openOutputStream|\.insert\(' src); do
   [ "$f" = "$UI" ] || bad "content resolver used outside MainActivity: $f"
 done
-[ "$(grep -o 'getContentResolver()' "$UI" | wc -l | tr -d ' ')" = 2 ] || bad "MainActivity may use the content resolver exactly twice (insert, openOutputStream)"
+# counted with all whitespace removed, so "getContentResolver ()" or a line break can't hide a third
+[ "$(tr -d ' \t\r\n' < "$UI" | grep -o 'getContentResolver' | wc -l | tr -d ' ')" = 2 ] || bad "MainActivity may use the content resolver exactly twice (insert, openOutputStream)"
+[ "$(tr -d ' \t\r\n' < "$UI" | grep -oE '\.(insert|openOutputStream)\(' | wc -l | tr -d ' ')" = 2 ] || bad "MainActivity may insert once and write once"
+grep -rnwE 'Uri\.(parse|fromFile|withAppendedPath|fromParts)|Uri\.Builder|ContentUris' src && bad "the logger may not build content URIs (above)"
 grep -qF 'getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, v);' "$UI" || bad "export may only insert into MediaStore.Downloads"
 grep -qF 'getContentResolver().openOutputStream(uri)' "$UI" || bad "export may only write the row it inserted"
 

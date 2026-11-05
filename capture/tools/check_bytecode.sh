@@ -102,6 +102,14 @@ only '^android/content/ContentResolver|\.getContentResolver$|^android/content/Co
 [ "$(refs '^android/content/ContentResolver\.' | awk -F'\t' '{ print $4 }' | sort -u | tr '\n' ' ')" = 'android/content/ContentResolver.insert android/content/ContentResolver.openOutputStream ' ] \
     || bad "MainActivity may only insert into Downloads and write that row"
 never '^android/provider/Settings|^android/content/ContentProviderClient'
+# exactly one insert, into the Downloads collection (the URI is loaded straight before the values),
+# and one openOutputStream; no URI built from text anywhere (it could name the CAN provider)
+[ "$(refs '^android/content/ContentResolver\.insert$' | wc -l | tr -d ' ')" = 1 ] && [ "$(refs '^android/content/ContentResolver\.openOutputStream$' | wc -l | tr -d ' ')" = 1 ] \
+    || bad "MainActivity may insert once and write once"
+printf '%s\n' "$TABLE" | awk -F'\t' '{ r[NR] = $4 } END { for (i = 1; i <= NR; i++) if (r[i] == "android/content/ContentResolver.insert") print r[i-2] }' \
+    | grep -qx 'android/provider/MediaStore$Downloads.EXTERNAL_CONTENT_URI' || bad "the logger may insert only into MediaStore.Downloads"
+never '^android/net/Uri\.(parse|fromFile|withAppendedPath|fromParts)$|^android/net/Uri\$Builder|^android/content/ContentUris'
+
 
 # 4. Other apps: bind (CaptureService), state broadcast (StateReceiver), own service (MainActivity).
 only '\.bindService$' "$P/CaptureService"
