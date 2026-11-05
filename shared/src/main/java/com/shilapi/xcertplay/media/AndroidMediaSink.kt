@@ -18,6 +18,7 @@ import android.os.Handler
 import android.os.HandlerThread
 import android.os.Looper
 import android.os.Process
+import android.os.SystemClock
 import android.util.Log
 import android.view.Surface
 import com.shilapi.xcertplay.airplay.AudioCodecKind
@@ -1213,7 +1214,7 @@ private class AudioRenderer(
             // Bounded: a flush (e.g. remote web-display playback) leaves the written/played
             // counters apart, and an unbounded delay would keep the mic suppressed.
             val queuedMs = (queuedFrames * 1000 / format.sampleRate).coerceAtMost(MAX_ECHO_REFERENCE_DELAY_MS)
-            FarEndActivity.report(data, chunkOffset, count, System.currentTimeMillis() + queuedMs)
+            FarEndActivity.report(data, chunkOffset, count, SystemClock.elapsedRealtime() + queuedMs)
             val monitor = mediaMetricsMonitor
             if (monitor != null) {
                 val nowNs = System.nanoTime()

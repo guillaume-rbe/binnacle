@@ -78,6 +78,10 @@
 >   it is ended on the phone
 > - Embedding: a finger is lifted on the phone when the head unit lets go of the surface or a gesture
 >   ends after it, and attaching a surface no longer makes the head unit wait for xcertplay's main thread
+> - Call clean-ups: an answer or hang-up from the car is held back when the key (which has no call
+>   ID) would hit the other call instead, calls the phone has ended are cleared from the car if
+>   their end update never came, the audio mode never sticks in ringtone mode, and the echo
+>   reference uses the monotonic clock
 > - Wireless CarPlay's port 7000 only answers on the CarPlay hotspot: a connection from any other
 >   network (home Wi-Fi, a media server probing the port) is closed at once, and nothing but
 >   pairing and `/info` is served until the phone has completed pair-verify

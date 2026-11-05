@@ -57,6 +57,10 @@ internal class CarPlayConnection(
 
     override fun onAnswer() {
         CarPlayTelecom.logLine("carplay calls: answer from car")
+        if (!CarPlayTelecom.keyReaches(callUuid, answer = true)) {
+            CarPlayTelecom.logLine("carplay calls: call already connected; answer not sent (it would hang up)")
+            return
+        }
         control()?.accept(callUuid)
     }
 
@@ -81,7 +85,11 @@ internal class CarPlayConnection(
     private fun endFromCar(reason: String) {
         CarPlayTelecom.logLine("carplay calls: $reason from car")
         endRequested = true
-        control()?.end(callUuid)
+        if (CarPlayTelecom.keyReaches(callUuid, answer = false)) {
+            control()?.end(callUuid)
+        } else {
+            CarPlayTelecom.logLine("carplay calls: held call; hang-up not sent (it would end the other call)")
+        }
         handler.postDelayed({
             if (ended) return@postDelayed
             CarPlayTelecom.logLine("carplay calls: phone kept the call after $reason; ending it on the car")

@@ -191,6 +191,9 @@ class CarPlayController(
     private val performanceLockLifecycle = Any()
     private val wirelessPerformanceLock = WirelessPerformanceLock(appContext) { debugLog(it) }
     private val headUnitCallState = HeadUnitCallState(appContext) { debugLog(it) }
+    private val stuckCallCheck = Runnable {
+        if (CarPlayTelecom.endStuck()) debugLog("carplay calls: phone has no call; ended the calls still shown on the car")
+    }
     private val callControl = object : CarPlayTelecom.CallControl {
         override fun accept(callUuid: String) = sendCallKey("answer", CarPlayTelephonyKeys.HOOK_SWITCH)
         override fun end(callUuid: String) = sendCallKey("end call", CarPlayTelephonyKeys.DROP)
@@ -331,6 +334,7 @@ class CarPlayController(
                 }
             }
             headUnitCallState.end()
+            mainHandler.removeCallbacks(stuckCallCheck)
             CarPlayTelecom.endAll()
             debugLog("AirPlay session ended peer=${session.host}")
             uiListener?.onSessionEnded(session)
@@ -359,6 +363,16 @@ class CarPlayController(
             )
             if (type == "modesChanged" && activeSession === session) {
                 headUnitCallState.onModesChanged(params)
+                // a call whose end update never came would stay on the car: once the phone has said
+                // "no call" for STUCK_CALL_GRACE_MS, end what is left (audit T3)
+                when (phoneCallActive(params)) {
+                    false -> {
+                        mainHandler.removeCallbacks(stuckCallCheck)
+                        mainHandler.postDelayed(stuckCallCheck, STUCK_CALL_GRACE_MS)
+                    }
+                    true -> mainHandler.removeCallbacks(stuckCallCheck)
+                    null -> Unit
+                }
             }
             if (
                 config.transport == CarPlayTransport.WIRELESS &&
@@ -588,6 +602,7 @@ class CarPlayController(
         synchronized(performanceLockLifecycle) {
             wirelessPerformanceLock.close()
         }
+        mainHandler.removeCallbacks(stuckCallCheck)
         CarPlayTelecom.detach(callControl)
         headUnitCallState.end()
         closeReceivers()
@@ -2119,6 +2134,9 @@ class CarPlayController(
     }
 
     companion object {
+        /** The phone has reported no call this long while the car still shows one (audit T3). */
+        private const val STUCK_CALL_GRACE_MS = 10_000L
+
         private const val NOW_PLAYING_UPDATE = 0x5001
         private const val MEDIA_REMOTE_SEND_TIMEOUT_MILLIS = 2_000L
         private const val INITIATE_CALL = 0x415A
