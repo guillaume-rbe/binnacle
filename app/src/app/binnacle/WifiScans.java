@@ -82,6 +82,11 @@ final class WifiScans {
     }
 
     /** The Wi-Fi icon: scanning and Wi-Fi on, so the saved home network is joined again. */
+    /** True when scans are paused while CarPlay runs (the switch, on by default) and can be. */
+    static boolean pausedForCarPlay(SharedPreferences prefs) {
+        return supported() && prefs.getBoolean(KEY, DEFAULT);
+    }
+
     static void rejoin(Context context, SharedPreferences prefs, boolean carplayRunning) {
         final Context app = context.getApplicationContext();
         if (!supported()) {

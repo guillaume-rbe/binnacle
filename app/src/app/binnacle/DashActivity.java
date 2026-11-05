@@ -425,8 +425,23 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
         if (!hotspot && Launch.hasXcertplay(this)) {
             // xcertplay keeps the dash on home Wi-Fi; off it (scanning paused, out of range), the
             // icon rejoins the saved network (WifiScans)
-            if (netMode == RightPanelView.NET_WIFI) Toast.makeText(this, "On home Wi-Fi", Toast.LENGTH_SHORT).show();
-            else WifiScans.rejoin(this, app.prefs(), carplayLink.connected() && CarPlayLink.running(carplayLink.state()));
+            if (netMode == RightPanelView.NET_WIFI) { Toast.makeText(this, "On home Wi-Fi", Toast.LENGTH_SHORT).show(); return; }
+            boolean running = carplayLink.connected() && CarPlayLink.running(carplayLink.state());
+            if (running && WifiScans.pausedForCarPlay(app.prefs())) {
+                // scanning is paused for CarPlay: offer to end it, then rejoin (owner, 5 Nov: there
+                // was no way to end CarPlay from the dash)
+                BinnacleDialog.show(this, "CarPlay is on", "End CarPlay and rejoin home Wi-Fi?",
+                        new String[]{"Cancel", "End CarPlay"}, true, new BinnacleDialog.Choice() {
+                            @Override public void chosen(int index) {
+                                if (index != 1) return;
+                                carplayLink.disconnect();                  // xcertplay stops and stays stopped
+                                showCarPlay(CARPLAY_OFF);
+                                WifiScans.rejoin(DashActivity.this, app.prefs(), false);
+                            }
+                        });
+                return;
+            }
+            WifiScans.rejoin(this, app.prefs(), running);
             return;
         }
         BinnacleDialog.show(this, hotspot ? "On CarPlay's hotspot" : "On home Wi-Fi",
