@@ -61,6 +61,9 @@
 >   forwards touch and wheel keys; state comes back as Messages, and the sizes it switches between are
 >   declared to the phone as view areas (no reconnect on a switch). Meant for a head-unit launcher
 >   that shows CarPlay in part of its screen. xcertplay's own screen works as before
+> - Malformed control messages can't crash the app: the binary-plist reader refuses cycles, deep
+>   nesting, exponential expansion and sizes past the end of the data, the control channel caps
+>   header and body sizes, and a failing request costs one error reply instead of the process
 
 ## Features
 
