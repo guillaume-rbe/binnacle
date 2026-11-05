@@ -31,6 +31,14 @@ public class EfficiencyTrackerTest {
         float recent = t.recentWhPerKm();
         check("recent last ~5 km about -40 Wh/km (got " + recent + ")", recent < -25 && recent > -45);
 
+        // a crawl pause (~6 s between readings) still counts: 6 s at 6 km/h is 10 m
+        {
+            EfficiencyTracker c = new EfficiencyTracker();
+            c.feed(1_000, 2f, 6f);
+            c.feed(7_000, 2f, 6f);
+            check("6 s crawl gap counted (got " + c.tripKm() + " km)", Math.abs(c.tripKm() - 0.01) < 1e-6);
+        }
+
         // a long gap (dash stopped) adds nothing
         double kmBefore = t.tripKm();
         t.feed(now + 600_000, 20f, 100f);
