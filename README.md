@@ -72,6 +72,7 @@
 > - The CarPlay Wi-Fi Direct passphrase is random (20 characters, made once per install and kept in
 >   the app's private storage) instead of 8 hex digits derived from the MFi certificate; the iPhone
 >   gets it over iAP2 each session as before, and the network name is unchanged
+> - At most 8 saved AirPlay pairings (oldest dropped), since pair-setup uses a fixed PIN
 > - Embedding: a finger is lifted on the phone when the head unit lets go of the surface or a gesture
 >   ends after it, and attaching a surface no longer makes the head unit wait for xcertplay's main thread
 > - Wireless CarPlay's port 7000 only answers on the CarPlay hotspot: a connection from any other
