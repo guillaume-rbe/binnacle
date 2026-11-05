@@ -203,9 +203,24 @@ final class CarPlayPane extends FrameLayout implements SurfaceHolder.Callback {
         return status.getVisibility() != VISIBLE;
     }
 
+    /** A gesture whose start went to CarPlay: its end goes too, so no finger stays down on the phone. */
+    private boolean gestureSent;
+
     @Override public boolean onTouchEvent(MotionEvent e) {
-        if (status.getVisibility() == VISIBLE) return super.onTouchEvent(e);
+        int action = e.getActionMasked();
+        if (action == MotionEvent.ACTION_DOWN) gestureSent = false;
+        if (status.getVisibility() == VISIBLE && !gestureSent) return super.onTouchEvent(e);
+        if (status.getVisibility() == VISIBLE) {
+            // the status cover came up mid-gesture: end the gesture on the phone, send nothing more
+            MotionEvent cancel = MotionEvent.obtain(e);
+            cancel.setAction(MotionEvent.ACTION_CANCEL);
+            link.touch(cancel);
+            cancel.recycle();
+            gestureSent = false;
+            return true;
+        }
         link.touch(e);
+        gestureSent = action != MotionEvent.ACTION_UP && action != MotionEvent.ACTION_CANCEL;
         return true;
     }
 

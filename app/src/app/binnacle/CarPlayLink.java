@@ -66,6 +66,15 @@ final class CarPlayLink implements ServiceConnection {
         listener = l;
         receiver = new Messenger(new Handler(Looper.getMainLooper()) {
             @Override public void handleMessage(Message m) {
+                // a malformed message from the other app costs that message, never the dash
+                try {
+                    handle(m);
+                } catch (RuntimeException e) {
+                    Log.w(TAG, "CarPlay link: bad message " + m.what + ": " + e);
+                }
+            }
+
+            private void handle(Message m) {
                 if (m.what == MSG_STATE) {
                     state = m.arg1;
                     String stage = m.peekData() != null ? m.peekData().getString("stage", "") : "";
@@ -91,7 +100,7 @@ final class CarPlayLink implements ServiceConnection {
         byte[] bytes = d.getByteArray("art");
         if (id < 0) { art = null; artId = -1; }
         else if (bytes != null) {
-            art = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
+            art = decodeCover(bytes);
             artId = art != null ? id : -1;
         }
         return new NowPlaying(d.getString("title"), d.getString("artist"), d.getString("album"), d.getString("app"),
@@ -99,9 +108,40 @@ final class CarPlayLink implements ServiceConnection {
                 id, id >= 0 && id == artId ? art : null);
     }
 
+    /** Largest cover kept, in pixels per side, and the most bytes decoded at all. */
+    private static final int COVER_MAX_PX = 512, COVER_MAX_BYTES = 4 << 20;
+
+    /** The cover, scaled down by a power of two to at most COVER_MAX_PX a side; null if unusable. */
+    static android.graphics.Bitmap decodeCover(byte[] bytes) {
+        if (bytes.length == 0 || bytes.length > COVER_MAX_BYTES) return null;
+        android.graphics.BitmapFactory.Options o = new android.graphics.BitmapFactory.Options();
+        o.inJustDecodeBounds = true;
+        android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.length, o);
+        if (o.outWidth <= 0 || o.outHeight <= 0) return null;
+        int sample = 1;
+        while (Math.max(o.outWidth, o.outHeight) / sample > COVER_MAX_PX) sample *= 2;
+        o.inJustDecodeBounds = false;
+        o.inSampleSize = sample;
+        return android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.length, o);
+    }
+
+    /** xcertplay signed with this app's key (its embed service also requires that). */
+    private boolean sameSigner() {
+        try {
+            return context.getPackageManager().checkSignatures(context.getPackageName(), PKG)
+                    == android.content.pm.PackageManager.SIGNATURE_MATCH;
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
+
     /** Binds xcertplay's service; false if it isn't there or we may not (other signing key). */
     boolean bind() {
         if (bound) return true;
+        if (!sameSigner()) {
+            // not installed, or another key: nothing to bind (an install or update brings retry())
+            return false;
+        }
         Intent i = new Intent().setComponent(new ComponentName(PKG, SERVICE));
         try {
             bound = context.bindService(i, this, Context.BIND_AUTO_CREATE);
@@ -165,10 +205,14 @@ final class CarPlayLink implements ServiceConnection {
     @Override public void onServiceConnected(ComponentName name, IBinder service) {
         binder = service;
         int version = version();
-        if (version != API_VERSION) {
-            Log.i(TAG, "CarPlay link: xcertplay API " + version + ", need " + API_VERSION);
-            refused = true;
+        // Newer APIs only add calls at the end, so any version from ours up is fine. A failed call
+        // (-1) is worth another try; only an older xcertplay is refused for good.
+        if (version < API_VERSION) {
+            Log.i(TAG, "CarPlay link: xcertplay API " + version + ", need " + API_VERSION + " or later");
+            if (version >= 0) refused = true;
             binder = null;
+            bound = false;
+            try { context.unbindService(this); } catch (RuntimeException ignored) { }
             listener.onLinkChanged(false);
             return;
         }
@@ -180,6 +224,7 @@ final class CarPlayLink implements ServiceConnection {
     }
 
     @Override public void onServiceDisconnected(ComponentName name) {
+        keysDown.clear();
         binder = null;
         state = STATE_IDLE;
         listener.onLinkChanged(false);
@@ -223,10 +268,18 @@ final class CarPlayLink implements ServiceConnection {
         call(TX_TOUCH, d, true);
     }
 
+    /** Keys whose press went to CarPlay: their release goes too, whatever the state is by then. */
+    private final java.util.Set<Integer> keysDown = new java.util.HashSet<>();
+
     /** True when CarPlay took the key. */
     boolean key(KeyEvent e) {
         // decided here, sent one-way: a busy xcertplay must never hold up the dash's main thread
-        if (binder == null || state != STATE_STREAMING || !carPlayKey(e.getKeyCode())) return false;
+        int code = e.getKeyCode();
+        boolean up = e.getAction() == KeyEvent.ACTION_UP;
+        boolean releaseOfSent = up && keysDown.remove(code);
+        if (binder == null) return releaseOfSent;
+        if (!releaseOfSent && (state != STATE_STREAMING || !carPlayKey(code))) return false;
+        if (e.getAction() == KeyEvent.ACTION_DOWN) keysDown.add(code);
         Parcel d = token();
         d.writeInt(1);
         e.writeToParcel(d, 0);

@@ -135,6 +135,9 @@ String:, need
 String:CarPlay link call
 String:CarPlay link not allowed:
 String:CarPlay link: xcertplay API
+String:CarPlay link: bad message
+String: or later
+String::
 String:binnacle
 String:com.shilapi.xcertplay
 String:com.shilapi.xcertplay.CarPlayEmbedService

@@ -215,20 +215,45 @@ final class Updater {
      * replaces this app and restarts it.
      */
     public static final class Status extends BroadcastReceiver {
+        /** Android's confirm screen, held while the car isn't in Park (audit D7); main thread only. */
+        private static Intent waitingForPark;
+        /** Live data says Park (set by DashApp from each car message; never true in demo). */
+        private static boolean inPark;
+
         @Override public void onReceive(Context c, Intent intent) {
             int status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE);
             if (status == PackageInstaller.STATUS_PENDING_USER_ACTION) {
                 Intent confirm = intent.getParcelableExtra(Intent.EXTRA_INTENT);
                 if (confirm == null) return;
-                try {
-                    c.startActivity(confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
-                } catch (RuntimeException e) {
-                    Toast.makeText(c, "Couldn't open Android's install screen", Toast.LENGTH_LONG).show();
+                // The download started in Park, but the car may have moved off since: the install
+                // screen covers the cluster, so it only opens in Park.
+                if (!inPark) {
+                    waitingForPark = confirm;
+                    Toast.makeText(c, "Update ready: it installs when the car is in Park", Toast.LENGTH_LONG).show();
+                    return;
                 }
+                open(c, confirm);
                 return;
             }
             if (status == PackageInstaller.STATUS_SUCCESS) return;
             Toast.makeText(c, reason(status, intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE)), Toast.LENGTH_LONG).show();
+        }
+
+        /** The gear from live data: in Park, an install screen that was held back opens now. */
+        static void gear(Context c, boolean park) {
+            inPark = park;
+            Intent confirm = waitingForPark;
+            if (!park || confirm == null) return;
+            waitingForPark = null;
+            open(c, confirm);
+        }
+
+        private static void open(Context c, Intent confirm) {
+            try {
+                c.startActivity(confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+            } catch (RuntimeException e) {
+                Toast.makeText(c, "Couldn't open Android's install screen", Toast.LENGTH_LONG).show();
+            }
         }
     }
 

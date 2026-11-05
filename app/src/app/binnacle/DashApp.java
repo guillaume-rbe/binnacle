@@ -203,6 +203,7 @@ public class DashApp extends Application implements Feed.Sink, SharedPreferences
         main.removeCallbacks(stalled);
         main.removeCallbacks(staleRetry);
         staleRecovering = false;
+        Updater.Status.gear(this, false);
         problem = null;
         for (Listener l : listeners) l.onCarChanged(-1);
         feed.start();
@@ -348,6 +349,7 @@ public class DashApp extends Application implements Feed.Sink, SharedPreferences
                 }
             }
             if (code == 16) onFrontCam(car.frontCamRequest);
+            if (!demo) Updater.Status.gear(this, car.gear == CarState.GEAR_P);   // opens a held install screen in Park
             if (code == 9 && !demo) saveLights(data);
             if (staleRecovering) {                 // live data again after a stall
                 staleRecovering = false;
@@ -520,6 +522,7 @@ public class DashApp extends Application implements Feed.Sink, SharedPreferences
         // more, so clear it rather than keep showing the last speed / gear / indicators as live.
         if (p != null) {
             car.reset();
+            Updater.Status.gear(this, false);   // no live gear: not known to be in Park
             // the code 9 values (lights, seatbelt, Autopilot, car colour, doors) only come when they
             // change, so after a CAN app restart they would read off until then: put back the last
             // known ones, as at start (audit D4). Indicators and warnings are never restored.
