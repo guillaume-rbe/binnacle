@@ -6,6 +6,9 @@
 #   usage: tools/check_bytecode.sh <classes dir>      the compiled classes
 #          tools/check_bytecode.sh --apk <apk>        the packed APK (one dex, nothing else executable)
 set -uo pipefail
+# One byte order for every sort and match, so the pinned listings hash the same on macOS and Linux
+# (a locale sort put LocalShell.class before LocalShell$1.class on the Mac and changed the hash).
+export LC_ALL=C
 cd "$(dirname "$0")/.."
 fail=0
 bad() { echo "check_bytecode: $*" >&2; fail=1; }
@@ -317,9 +320,25 @@ if [ -n "$nested" ]; then
         /(class|interface|enum) / {
             for (i = 1; i <= NF; i++) if ($i == "class" || $i == "interface" || $i == "enum") { n = $(i+1); break }
             sub(/<.*/, "", n); outer = n; sub(/\$.*/, "", outer); sub(/.*\./, "", outer)
+            # AGP writes the R classes straight to R.jar, with no source file: those are checked below
+            if (src == "" && n ~ /^app\.binnacle\.R\$[a-z_]+$/) { src = ""; next }
             if (src != outer ".java") print n " (from " src ")"; src = ""
         }')
     [ -z "$fake" ] || { printf '%s\n' "$fake" >&2; bad "classes named like nested ones that are not nested (above)"; }
+fi
+# 10b. The R classes (app/binnacle/R and R$<type>) hold resource ids and nothing else: only static
+#      int / int[] fields and a constructor, and no code beyond setting those fields. Checked for
+#      every R class, from build.sh's javac or AGP's R.jar alike.
+R_CLASSES=$(printf '%s\n' "$files" | grep -E '/app/binnacle/R(\$[^/]*)?\.class$')
+if [ -n "$R_CLASSES" ]; then
+    r_members=$(javap -p $R_CLASSES 2>/dev/null | grep -vE '^(Compiled from |\}$)' \
+        | grep -vE '^public (final )?class app\.binnacle\.R(\$[a-z_]+)? \{$' \
+        | grep -vE '^  public static (final )?int(\[\])? [A-Za-z_][A-Za-z0-9_]*;$' \
+        | grep -vE '^  (public |private )?app\.binnacle\.R(\$[a-z_]+)?\(\);$' \
+        | grep -vE '^  static \{\};$')
+    [ -z "$r_members" ] || { printf '%s\n' "$r_members" >&2; bad "R classes may hold only resource ids (above)"; }
+    r_calls=$(printf '%s\n' "$TABLE" | awk -F'\t' '$1 ~ /^app\/binnacle\/R(\$|$)/ && $4 != "" && $4 != "java/lang/Object.<init>" && $4 !~ /^app\/binnacle\/R(\$[a-z_]+)?\.[A-Za-z_][A-Za-z0-9_]*$/')
+    [ -z "$r_calls" ] || { printf '%s\n' "$r_calls" >&2; bad "R classes may only set their own ids (above)"; }
 fi
 
 [ $fail -eq 0 ] && echo "check_bytecode: OK (compiled code is receive-only)"
