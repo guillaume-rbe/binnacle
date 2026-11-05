@@ -20,6 +20,7 @@ import java.net.NetworkInterface
 import java.net.SocketException
 import java.net.UnknownHostException
 import java.security.MessageDigest
+import java.security.SecureRandom
 import java.util.Collections
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -45,6 +46,35 @@ internal fun mfiCertificateWifiP2pCredentials(certificate: ByteArray): WifiP2pCr
         passphrase = digestHex.takeLast(MFI_CERTIFICATE_PASSPHRASE_LENGTH),
     )
 }
+
+/**
+ * The group's credentials: the SSID still comes from the MFi certificate (stable, so the phone
+ * recognises the network), but the passphrase is random, made once per install and kept in this
+ * app's private storage. It used to be the last 8 hex digits of the certificate's SHA-1: 32 bits,
+ * the same for ever, and the certificate is handed to anyone who asks at /auth-setup. The iPhone
+ * is told the passphrase over iAP2 each session, so it doesn't need to be derivable.
+ */
+internal fun wifiP2pCredentials(context: Context, certificate: ByteArray): WifiP2pCredentials =
+    mfiCertificateWifiP2pCredentials(certificate).copy(passphrase = storedWifiP2pPassphrase(context))
+
+private fun storedWifiP2pPassphrase(context: Context): String = synchronized(PASSPHRASE_LOCK) {
+    val prefs = context.applicationContext.getSharedPreferences(WIFI_P2P_PREFS, Context.MODE_PRIVATE)
+    prefs.getString(WIFI_P2P_PASSPHRASE_KEY, null)?.takeIf(::isValidWifiP2pPassphrase)
+        ?: randomWifiP2pPassphrase(SecureRandom()).also {
+            prefs.edit().putString(WIFI_P2P_PASSPHRASE_KEY, it).commit()
+        }
+}
+
+/** [WIFI_P2P_PASSPHRASE_LENGTH] letters and digits (no look-alikes): about 117 bits. */
+internal fun randomWifiP2pPassphrase(random: SecureRandom): String =
+    buildString(WIFI_P2P_PASSPHRASE_LENGTH) {
+        repeat(WIFI_P2P_PASSPHRASE_LENGTH) { append(PASSPHRASE_ALPHABET[random.nextInt(PASSPHRASE_ALPHABET.length)]) }
+    }
+
+internal fun isValidWifiP2pPassphrase(value: String): Boolean =
+    value.length == WIFI_P2P_PASSPHRASE_LENGTH && value.all { it in PASSPHRASE_ALPHABET }
+
+private val PASSPHRASE_LOCK = Any()
 
 /**
  * Creates a temporary 5 GHz Wi-Fi Direct group owner that can also be joined as a legacy AP.
@@ -582,6 +612,10 @@ private const val WIFI_P2P_SSID_PREFIX = "DIRECT-xcertplay"
 private const val MFI_CERTIFICATE_SSID_SUFFIX_LENGTH = 4
 private const val MFI_CERTIFICATE_PASSPHRASE_LENGTH = 8
 private const val HEX_DIGITS = "0123456789abcdef"
+private const val WIFI_P2P_PREFS = "xcertplay_wifi_p2p"
+private const val WIFI_P2P_PASSPHRASE_KEY = "passphrase"
+private const val WIFI_P2P_PASSPHRASE_LENGTH = 20
+private const val PASSPHRASE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789"
 
 /**
  * Right after a LocalOnlyHotspot or another group is stopped, createGroup is rejected with BUSY while

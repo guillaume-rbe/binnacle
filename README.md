@@ -69,6 +69,9 @@
 > - Smaller hardening: no Android backups of the app (its keys and pairings stay on the unit), call
 >   keypad digits are no longer written to the session log, a Remote MFI token is only sent over
 >   https (or to a server on the unit itself), and the car-app service only binds known car hosts
+> - The CarPlay Wi-Fi Direct passphrase is random (20 characters, made once per install and kept in
+>   the app's private storage) instead of 8 hex digits derived from the MFi certificate; the iPhone
+>   gets it over iAP2 each session as before, and the network name is unchanged
 > - At most 8 saved AirPlay pairings (oldest dropped), since pair-setup uses a fixed PIN
 > - Wireless CarPlay's port 7000 only answers on the CarPlay hotspot: a connection from any other
 >   network (home Wi-Fi, a media server probing the port) is closed at once, and nothing but
