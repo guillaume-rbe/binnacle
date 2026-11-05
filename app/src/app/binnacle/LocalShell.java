@@ -48,6 +48,13 @@ final class LocalShell {
          */
         WIFI_SCANS_ON("service call wifi 58 i32 1 && echo BINNACLE_OK"),
         WIFI_SCANS_OFF("service call wifi 58 i32 0 && echo BINNACLE_OK"),
+        /**
+         * xcertplay's location app-op for its user id back to allow (owner OK 5 Nov). Wi-Fi Direct
+         * needs location, and CarPlay runs from behind the dash, where "foreground" doesn't count;
+         * the unit resets this uid mode on every reboot and every xcertplay update, and CarPlay then
+         * fails with "createGroup failed: generic error". Shell user, the dash only.
+         */
+        XCERTPLAY_LOCATION("appops set --uid com.shilapi.xcertplay COARSE_LOCATION allow && echo BINNACLE_OK"),
         /** The Wi-Fi icon only: scanning on and Wi-Fi itself on, so the saved home network is joined. */
         WIFI_REJOIN("service call wifi 58 i32 1 && svc wifi enable && echo BINNACLE_OK");
 

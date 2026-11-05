@@ -154,6 +154,7 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
     private final CarPlayLink.Listener carplayListener = new CarPlayLink.Listener() {
         @Override public void onLinkChanged(boolean connected) {
             if (!connected) right.setNowPlaying(null);
+            else XcertplayLocation.restore();     // after a reboot or an xcertplay update, before CarPlay starts
             if (connected) {
                 declaredSizes = null;
                 noteCarPlaySizes();     // before the surface goes over, so the session starts knowing both
