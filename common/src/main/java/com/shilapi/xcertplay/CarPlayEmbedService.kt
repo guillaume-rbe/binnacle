@@ -32,6 +32,8 @@ class CarPlayEmbedService : Service() {
     private var listener: Messenger? = null
     private var listenerDeath: IBinder.DeathRecipient? = null
     private var surface: Surface? = null
+    /** Main thread: this client has a finger down on CarPlay (forwarded, not yet lifted). */
+    private var fingerDown = false
     private var surfaceWidth = 0
     private var surfaceHeight = 0
     private var lastState = -1
@@ -131,9 +133,10 @@ class CarPlayEmbedService : Service() {
                         val settings = session.settings ?: return@onMain
                         if (settings.mainWebDisplay.enabled && !settings.mainWebDisplay.preview) return@onMain
                         session.sendTouch(copy, surfaceWidth, surfaceHeight, settings.mainWebDisplay)
-                    } else if (copy.actionMasked == MotionEvent.ACTION_UP || copy.actionMasked == MotionEvent.ACTION_CANCEL) {
+                        fingerDown = !copy.endsGesture()
+                    } else if (copy.endsGesture()) {
                         // the end of a gesture that outlived the surface: lift the finger (audit I1)
-                        session.cancelTouch()
+                        liftFinger()
                     }
                 } finally {
                     copy.recycle()
@@ -334,11 +337,24 @@ class CarPlayEmbedService : Service() {
         out.toByteArray()
     }.getOrNull()
 
+    /**
+     * Lifts a finger this client pressed and never released. Only this client's: a browser on the
+     * web display has its own fingers on the same controller, so nothing is sent otherwise.
+     */
+    private fun liftFinger() {
+        if (!fingerDown) return
+        fingerDown = false
+        session.cancelTouch()
+    }
+
+    private fun MotionEvent.endsGesture(): Boolean =
+        actionMasked == MotionEvent.ACTION_UP || actionMasked == MotionEvent.ACTION_CANCEL
+
     private fun releaseSurface(reason: String) {
         val current = surface ?: return
         surface = null
         // a finger still down on this client's CarPlay is lifted, or the phone keeps it pressed (I1)
-        session.cancelTouch()
+        liftFinger()
         session.detachSurface(client, CarPlaySession.SCREEN_TYPE_MAIN, current)
         session.appendLog(reason)
         publishState()
