@@ -64,7 +64,7 @@ internal class CarPlayConnection(
     override fun onAbort() = endFromCar("abort")
 
     override fun onPlayDtmfTone(c: Char) {
-        CarPlayTelecom.logLine("carplay calls: keypad '$c' from car")
+        CarPlayTelecom.logLine("carplay calls: keypad key from car")   // never the digit: PINs
         control()?.sendDtmf(callUuid, c)
     }
 
