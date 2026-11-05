@@ -250,6 +250,10 @@ final class CarPlayPane extends FrameLayout implements SurfaceHolder.Callback {
     /** (Re)sends the surface and asks for CarPlay, e.g. after the link came back. */
     void reattach() {
         removeCallbacks(attachNow);
+        // only while CarPlay is on screen: a re-send queued just before the pane closed (End CarPlay,
+        // car sleep) attached again and started a new session 0.3 s after the old one was ended
+        // (car, 5 Nov: CarPlay kept reconnecting and stopped home Wi-Fi joining)
+        if (!isShown()) return;
         // the size is this view's (the area CarPlay lays out for), not the video view's, which can be larger
         if (holder == null || surfaceW <= 0 || surfaceH <= 0 || getWidth() <= 0 || getHeight() <= 0 || !link.connected()) return;
         link.attach(holder.getSurface(), getWidth(), getHeight());
