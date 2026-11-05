@@ -186,8 +186,9 @@ public class DashApp extends Application implements Feed.Sink, SharedPreferences
 
     private void startFeed() {
         if (feed != null) feed.stop();
-        // No stock CAN service (emulator / other device) -> demo, so the UI is never just blank.
-        demo = prefs.getBoolean("demo", false) || !CanFeed.available(this);
+        // No stock CAN app (emulator / other device) -> demo, so the UI is never just blank. With the
+        // app installed it is always the live feed, which retries until the service answers.
+        demo = prefs.getBoolean("demo", false) || !CanFeed.installed(this);
         feed = demo ? new DemoFeed(this) : new CanFeed(this, this);
         // Never let values from the previous feed (e.g. simulated ones) pass as live readings.
         car.reset();
@@ -282,6 +283,10 @@ public class DashApp extends Application implements Feed.Sink, SharedPreferences
     public boolean rainbowRoad() { return rainbowRoad; }
 
     public boolean isDemo() { return demo; }
+
+    /** DashActivity is in front (resumed): it opens the in-dash camera itself. */
+    private boolean dashResumed;
+    void setDashResumed(boolean r) { dashResumed = r; }
 
     /** Pref: the car's power reading was last found unusable, so the bar shows an estimate. */
     static final String POWER_ESTIMATED = "power_estimated";
@@ -506,9 +511,15 @@ public class DashApp extends Application implements Feed.Sink, SharedPreferences
     private void onFrontCam(boolean want) {
         if (want == lastFrontCam) return;
         lastFrontCam = want;
-        // the experimental in-dash camera (DashActivity) owns the flag when it is on
-        if (demo || !prefs.getBoolean("auto_camera", false) || prefs.getBoolean("dash_camera", false)
-                || !Launch.isDefaultHome(this)) return;
+        if (demo || !Launch.isDefaultHome(this)) return;
+        // the in-dash camera (DashActivity) owns the flag when it is on. With another screen in front
+        // (Settings, setup, CarPlay's or Android Auto's own screen) the dash can't see the flag, and
+        // it drops again after a few seconds: bring the dash forward to open its camera (audit D1).
+        if (prefs.getBoolean("dash_camera", false)) {
+            if (want && !dashResumed) Launch.dashCamera(this);
+            return;
+        }
+        if (!prefs.getBoolean("auto_camera", false)) return;
         long since = SystemClock.elapsedRealtime() - lastCameraActionMs;
         long delay = since >= CAMERA_DEBOUNCE_MS ? 0 : CAMERA_DEBOUNCE_MS - since;
         cameraWanted = want;

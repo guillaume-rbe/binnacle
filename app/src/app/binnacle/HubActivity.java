@@ -177,6 +177,10 @@ public class HubActivity extends Activity {
     /** Auto can switch the theme while this screen is open: rebuild in the new palette. */
     private final DashApp.Listener themeListener = new DashApp.Listener() {
         @Override public void onCarChanged(int code) {
+            // the car started to drive (left Park, moved, or raised the camera flag): back to the
+            // cluster, and its camera (audit D2). Not with demo data, which drives on its own.
+            DashApp app = DashApp.get(HubActivity.this);
+            if (drive.startedDriving(app.car) && !app.isDemo()) { finish(); return; }
             if (code == DashApp.THEME_CHANGED && lightBuilt != Style.light) recreate();
             if (code == DashApp.PACKS_CHANGED && tab == CAR_TAB) showTab(CAR_TAB);   // whichever Car images card is showing now
             // the car reports its colour (code 9) after the card was built: rebuild it for that colour
@@ -191,6 +195,7 @@ public class HubActivity extends Activity {
             }
         }
     };
+    private final DriveWatch drive = new DriveWatch();
     /** Door bits when settings opened or last changed (-1: not known yet). */
     private int doorsSeen = -1;
 
@@ -213,6 +218,7 @@ public class HubActivity extends Activity {
         super.onStart();
         DashApp.get(this).addListener(themeListener);
         doorsSeen = DashApp.get(this).car.doors;
+        drive.seed(DashApp.get(this).car);
         prefs.registerOnSharedPreferenceChangeListener(sideListener);
     }
 

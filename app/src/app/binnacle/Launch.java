@@ -40,6 +40,19 @@ final class Launch {
         start(c, new Intent().setComponent(CAMERA), true);
     }
 
+    /** Extra on the dash's own intent: the car shifted into Drive, open the in-dash camera. */
+    static final String EXTRA_DRIVE_CAMERA = "app.binnacle.extra.DRIVE_CAMERA";
+
+    /**
+     * Brings the dash (singleTask Home) to the front, closing our own screens above it, and asks it
+     * to open the in-dash camera. From behind another app this needs the overlay app-op, as the
+     * stock camera launch does (AndroidManifest.xml).
+     */
+    static void dashCamera(Context c) {
+        // The registered activity is the subclass com.xbs.launcher.MainActivity, not DashActivity itself.
+        start(c, new Intent(c, com.xbs.launcher.MainActivity.class).putExtra(EXTRA_DRIVE_CAMERA, true), false);
+    }
+
     /** Same broadcast the stock launcher sends when frontcamstate drops. */
     static void closeCamera(Context c) {
         Intent i = new Intent("com.xbs.action.reqcam").setPackage("com.xbs.frontcam");
