@@ -443,6 +443,15 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
      * With xcertplay the dash stays on home Wi-Fi, so there is nothing to offer unless ZLink's
      * hotspot is somehow up (the owner, 1 Nov: no ZLink steps from this icon).
      */
+    /** Holding the CarPlay button hides CarPlay; it keeps running (music, calls) behind the dash. */
+    @Override public void onDockHold(int index) {
+        if (index != RightPanelView.DOCK_PHONE) { onDock(index); return; }   // others: as a tap
+        if (carplayMode != CARPLAY_OFF) {
+            showCarPlay(CARPLAY_OFF);
+            Toast.makeText(this, "CarPlay hidden, still running", Toast.LENGTH_SHORT).show();
+        } else onDock(index);
+    }
+
     @Override public void onNetIcon() {
         final boolean hotspot = apOn;
         if (!hotspot && Launch.hasXcertplay(this)) {
