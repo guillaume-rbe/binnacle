@@ -36,17 +36,19 @@ If something goes wrong the button goes back to **Update to …** and a message 
 ## Publishing a release (maintainer)
 
 1. Bump `android:versionCode` (and `versionName`) in `app/AndroidManifest.xml`. The dash only offers a higher versionCode.
-2. `./release.sh` (signs with the release key, as before). Besides `build/release/Binnacle-<version>.apk` it now writes `build/release/github/Binnacle.apk` and `build/release/github/binnacle-update.txt`, and prints the `gh release create` command.
-3. Publish both files (and the logger APK if you like) as the **latest** release, for example:
+2. If the CarPlay app changed, bump its `versionCode` (and `versionName`) in `carplay/mobile/build.gradle.kts`.
+3. `./release.sh` (signs with the release key, as before). Besides `build/release/Binnacle-<version>.apk` it writes `build/release/BinnacleCarPlay-<version>.apk` and, for the release, `build/release/github/Binnacle.apk`, `build/release/github/BinnacleCarPlay.apk` and `build/release/github/binnacle-update.txt` (which also lists the CarPlay app's `carplayVersionCode`, `carplayVersionName`, `carplaySize` and `carplaySha256`), and prints the `gh release create` command.
+4. Publish those files (and the logger APK if you like) as the **latest** release, for example:
    ```
-   gh release create v0.8 build/release/github/Binnacle.apk build/release/github/binnacle-update.txt \
-       build/release/BinnacleLogger-0.8.apk --title "Binnacle 0.8" --latest
+   gh release create v0.9 build/release/github/Binnacle.apk build/release/github/BinnacleCarPlay.apk \
+       build/release/github/binnacle-update.txt build/release/BinnacleLogger-0.9.apk --title "Binnacle 0.9" --latest
    ```
-4. Car-image releases (`cars-v…`) must **not** become the latest release: publish them with `--latest=false`, or the dash would look for an update there and say "no update published yet".
+5. Car-image releases (`cars-v…`) must **not** become the latest release: publish them with `--latest=false`, or the dash would look for an update there and say "no update published yet".
 
 Undo a bad release: mark the previous release as latest again (or delete the new one). Dashes that already installed it stay on it until a higher versionCode is published; Android doesn't allow going back through the updater, only `adb install -r -d` or uninstall + install.
 
 ## Not included (yet)
 
+- The CarPlay app (`BinnacleCarPlay.apk`) is in each release but isn't updated from the dash yet: install it by hand (USB stick or `adb install -r`).
 - The drive logger isn't updated in the app (it is a separate developer tool, installed by hand; its own guard refuses network access).
 - No automatic or background checks. A "new version available" hint on opening Advanced could come later.

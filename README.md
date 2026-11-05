@@ -73,14 +73,14 @@ Sold as an "Android 12" 10.25" cluster for the Model 3 and Model Y under several
 | **Car data** | Two MCUs: one decodes the Tesla CAN bus and sends it over a serial port to the stock CAN app (`com.xbs.canapp`), which any app can subscribe to. Brake lights, true range and steering angle aren't in that feed, and on some cars the battery level is stuck (see above). |
 | **Wi-Fi** | One radio. Wireless CarPlay turns it into a hotspot, so the unit drops off your home Wi-Fi (and ADB) while CarPlay is connected. |
 | **Bluetooth** | A separate Goodocom module handles calls and audio. Android's own Bluetooth is off by default, so there's no Bluetooth LE and apps that need it (such as S3XY Commander) can't connect. |
-| **CarPlay / Android Auto** | ZLink, preinstalled. The unit rolls ZLink back to its preinstalled version at every boot, so in-app updates don't stick. If [xcertplay](https://github.com/shilapi/xcertplay) is installed, Binnacle opens it for CarPlay instead and hides ZLink from its app list (ZLink stays installed). |
+| **CarPlay / Android Auto** | ZLink, preinstalled. The unit rolls ZLink back to its preinstalled version at every boot, so in-app updates don't stick. If Binnacle's CarPlay app (`BinnacleCarPlay.apk`, built from [xcertplay](https://github.com/shilapi/xcertplay), see `carplay/`) is installed, Binnacle uses it for CarPlay instead and hides ZLink from its app list (ZLink stays installed). |
 | **Camera** | A TP9950 decoder. Only the TVI 1080p 30 fps input format gives a clean picture with the supplied camera. |
 | **GPS** | Built in. Its daemon crashes often and, as shipped, writes a large crash dump to storage each time. |
 | **USB-C** | Host only: you can't use it for ADB. ADB works over Wi-Fi (see `docs/ADB-GUIDE.md`), and once on, it accepts connections from anything on your network without a key. |
 
 Changes made to the unit itself (outside the app), each with its undo: are located in `docs/UNIT-CHANGES.md`. No stock apps were removed.
 
-> **ABSOLUTE RULE — NOTHING TO THE CAR.** Nothing in this project ever sends anything onto the car's CAN bus or otherwise affects the car itself. The dash app *subscribes* to the stock CAN service and *receives* data. A write to the dash's own MCU is a narrow, owner-approved exception, one pinned message at a time, never assumed (see `CLAUDE.md`). This is enforced in code (one class, two allowed binder calls: subscribe/unsubscribe) and by build-time guards that refuse to build if any write path is referenced: `app/tools/check_readonly.sh` on the source and `app/tools/check_bytecode.sh` on the compiled classes and APK (the logger has its own pair in `capture/tools/`; `app/tools/test_guards.sh` checks that the guards still refuse known bypasses). The Gradle build runs the same guards (see Build). Never weaken or bypass them.
+> **ABSOLUTE RULE — NOTHING TO THE CAR.** Nothing in this project ever sends anything onto the car's CAN bus or otherwise affects the car itself. The dash app *subscribes* to the stock CAN service and *receives* data. A write to the dash's own MCU is a narrow, owner-approved exception, one pinned message at a time, never assumed (see `CLAUDE.md`). This is enforced in code (one class, two allowed binder calls: subscribe/unsubscribe) and by build-time guards that refuse to build if any write path is referenced: `app/tools/check_readonly.sh` on the source and `app/tools/check_bytecode.sh` on the compiled classes and APK (the logger has its own pair in `capture/tools/`; `app/tools/test_guards.sh` checks that the guards still refuse known bypasses). The Gradle build runs the same guards (see Build). The CarPlay app has its own guard, `carplay/guard/check_carplay.sh`, run before every CarPlay build and on the signed APK: its only message towards the dash's MCU is the approved call-state broadcast to the CAN app (the one stock ZLink sends), and `carplay/guard/test_carplay_guard.sh` checks that it refuses known bypasses. Never weaken or bypass them.
 
 ## Status
 In daily use on my 2023 Model 3 since 27 Oct 2026, as the unit's Home app (it replaces the stock dash; the stock launcher stays installed as the fallback).
@@ -98,6 +98,7 @@ In daily use on my 2023 Model 3 since 27 Oct 2026, as the unit's Home app (it re
 | Folder | What |
 |---|---|
 | `app/` | The replacement read-only dash app (installs as `com.xbs.launcher`, so the stock door pop-up stays away; code in `app.binnacle`) |
+| `carplay/` | Binnacle's CarPlay app (`com.shilapi.xcertplay`), a fork of [xcertplay](https://github.com/shilapi/xcertplay) by shilapi, with its full history; a separate APK and its own Gradle build, held to its own guard (`carplay/guard/`). See `carplay/README.md` |
 | `capture/` | Optional developer tool: Binnacle logger, a separate read-only app that records the car data feed (no location) to its private storage; used to derive the field map |
 | `mockups/` | HTML mockups of the dash layout — **own artwork only**, no vendor assets |
 | `docs/` | `FIELD_MAP.md` (decoded CAN fields), the ADB access guide, and `UNIT-CHANGES.md` (changes made to the unit outside the app) |
@@ -125,8 +126,10 @@ Needs JDK 17 and the Android SDK (with platform 37); Gradle downloads itself thr
 ./gradlew assembleRelease   # dash and logger, signed with ~/.android/debug.keystore:
                             #   app/build/gradle/outputs/apk/release/app-release.apk
                             #   capture/build/gradle/outputs/apk/release/logger-release.apk
-./release.sh                # both, signed with the release key -> build/release/Binnacle-<version>.apk
+./release.sh                # dash, logger and CarPlay app, signed with the release key
+                            #   -> build/release/Binnacle-<version>.apk, BinnacleCarPlay-<version>.apk, ...
 ```
+The CarPlay app (`carplay/`) is its own Gradle build (Kotlin, Compose and a small native I2C library; needs the NDK too): `cd carplay && ./gradlew :mobile:assembleDebug` for a test build, `./gradlew :shared:testDebugUnitTest` for its unit tests. `release.sh` builds it unsigned and signs it with the same release key as the dash, which it needs: the dash draws CarPlay through the CarPlay app's signature-protected service.
 Every build runs the read-only guards and the tests where the old scripts ran them (`buildSrc/src/main/java/app/binnacle/gradle/Guards.java`): the iCloud-copy check, `tools/check_readonly.sh` and `tests/run.sh` before compiling, `tools/check_bytecode.sh` on the compiled classes (javac's and the generated R) and on the packed APK, and it refuses any library in the APK. Any failure stops the build and leaves no APK. Only release APKs are built: no debug variant (it splits the dex, which the guard refuses) and no app bundles (nothing checks them). Settings shared by the dash and the logger, such as the signing key, are in `buildSrc/src/main/java/app/binnacle/gradle/BinnacleApp.java`. `-Pbinnacle.appId=app.binnacle` builds the dash under another package name (see `app/README.md`). `app/build.sh` and `capture/build.sh` (no Gradle) still build the same APKs.
 
 ## Safety & reversibility
@@ -139,7 +142,9 @@ Every build runs the read-only guards and the tests where the old scripts ran th
 
 Model Y renders (dark grey right-hand drive bundled, the rest downloaded from the release): based on "2021 Tesla Model Y" (https://sketchfab.com/3d-models/2021-tesla-model-y-59e2ead369984b1a85c800ff6cf6789d) by tonielpro520 (https://sketchfab.com/tonielpro520), CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Modified: recoloured, doors separated and hinged, mirrored for right-hand drive, posed, rendered.
 
+CarPlay: built from [xcertplay](https://github.com/shilapi/xcertplay) by shilapi and its contributors (GPL-3.0), with fixes taken from open upstream pull requests by BBleae and code-new-bie; changes for this unit are listed in `carplay/README.md`.
+
 The in-app credit is under **Apps & settings → Advanced → About**.
 
 ## Licence
-Code: MIT (see `LICENSE`). Car renders in `app/assets/cars/` and the release packs: CC BY 4.0, from 3D models by Ameer Studio (Model 3) and tonielpro520 (Model Y), modified (see Credits). Not affiliated with Tesla, ZIQI or any head-unit vendor; "Tesla", "Model 3" and "Model Y" are used only to say which car this is for.
+Code: GNU General Public License version 3 (see `LICENSE`), for the dash, the logger and the CarPlay app alike. Releases up to and including 0.8 were published under the MIT licence; from the next release on, the whole repository is GPL-3.0, so it matches the CarPlay app, which comes from xcertplay (GPL-3.0, © shilapi and contributors; upstream credits are kept in `carplay/README.md` and in each commit). Car renders in `app/assets/cars/` and the release packs: CC BY 4.0, from 3D models by Ameer Studio (Model 3) and tonielpro520 (Model Y), modified (see Credits). Not affiliated with Tesla, ZIQI or any head-unit vendor; "Tesla", "Model 3" and "Model Y" are used only to say which car this is for.
