@@ -2,6 +2,10 @@ package app.binnacle;
 
 import android.Manifest;
 import android.app.Activity;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
@@ -116,10 +120,28 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
         setContentView(root);
         // no storage permission: the car renders are bundled (or in this app's own files dir)
         carplayLink.bind();     // false when xcertplay is missing or signed differently: its own screen then
+        registerReceiver(screenOff, new IntentFilter(Intent.ACTION_SCREEN_OFF));
     }
+
+    /**
+     * The car "sleeping" only turns the dash's screen off; apps keep running. When it woke, CarPlay
+     * was still in the centre and started at once, before the car's Bluetooth was back (owner,
+     * 5 Nov). So when the screen goes off while parked, CarPlay ends and the dash goes back to its own view; on
+     * wake CarPlay waits for a tap on CarPlay (the owner's choice).
+     */
+    private final BroadcastReceiver screenOff = new BroadcastReceiver() {
+        @Override public void onReceive(Context c, Intent i) {
+            // the car sleeps only when parked: a screen time-out behind another app while driving
+            // (Android's 10 min, the dash keeps its own screen on) must not end CarPlay
+            if (app.car.moving() || app.car.speedKmh() >= 1) return;
+            if (carplayMode != CARPLAY_OFF) showCarPlay(CARPLAY_OFF);
+            if (carplayLink.connected() && CarPlayLink.running(carplayLink.state())) carplayLink.disconnect();
+        }
+    };
 
     @Override protected void onDestroy() {
         destroying = true;      // the unbind below is not xcertplay going away
+        try { unregisterReceiver(screenOff); } catch (RuntimeException ignored) { }
         // closed for good (not recreated): nothing will hear CarPlay end, so scanning goes back on now
         if (!isChangingConfigurations()) WifiScans.forCarPlay(app.prefs(), false);
         carplay.release();      // xcertplay lets go of the surface while we are still bound

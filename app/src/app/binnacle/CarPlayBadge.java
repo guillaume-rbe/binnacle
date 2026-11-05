@@ -64,57 +64,56 @@ final class CarPlayBadge extends View {
         if (kind == SETTINGS) {
             gear(c, cx, cy, glyph);
         } else {
-            float px = kind == CONNECTING ? cx - 9f : cx;      // room for the waves
-            phone(c, px, cy, glyph);
-            if (kind == CONNECTING) waves(c, px + 22f, cy - 20f, Style.ACCENT);
+            phone(c, cx, cy, glyph);                           // centred in the badge (owner, 5 Nov)
+            if (kind == CONNECTING) waves(c, cx + 19f, cy - 19f, Style.ACCENT);
             if (kind == FAILED) {
                 fill.setColor(Style.WARN);
-                c.drawCircle(px + 19f, cy - 26f, 12f, fill);
+                c.drawCircle(cx + 16f, cy - 20f, 10f, fill);
                 stroke.setColor(Style.PANEL2);
-                stroke.setStrokeWidth(3.5f);
-                c.drawLine(px + 19f, cy - 32f, px + 19f, cy - 25f, stroke);
-                c.drawPoint(px + 19f, cy - 19.5f, stroke);
+                stroke.setStrokeWidth(3f);
+                c.drawLine(cx + 16f, cy - 25f, cx + 16f, cy - 19f, stroke);
+                c.drawPoint(cx + 16f, cy - 14.5f, stroke);
             }
         }
         c.restore();
         if (kind == CONNECTING && isShown()) postInvalidateOnAnimation();
     }
 
-    /** Phone outline, 34 x 58, with a home bar. */
+    /** Phone outline, 26 x 44, with a home bar. */
     private void phone(Canvas c, float cx, float cy, int col) {
         stroke.setColor(col);
-        stroke.setStrokeWidth(4f);
-        box.set(cx - 17f, cy - 29f, cx + 17f, cy + 29f);
-        c.drawRoundRect(box, 7f, 7f, stroke);
+        stroke.setStrokeWidth(3.5f);
+        box.set(cx - 13f, cy - 22f, cx + 13f, cy + 22f);
+        c.drawRoundRect(box, 6f, 6f, stroke);
         stroke.setStrokeWidth(3f);
-        c.drawLine(cx - 6f, cy + 21f, cx + 6f, cy + 21f, stroke);
+        c.drawLine(cx - 4.5f, cy + 15.5f, cx + 4.5f, cy + 15.5f, stroke);
     }
 
     /** Two Wi-Fi arcs opening up and to the right of (x, y). */
     private void waves(Canvas c, float x, float y, int col) {
         stroke.setColor(col);
-        stroke.setStrokeWidth(4f);
+        stroke.setStrokeWidth(3.5f);
         for (int i = 1; i <= 2; i++) {
-            float rr = 9f * i;
+            float rr = 7f * i;
             box.set(x - rr, y - rr, x + rr, y + rr);
             c.drawArc(box, -80f, 70f, false, stroke);
         }
         fill.setColor(col);
-        c.drawCircle(x + 1.5f, y - 1.5f, 3f, fill);
+        c.drawCircle(x + 1f, y - 1f, 2.5f, fill);
     }
 
     /** Gear: eight teeth round a ring. */
     private void gear(Canvas c, float cx, float cy, int col) {
         stroke.setColor(col);
         stroke.setStrokeWidth(4f);
-        c.drawCircle(cx, cy, 20f, stroke);
-        c.drawCircle(cx, cy, 8f, stroke);
-        stroke.setStrokeWidth(8f);
+        c.drawCircle(cx, cy, 16f, stroke);
+        c.drawCircle(cx, cy, 6f, stroke);
+        stroke.setStrokeWidth(7f);
         stroke.setStrokeCap(Paint.Cap.BUTT);
         for (int i = 0; i < 8; i++) {
             double a = Math.PI / 4 * i;
             float cos = (float) Math.cos(a), sin = (float) Math.sin(a);
-            c.drawLine(cx + cos * 22f, cy + sin * 22f, cx + cos * 30f, cy + sin * 30f, stroke);
+            c.drawLine(cx + cos * 18f, cy + sin * 18f, cx + cos * 24f, cy + sin * 24f, stroke);
         }
         stroke.setStrokeCap(Paint.Cap.ROUND);
     }
