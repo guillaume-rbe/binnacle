@@ -73,6 +73,9 @@
 >   the app's private storage) instead of 8 hex digits derived from the MFi certificate; the iPhone
 >   gets it over iAP2 each session as before, and the network name is unchanged
 > - At most 8 saved AirPlay pairings (oldest dropped), since pair-setup uses a fixed PIN
+> - Calls mirrored to the car fall back to the plain Bluetooth link when Telecom refuses them or
+>   the car ends a call the phone kept, and a car-dialled call hung up before the iPhone reported
+>   it is ended on the phone
 > - Wireless CarPlay's port 7000 only answers on the CarPlay hotspot: a connection from any other
 >   network (home Wi-Fi, a media server probing the port) is closed at once, and nothing but
 >   pairing and `/info` is served until the phone has completed pair-verify
