@@ -413,13 +413,6 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
      * With xcertplay the dash stays on home Wi-Fi, so there is nothing to offer unless ZLink's
      * hotspot is somehow up (the owner, 1 Nov: no ZLink steps from this icon).
      */
-    /** The Now playing card's buttons: the media key to CarPlay, pressed and let go. */
-    @Override public void onMediaKey(int keyCode) {
-        long t = android.os.SystemClock.uptimeMillis();
-        if (carplayLink.key(new KeyEvent(t, t, KeyEvent.ACTION_DOWN, keyCode, 0)))
-            carplayLink.key(new KeyEvent(t, t, KeyEvent.ACTION_UP, keyCode, 0));
-    }
-
     @Override public void onNetIcon() {
         final boolean hotspot = apOn;
         if (!hotspot && Launch.hasXcertplay(this)) {
