@@ -195,7 +195,7 @@ class CarPlayController(
         override fun accept(callUuid: String) = sendCallKey("answer", CarPlayTelephonyKeys.HOOK_SWITCH)
         override fun end(callUuid: String) = sendCallKey("end call", CarPlayTelephonyKeys.DROP)
         override fun sendDtmf(callUuid: String, tone: Char) {
-            CarPlayTelephonyKeys.keypad(tone)?.let { sendCallKey("keypad '$tone'", it) }
+            CarPlayTelephonyKeys.keypad(tone)?.let { sendCallKey("keypad key", it) }   // never the digit: PINs
         }
         override fun dial(number: String): Boolean = initiateCall(number)
     }
