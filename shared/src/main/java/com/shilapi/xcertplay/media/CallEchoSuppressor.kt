@@ -1,5 +1,7 @@
 package com.shilapi.xcertplay.media
 
+import android.os.SystemClock
+
 import kotlin.math.log10
 import kotlin.math.pow
 
@@ -18,7 +20,7 @@ internal object FarEndActivity {
 
     /** 16-bit interleaved PCM just written for playback. */
     @Synchronized
-    fun report(data: ByteArray, offset: Int, length: Int, nowMs: Long = System.currentTimeMillis()) {
+    fun report(data: ByteArray, offset: Int, length: Int, nowMs: Long = SystemClock.elapsedRealtime()) {
         val samples = length / 2
         if (samples == 0) return
         var sum = 0.0
@@ -40,7 +42,7 @@ internal object FarEndActivity {
      * yet heard don't count.
      */
     @Synchronized
-    fun recentMaxDb(windowMs: Long, nowMs: Long = System.currentTimeMillis()): Double {
+    fun recentMaxDb(windowMs: Long, nowMs: Long = SystemClock.elapsedRealtime()): Double {
         var max = SILENT_DB
         for (i in 0 until SLOTS) {
             val age = nowMs - times[i]

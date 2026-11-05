@@ -75,6 +75,39 @@ internal object CarPlayTelecom {
         }
     }
 
+    /** The calls the phone has reported and not yet ended. */
+    @Synchronized
+    fun callIds(): Set<String> = calls.keys.toSet()
+
+    /**
+     * The phone said it had no call while [ids] were shown, and still hasn't ended them: end those
+     * as if their end update had come. A call reported or dialled since is left alone. True if any.
+     */
+    @Synchronized
+    fun endStuck(ids: Set<String>): Boolean {
+        val stuck = calls.values.filter { it.callUuid in ids }
+        stuck.forEach { onCallState(it.copy(status = CarPlayCallState.STATUS_DISCONNECTED)) }
+        return stuck.isNotEmpty()
+    }
+
+    /**
+     * The call keys carry no call UUID (the iPhone ignores iAP2 call control during CarPlay): they
+     * act on the phone's current call. False when a key meant for [callUuid] would hit another call
+     * instead (audit T3): answering a call already connected would hang it up, and ending a held
+     * call would drop the active or ringing one. An unknown call (car-dialled, not reported yet)
+     * keeps the old behaviour.
+     */
+    @Synchronized
+    internal fun keyReaches(callUuid: String, answer: Boolean): Boolean {
+        val target = calls[callUuid] ?: return true
+        if (answer) return target.status != CarPlayCallState.STATUS_ACTIVE
+        if (target.status != CarPlayCallState.STATUS_HELD) return true
+        return calls.values.none {
+            it.callUuid != callUuid &&
+                (it.status == CarPlayCallState.STATUS_ACTIVE || it.status == CarPlayCallState.STATUS_RINGING)
+        }
+    }
+
     /** The session ended: no call can still be running. */
     @Synchronized
     fun endAll() {
