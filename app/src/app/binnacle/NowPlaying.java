@@ -5,7 +5,7 @@ import android.os.SystemClock;
 
 /**
  * What the iPhone is playing through CarPlay, as xcertplay reports it (CarPlayLink). Read only:
- * the card shows it; its buttons send CarPlay the same media keys the steering wheel does.
+ * the card shows it.
  */
 final class NowPlaying {
     final String title, artist, album, app;

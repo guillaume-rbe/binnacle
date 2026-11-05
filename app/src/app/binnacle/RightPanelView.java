@@ -25,8 +25,6 @@ public class RightPanelView extends View {
         void onDock(int index);
         /** The small network icon was tapped. */
         void onNetIcon();
-        /** A Now playing button: KEYCODE_MEDIA_PREVIOUS, _PLAY_PAUSE or _NEXT, for CarPlay. */
-        void onMediaKey(int keyCode);
     }
 
     static final int DOCK_PHONE = 0, DOCK_CAMERA = 1, DOCK_APPS = 2, DOCK_COUNT = 3;
@@ -601,22 +599,16 @@ public class RightPanelView extends View {
         }
     }
 
-    // Now playing page layout (design px)
-    private static final float ART = 128, ART_TOP = CARD_TOP + 18, NP_TITLE_Y = CARD_TOP + 178,
-            NP_ARTIST_Y = CARD_TOP + 202, NP_BAR_Y = CARD_TOP + 222, NP_TIME_Y = CARD_TOP + 242,
-            NP_BUTTON_Y = CARD_TOP + 280, NP_BUTTON_DX = 78, NP_PLAY_R = 24, NP_HIT_R = 34;
+    // Now playing page layout (design px): a big cover, then title and artist (owner, 5 Nov: no
+    // progress bar or buttons, the cover gets the room)
+    private static final float ART = 224, ART_TOP = CARD_TOP + 16, NP_TITLE_Y = CARD_TOP + 270,
+            NP_ARTIST_Y = CARD_TOP + 296;
     private final Paint npTitle = Style.text(Style.BODY_BOLD, 21, Style.FG, Paint.Align.CENTER);
     private final Paint npArtist = Style.text(Style.BODY, 17, Style.MUTED, Paint.Align.CENTER);
-    private final Paint npTime = Style.text(Style.BODY, 14, Style.MUTED, Paint.Align.LEFT);
-    private final Paint npTrack = Style.stroke(Style.LINE, 4), npDone = Style.stroke(Style.ACCENT, 4);
-    private final Paint npPlay = Style.fill(Style.ACCENT), npGlyph = Style.fill(Style.FG), npOnAccent = Style.fill(Style.PANEL2);
-    private final Paint npArtBg = Style.fill(Style.PANEL2), npNote = Style.stroke(Style.DIM, 4);
+    private final Paint npArtBg = Style.fill(Style.PANEL2), npNote = Style.stroke(Style.DIM, 5);
     private final Path npClip = new Path();
 
-    /**
-     * Now playing (CarPlay): the cover, title and artist, how far through, and back, play/pause
-     * and next, which go to the iPhone as the steering wheel's media keys do.
-     */
+    /** Now playing (CarPlay): the cover, title and artist. */
     private void drawNowPlaying(Canvas c) {
         NowPlaying np = nowPlaying;
         if (np == null) return;
@@ -625,12 +617,12 @@ public class RightPanelView extends View {
         if (np.art != null) {
             c.save();
             npClip.reset();
-            npClip.addRoundRect(r, 10, 10, Path.Direction.CW);
+            npClip.addRoundRect(r, 12, 12, Path.Direction.CW);
             c.clipPath(npClip);
             c.drawBitmap(np.art, null, r, bmp);
             c.restore();
         } else {
-            c.drawRoundRect(r, 10, 10, npArtBg);
+            c.drawRoundRect(r, 12, 12, npArtBg);
             musicNote(c, cx, ART_TOP + ART / 2);
         }
         float textW = X1 - X0 - 28;
@@ -639,77 +631,12 @@ public class RightPanelView extends View {
         Style.size(npArtist, 17);
         String by = np.artist.isEmpty() ? np.album : np.artist;
         if (!by.isEmpty()) c.drawText(ellipsize(by, npArtist, textW), cx, NP_ARTIST_Y, npArtist);
-
-        long pos = np.positionNowMs();
-        float bx0 = X0 + 22, bx1 = X1 - 22;
-        c.drawLine(bx0, NP_BAR_Y, bx1, NP_BAR_Y, npTrack);
-        if (np.durationMs > 0) {
-            float done = bx0 + (bx1 - bx0) * Math.min(1f, pos / (float) np.durationMs);
-            if (done > bx0) c.drawLine(bx0, NP_BAR_Y, done, NP_BAR_Y, npDone);
-            Style.size(npTime, 14);
-            npTime.setTextAlign(Paint.Align.LEFT);
-            c.drawText(clock(pos), bx0, NP_TIME_Y, npTime);
-            npTime.setTextAlign(Paint.Align.RIGHT);
-            c.drawText("-" + clock(Math.max(0, np.durationMs - pos)), bx1, NP_TIME_Y, npTime);
-        }
-
-        skip(c, cx - NP_BUTTON_DX, NP_BUTTON_Y, false);
-        c.drawCircle(cx, NP_BUTTON_Y, NP_PLAY_R, npPlay);
-        if (np.playing) {
-            c.drawRect(cx - 8, NP_BUTTON_Y - 9, cx - 3, NP_BUTTON_Y + 9, npOnAccent);
-            c.drawRect(cx + 3, NP_BUTTON_Y - 9, cx + 8, NP_BUTTON_Y + 9, npOnAccent);
-        } else {
-            path.reset();
-            path.moveTo(cx - 6, NP_BUTTON_Y - 10);
-            path.lineTo(cx + 10, NP_BUTTON_Y);
-            path.lineTo(cx - 6, NP_BUTTON_Y + 10);
-            path.close();
-            c.drawPath(path, npOnAccent);
-        }
-        skip(c, cx + NP_BUTTON_DX, NP_BUTTON_Y, true);
-        // the clock moves once a second while it plays and the page is showing
-        // one pending tick at most: the panel also redraws for car data many times a second
-        removeCallbacks(clockTick);
-        if (np.playing && np.durationMs > 0 && shownPage == PAGE_MEDIA) postDelayed(clockTick, 1000);
-    }
-
-    private final Runnable clockTick = new Runnable() {
-        @Override public void run() { invalidate(); }
-    };
-
-    /** Previous (a bar and a triangle pointing left) or next (mirrored). */
-    private void skip(Canvas c, float x, float y, boolean next) {
-        float d = next ? 1 : -1;
-        path.reset();
-        path.moveTo(x - 7 * d, y - 9);
-        path.lineTo(x + 6 * d, y);
-        path.lineTo(x - 7 * d, y + 9);
-        path.close();
-        c.drawPath(path, npGlyph);
-        float bar = x + 7 * d;
-        c.drawRect(Math.min(bar, bar + 3 * d), y - 9, Math.max(bar, bar + 3 * d), y + 9, npGlyph);
     }
 
     private void musicNote(Canvas c, float x, float y) {
-        c.drawCircle(x - 8, y + 16, 8, npNote);
-        c.drawLine(x, y + 16, x, y - 20, npNote);
-        c.drawLine(x, y - 20, x + 14, y - 12, npNote);
-    }
-
-    /** Which Now playing button (x, y) is on, as a media key; 0 for none. */
-    private int mediaButton(float x, float y) {
-        float cx = (X0 + X1) / 2f;
-        if (Math.abs(y - NP_BUTTON_Y) > NP_HIT_R) return 0;
-        if (Math.abs(x - cx) <= NP_HIT_R) return android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE;
-        if (Math.abs(x - (cx - NP_BUTTON_DX)) <= NP_HIT_R) return android.view.KeyEvent.KEYCODE_MEDIA_PREVIOUS;
-        if (Math.abs(x - (cx + NP_BUTTON_DX)) <= NP_HIT_R) return android.view.KeyEvent.KEYCODE_MEDIA_NEXT;
-        return 0;
-    }
-
-    private static String clock(long ms) {
-        long s = ms / 1000;
-        return s >= 3600 ? String.format(Locale.UK, "%d:%02d:%02d", s / 3600, s / 60 % 60, s % 60)
-                : String.format(Locale.UK, "%d:%02d", s / 60, s % 60);
+        c.drawCircle(x - 12, y + 24, 12, npNote);
+        c.drawLine(x, y + 24, x, y - 30, npNote);
+        c.drawLine(x, y - 30, x + 20, y - 18, npNote);
     }
 
     private static String ellipsize(String text, Paint p, float maxW) {
@@ -742,12 +669,6 @@ public class RightPanelView extends View {
                     if (pinned >= 0) setPinned(next);               // the pin moves with the page
                     else manual = next;                             // held until driving off
                     invalidate();
-                } else if (shownPage == PAGE_MEDIA && cardPos == PAGE_MEDIA && dockListener != null) {
-                    int key = mediaButton(x, y);      // a tap, not a swipe: the Now playing buttons
-                    if (key != 0) {
-                        playSoundEffect(android.view.SoundEffectConstants.CLICK);
-                        dockListener.onMediaKey(key);
-                    }
                 }
                 swipeX = Float.NaN;
                 return true;
