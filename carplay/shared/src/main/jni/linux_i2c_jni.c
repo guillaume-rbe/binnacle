@@ -47,6 +47,18 @@ Java_com_shilapi_xcertplay_transport_LinuxI2cNative_open(
     const char *path = (*env)->GetStringUTFChars(env, device_path, NULL);
     if (path == NULL) return -1;
 
+    // Only an I2C device node, /dev/i2c-N (the Kotlin side checks this too): never a serial port
+    // or any other device (Binnacle's CarPlay guard, carplay/guard/check_carplay.sh).
+    const char *prefix = "/dev/i2c-";
+    size_t prefix_length = strlen(prefix);
+    size_t digits = strncmp(path, prefix, prefix_length) == 0
+            ? strspn(path + prefix_length, "0123456789") : 0;
+    if (digits == 0 || digits > 3 || path[prefix_length + digits] != '\0') {
+        (*env)->ReleaseStringUTFChars(env, device_path, path);
+        throw_native_error(env, EINVAL, "open");
+        return -1;
+    }
+
     int file_descriptor;
     do {
         file_descriptor = open(path, O_RDWR | O_CLOEXEC);
