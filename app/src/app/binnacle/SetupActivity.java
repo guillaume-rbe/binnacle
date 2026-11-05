@@ -258,6 +258,13 @@ public final class SetupActivity extends Activity {
                 "When the car asks for the forward camera (shifting into Drive), Binnacle can show it in the centre "
                         + "window, smoothed for this screen, instead of the stock full-screen camera.");
         if (on) s.addView(tick("Already on"));
+        if (!Launch.canOpenOverApps(this)) {
+            // audit D6: otherwise Android silently blocks the Drive camera while another app is in front
+            TextView t = text("With CarPlay or another app in front, Android won't let the camera open on Drive "
+                    + "until it is allowed once over ADB: " + Launch.OVERLAY_GRANT, 15, Style.WARN);
+            t.setPadding(0, 0, 0, dp(4));
+            s.addView(t);
+        }
         s.addView(buttons(on ? new String[]{"Next"} : new String[]{"Not now", "Use the dash camera"},
                 on ? new Runnable[]{new Runnable() { @Override public void run() { next(); } }}
                         : new Runnable[]{

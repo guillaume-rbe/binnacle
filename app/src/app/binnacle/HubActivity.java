@@ -266,9 +266,15 @@ public class HubActivity extends Activity {
                     actionCard("End CarPlay", null,
                             "End CarPlay", LocalShell.Command.END_CARPLAY),
                     infoCard("CarPlay layout", carplayLayoutText()))); break;
-            case 2: content.addView(cards(
-                    switchCard("Camera in the dash", "Forward camera in the centre window", "dash_camera", false),
-                    switchCard("Open stock camera on Drive", "Stock camera screen instead", "auto_camera", false))); break;
+            case 2: {
+                View dash = switchCard("Camera in the dash", "Forward camera in the centre window", "dash_camera", false);
+                View stock = switchCard("Open stock camera on Drive", "Stock camera screen instead", "auto_camera", false);
+                // without the overlay app-op Android blocks the Drive camera while another app is in front
+                content.addView(Launch.canOpenOverApps(this) ? cards(dash, stock) : cards(dash, stock,
+                        infoCard("Camera can't open over other apps",
+                                "With CarPlay or another app in front, Android won't let the camera open on Drive. "
+                                        + "Allow it once over ADB: " + Launch.OVERLAY_GRANT)));
+            } break;
             case CAR_TAB: content.addView(cards(
                     choiceCard("Car model", null, "car_model", "3",
                             new String[]{"3", "y"}, new String[]{"Model 3", "Model Y"}),
