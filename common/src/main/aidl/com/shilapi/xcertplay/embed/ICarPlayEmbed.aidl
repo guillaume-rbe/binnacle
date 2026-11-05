@@ -63,7 +63,9 @@ interface ICarPlayEmbed {
     /**
      * 10. Every size this client may show CarPlay at, as width, height pairs (e.g. a centre window
      * and full screen). They are declared to the phone as view areas, so switching between them
-     * needs no reconnect. Takes effect at the next connection.
+     * needs no reconnect. A running session whose view areas lack one of them reconnects once,
+     * straight away (a short audio drop), so call this early, before CarPlay is in use; a session
+     * that already has them, or none running, is not touched.
      */
     void declareSizes(in int[] widthHeightPairs);
 }
