@@ -14,6 +14,14 @@ public class BatteryDecoderTest {
             if (!ok) fails++;
         }
         if (BatteryDecoder.percent(-1) != -1) { System.out.println("FAIL -1 should be unknown"); fails++; }
+        // the closest two percents get with the jitter (audit 5 Nov): 59 % - 26 = 24932, 71 % + 26 = 24925
+        int[][] close = {{24932, 59}, {24925, 71}, {24928, -1}, {24929, -1}};
+        for (int[] c : close) {
+            int got = BatteryDecoder.percent(c[0]);
+            boolean ok = got == c[1];
+            System.out.println((ok ? "ok   " : "FAIL ") + c[0] + " -> " + got + (ok ? "" : " (expected " + c[1] + ")"));
+            if (!ok) fails++;
+        }
         if (fails > 0) { System.out.println(fails + " failed"); System.exit(1); }
         System.out.println("all battery checks passed");
     }

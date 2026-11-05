@@ -403,7 +403,8 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
         // code 11 that leaves Park, and a stale P must not close the camera the flag just opened
         int gear = app.car.gear;
         boolean intoPark = gear == CarState.GEAR_P && lastGear != CarState.GEAR_P && lastGear != CarState.GEAR_UNKNOWN;
-        lastGear = gear;
+        // a feed blip (gear unknown) keeps the last known gear, so D, blip, P still closes the camera
+        if (gear != CarState.GEAR_UNKNOWN) lastGear = gear;
         if (cameraAuto && camera.isRunning() && (app.car.speedKmh() > CAMERA_OFF_KMH || intoPark)) camera.stop();
     }
 

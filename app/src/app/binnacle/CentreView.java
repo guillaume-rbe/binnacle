@@ -422,7 +422,7 @@ public class CentreView extends View {
         doorScene.warm(app.art(), parkRect);   // cheap once warm; makes the first hand-back to Park seamless
         if (lastFrameMs != 0 && car.speed > 0) {
             float dt = Math.min(0.1f, (now - lastFrameMs) / 1000f);
-            float mps = car.speed / 3.6f;
+            float mps = car.speedKmh() / 3.6f;   // m/s whatever unit the car reports
             travel += (car.gear == CarState.GEAR_R ? -mps : mps) * dt;
             travel %= PERIOD;
             if (travel < 0) travel += PERIOD;
