@@ -49,7 +49,8 @@ final class Launch {
      * stock camera launch does (AndroidManifest.xml).
      */
     static void dashCamera(Context c) {
-        start(c, new Intent(c, DashActivity.class).putExtra(EXTRA_DRIVE_CAMERA, true), false);
+        // The registered activity is the subclass com.xbs.launcher.MainActivity, not DashActivity itself.
+        start(c, new Intent(c, com.xbs.launcher.MainActivity.class).putExtra(EXTRA_DRIVE_CAMERA, true), false);
     }
 
     /** Same broadcast the stock launcher sends when frontcamstate drops. */
