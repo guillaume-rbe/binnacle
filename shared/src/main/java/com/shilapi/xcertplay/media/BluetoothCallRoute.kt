@@ -51,16 +51,26 @@ internal object BluetoothCallRoute {
         CarPlayTelecom.onAudioOwnershipLost = ::telecomGaveUp
     }
 
-    /** Telecom couldn't take the call after this route left the link to it: open it here. */
+    /**
+     * Telecom couldn't take the call after this route left the link to it, or gave up a call it
+     * had (the car hung up but the phone kept the call): open the link here.
+     */
     private fun telecomGaveUp() {
         synchronized(this) {
-            if (!routing || usedSco || active || CarPlayTelecom.ownsCallAudio()) return
+            if (!routing || usedSco || CarPlayTelecom.ownsCallAudio()) return
             val audio = appContext?.getSystemService(AudioManager::class.java) ?: return
             try {
+                val hadLink = active
+                // Telecom's link is going down with its call: that drop is not this route's.
+                active = false
+                linkSeen = false
                 audio.startBluetoothSco()
                 usedSco = true
                 handler.postDelayed(connectTimeout, CONNECT_TIMEOUT_MILLIS)
-                log("call to car: Telecom refused the call, starting the link here")
+                log(
+                    if (hadLink) "call to car: Telecom let go of the call, taking the link over here"
+                    else "call to car: Telecom refused the call, starting the link here"
+                )
                 return
             } catch (error: RuntimeException) {
                 log("call to car: could not start Bluetooth SCO: ${error.message}")
@@ -153,7 +163,8 @@ internal object BluetoothCallRoute {
         val fallback = synchronized(this) {
             if (!routing) return
             // A Telecom call the phone has already ended (car hang-up) drops the link as expected.
-            val callGone = !usedSco && !CarPlayTelecom.ownsCallAudio()
+            // A call the phone still has (only no longer mirrored) still needs its audio.
+            val callGone = !usedSco && !CarPlayTelecom.ownsCallAudio() && !CarPlayTelecom.phoneHasCall()
             onFallback.takeUnless { callGone }.also {
                 release()
                 log(if (callGone) "call to car: ended" else "call to car: $reason, back to the head unit's own call audio")
