@@ -5,9 +5,11 @@ import androidx.car.app.Session
 import androidx.car.app.validation.HostValidator
 
 class MyCarAppService : CarAppService() {
-    override fun createHostValidator(): HostValidator {
-        return HostValidator.ALLOW_ALL_HOSTS_VALIDATOR
-    }
+    // Only the known car hosts (Android Auto, Android Automotive templates host), not any app that binds.
+    override fun createHostValidator(): HostValidator =
+        HostValidator.Builder(applicationContext)
+            .addAllowedHosts(androidx.car.app.R.array.hosts_allowlist_sample)
+            .build()
 
     override fun onCreateSession(): Session {
         return MyCarAppSession()

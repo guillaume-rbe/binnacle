@@ -41,6 +41,9 @@ class RemoteMfiAuthenticationClient(
         require(baseAddress.startsWith("http://") || baseAddress.startsWith("https://")) {
             "Remote MFI server address must use http:// or https://"
         }
+        require(bearerToken == null || !baseAddress.startsWith("http://") || isLoopback(baseAddress)) {
+            "Remote MFI server needs https:// when a token is set (plain http only to this device)"
+        }
         require(connectTimeoutMillis > 0) { "connectTimeoutMillis must be positive" }
         require(readTimeoutMillis > 0) { "readTimeoutMillis must be positive" }
         require(maximumAttempts > 0) { "maximumAttempts must be positive" }
@@ -289,6 +292,12 @@ class RemoteMfiAuthenticationClient(
         private const val SHA256_BYTES = 32
         private const val SHA256_HEX_LENGTH = SHA256_BYTES * 2
         private const val BAA_PACKAGE_HEADER_BYTES = 8
+
+        /** True for a server on this device: a token sent there never crosses a network. */
+        internal fun isLoopback(address: String): Boolean {
+            val host = runCatching { java.net.URI(address).host }.getOrNull()?.lowercase() ?: return false
+            return host == "localhost" || host == "[::1]" || Regex("127(\\.\\d{1,3}){3}").matches(host)
+        }
     }
 }
 

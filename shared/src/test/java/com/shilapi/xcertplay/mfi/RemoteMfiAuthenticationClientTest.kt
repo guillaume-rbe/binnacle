@@ -15,6 +15,7 @@ import org.junit.After
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -169,6 +170,23 @@ class RemoteMfiAuthenticationClientTest {
         assertEquals(500, error.statusCode)
         assertEquals("chip reset failed", error.detail)
         assertEquals(1, requests.get())
+    }
+
+    @Test
+    fun refusesATokenOverPlainHttpToAnotherHost() {
+        val error = runCatching {
+            RemoteMfiAuthenticationClient(serverAddress = "http://192.0.2.10:8080", token = "secret")
+        }.exceptionOrNull()
+        assertTrue(error is IllegalArgumentException)
+        val lookalike = runCatching {
+            RemoteMfiAuthenticationClient(serverAddress = "http://127.0.0.1.example.com", token = "secret")
+        }.exceptionOrNull()
+        assertTrue(lookalike is IllegalArgumentException)
+        // without a token, over https, or to this device: still allowed
+        RemoteMfiAuthenticationClient(serverAddress = "http://192.0.2.10:8080")
+        RemoteMfiAuthenticationClient(serverAddress = "https://192.0.2.10:8443", token = "secret")
+        RemoteMfiAuthenticationClient(serverAddress = "http://localhost:8080", token = "secret")
+        RemoteMfiAuthenticationClient(serverAddress = "http://[::1]:8080", token = "secret")
     }
 
     private fun serverAddress(): String = "http://127.0.0.1:${server.address.port}"

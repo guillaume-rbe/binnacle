@@ -169,6 +169,7 @@ import com.shilapi.xcertplay.media.MainMediaAudioBuffer
 import com.shilapi.xcertplay.media.MediaMetricsMonitor
 import com.shilapi.xcertplay.media.MicrophoneGain
 import com.shilapi.xcertplay.media.MicrophoneLevelMonitor
+import com.shilapi.xcertplay.mfi.RemoteMfiAuthenticationClient
 import com.shilapi.xcertplay.network.CarPlayVpnService
 import com.shilapi.xcertplay.orchestration.CarPlayController
 import com.shilapi.xcertplay.orchestration.CarPlayRuntimeConfig
@@ -1577,6 +1578,10 @@ class CarPlayHostActivity : ComponentActivity() {
                 !remoteMfiServer.trim().startsWith("http://") &&
                 !remoteMfiServer.trim().startsWith("https://") ->
                 "Remote server address must start with http:// or https://"
+            mfiTarget == MfiTarget.REMOTE && remoteMfiToken.isNotEmpty() &&
+                remoteMfiServer.trim().startsWith("http://") &&
+                !RemoteMfiAuthenticationClient.isLoopback(remoteMfiServer.trim()) ->
+                "Remote server needs https:// when a token is set"
             mfiTarget == MfiTarget.LOCAL_FILES && localMfiCertificateUri.isBlank() ->
                 "Select a local certificate"
             mfiTarget == MfiTarget.LOCAL_FILES && localMfiPrivateKeyUri.isBlank() ->
