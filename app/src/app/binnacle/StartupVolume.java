@@ -29,7 +29,11 @@ final class StartupVolume {
 
     private StartupVolume() {}
 
-    /** Called once from DashApp.onCreate (each start, including every car wake). */
+    /**
+     * Called once from DashApp.onCreate. The car "sleeping" only turns the screen off (the app keeps
+     * running), and the CAN app mutes music and sets it to 0 then; so the level is also set again
+     * when the screen comes back on (drive 5 Nov: no sound until the volume was raised by hand).
+     */
     static void start(final Context context, final SharedPreferences prefs) {
         final AudioManager audio = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
         if (audio == null) return;
@@ -50,6 +54,12 @@ final class StartupVolume {
                 }
             }
         }, main);
+        context.getApplicationContext().registerReceiver(new android.content.BroadcastReceiver() {
+            @Override public void onReceive(Context c, android.content.Intent i) {
+                main.removeCallbacks(apply);
+                main.postDelayed(apply, SETTLE_MS);       // after the CAN app's own wake-up changes
+            }
+        }, new android.content.IntentFilter(android.content.Intent.ACTION_SCREEN_ON));
     }
 
     /** Percent of full for a setting value; -1 = leave as is. */
@@ -68,8 +78,12 @@ final class StartupVolume {
         if (p < 0) return;
         int max = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
         int level = Math.max(1, Math.round(max * p / 100f));
-        if (audio.getStreamVolume(AudioManager.STREAM_MUSIC) == level) return;
+        boolean muted = android.os.Build.VERSION.SDK_INT >= 23 && audio.isStreamMute(AudioManager.STREAM_MUSIC);
+        if (!muted && audio.getStreamVolume(AudioManager.STREAM_MUSIC) == level) return;
         try {
+            // the CAN app mutes music (ADJUST_MUTE) as well as setting it to 0 when the car sleeps;
+            // a level set while muted stays silent
+            if (muted) audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_UNMUTE, 0);
             audio.setStreamVolume(AudioManager.STREAM_MUSIC, level, 0);
             Log.i(TAG, "start-up volume " + p + "% (" + level + "/" + max + ")");
         } catch (SecurityException e) {
