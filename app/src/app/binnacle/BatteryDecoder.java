@@ -7,7 +7,9 @@ package app.binnacle;
  * the same 3321-per-% line) and decodes every reading checked against the car's screen
  * (21, 25, 29, 40, 41, 42, 58, 95, 100 %). Each level also shows up 25 or 26 higher (a jitter
  * bit), so a value matches a % if it is within TOLERANCE of the base, base+25/26 or base-25/26.
- * Different percents that look alike (12 % apart) differ by 34 or more, so a match is unique.
+ * Base values of different percents differ by 59 or more (59 % and 71 %), but with the jitter two
+ * percents can come as close as 7 (59 % - 26 = 24932, 71 % + 26 = 24925). A reading within
+ * TOLERANCE of both is ambiguous and returns -1 (shown as unknown), never a wrong %.
  */
 final class BatteryDecoder {
 
