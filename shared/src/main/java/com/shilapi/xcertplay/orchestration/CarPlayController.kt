@@ -191,8 +191,11 @@ class CarPlayController(
     private val performanceLockLifecycle = Any()
     private val wirelessPerformanceLock = WirelessPerformanceLock(appContext) { debugLog(it) }
     private val headUnitCallState = HeadUnitCallState(appContext) { debugLog(it) }
+    /** Calls shown when the phone last said it had no call; only these are ended by [stuckCallCheck]. */
+    @Volatile
+    private var stuckCallIds: Set<String> = emptySet()
     private val stuckCallCheck = Runnable {
-        if (CarPlayTelecom.endStuck()) debugLog("carplay calls: phone has no call; ended the calls still shown on the car")
+        if (CarPlayTelecom.endStuck(stuckCallIds)) debugLog("carplay calls: phone has no call; ended the calls still shown on the car")
     }
     private val callControl = object : CarPlayTelecom.CallControl {
         override fun accept(callUuid: String) = sendCallKey("answer", CarPlayTelephonyKeys.HOOK_SWITCH)
@@ -367,8 +370,10 @@ class CarPlayController(
                 // "no call" for STUCK_CALL_GRACE_MS, end what is left (audit T3)
                 when (phoneCallActive(params)) {
                     false -> {
+                        // only calls already shown now: a call dialled or reported later is not touched
                         mainHandler.removeCallbacks(stuckCallCheck)
-                        mainHandler.postDelayed(stuckCallCheck, STUCK_CALL_GRACE_MS)
+                        stuckCallIds = CarPlayTelecom.callIds()
+                        if (stuckCallIds.isNotEmpty()) mainHandler.postDelayed(stuckCallCheck, STUCK_CALL_GRACE_MS)
                     }
                     true -> mainHandler.removeCallbacks(stuckCallCheck)
                     null -> Unit

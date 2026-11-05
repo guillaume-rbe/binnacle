@@ -75,12 +75,19 @@ internal object CarPlayTelecom {
         }
     }
 
-    /** The phone says it has no call, yet calls are still shown: end them. True if there were any. */
+    /** The calls the phone has reported and not yet ended. */
     @Synchronized
-    fun endStuck(): Boolean {
-        if (calls.isEmpty() && connections.isEmpty() && pendingDial == null) return false
-        endAll()
-        return true
+    fun callIds(): Set<String> = calls.keys.toSet()
+
+    /**
+     * The phone said it had no call while [ids] were shown, and still hasn't ended them: end those
+     * as if their end update had come. A call reported or dialled since is left alone. True if any.
+     */
+    @Synchronized
+    fun endStuck(ids: Set<String>): Boolean {
+        val stuck = calls.values.filter { it.callUuid in ids }
+        stuck.forEach { onCallState(it.copy(status = CarPlayCallState.STATUS_DISCONNECTED)) }
+        return stuck.isNotEmpty()
     }
 
     /**
