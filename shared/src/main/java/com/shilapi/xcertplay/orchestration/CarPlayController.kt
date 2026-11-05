@@ -1087,6 +1087,7 @@ class CarPlayController(
                     mfi = mfi,
                     listener = sessionListener,
                     media = media,
+                    hotspotInterface = hotspotInfo.interfaceName,
                 )
             ) {
                 CarPlayVpnService.AttachResult.Started -> Unit
@@ -1096,7 +1097,8 @@ class CarPlayController(
                     throw IOException(result.message)
             }
             debugLog(
-                "wireless AirPlay listener attached bind=:: advertised=$hostAddressText " +
+                "wireless AirPlay listener attached bind=:: only-on=${hotspotInfo.interfaceName ?: "any"} " +
+                    "advertised=$hostAddressText " +
                     "port=${airPlayConfig.port}",
             )
             if (isStaleWirelessRun(generation)) {

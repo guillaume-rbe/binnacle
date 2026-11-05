@@ -60,6 +60,8 @@ class AirPlaySession(
     private val mfi: MfiAuthenticator?,
     private val listener: AirPlaySessionListener,
     private val media: AirPlayMediaHandler,
+    /** Serve only pairing and /info until pair-verify completes (wireless; audit 5 Nov, X1). */
+    private val requirePairVerify: Boolean = false,
 ) : Closeable {
     internal val pairSetup = PairSetup(identity, pairings)
     internal val pairVerify = PairVerify(identity, pairings)
@@ -338,6 +340,10 @@ class AirPlaySession(
     }
 
     private fun handle(request: RtspMessage.Request): RtspMessage.Response {
+        if (requirePairVerify && !pairVerify.isVerified && !allowedBeforePairVerify(request)) {
+            debugLog("airplay refused ${request.method} ${request.path}: pair-verify not done")
+            return RtspMessage.Response(status = 470, statusText = "Connection Authorization Required")
+        }
         when (request.method) {
             "SETUP" -> return handleSetup(request)
             "RECORD" -> {
@@ -400,6 +406,15 @@ class AirPlaySession(
             }
             else -> RtspMessage.Response(status = 200)
         }
+    }
+
+    /** What a peer may ask before it has proved it is a paired iPhone: pairing itself and /info. */
+    private fun allowedBeforePairVerify(request: RtspMessage.Request): Boolean {
+        if (request.method == "SETUP" || request.method == "RECORD" || request.method == "TEARDOWN") return false
+        if (request.method == "OPTIONS") return true
+        val path = request.path.lowercase().substringBefore('?')
+        return path.endsWith("/pair-setup") || path.endsWith("/pair-verify") ||
+            path.endsWith("/auth-setup") || path.endsWith("/info")
     }
 
     private fun notifySetupResponseSent() {
