@@ -69,7 +69,8 @@ public class RightPanelView extends View {
         if (!app.prefs().contains(PIN_KEY) && app.prefs().contains("card_pinned")) {
             // the old order was sensors, tyres, efficiency
             int old = app.prefs().getInt("card_pinned", -1);
-            pinned = old == 0 ? PAGE_SENSORS : old == 1 ? PAGE_TYRES : old == 2 ? PAGE_EFFICIENCY : -1;
+            pinned = old == 0 ? PAGE_SENSORS : old == 1 ? PAGE_TYRES : old == 2 ? PAGE_EFFICIENCY
+                    : old == 3 ? PAGE_MEDIA : -1;
             app.prefs().edit().putInt(PIN_KEY, pinned).remove("card_pinned").apply();
         }
         if (pinned >= PAGES) pinned = -1;
@@ -321,7 +322,7 @@ public class RightPanelView extends View {
         int page = cardPage();
         int count = pageCount();
         long now = android.os.SystemClock.uptimeMillis();
-        if (cardPos < 0) cardPos = page;    // no slide on the first frame
+        if (Float.isNaN(cardPos)) cardPos = page;    // no slide on the first frame
         // the pages loop (owner, 5 Nov): slide the short way round, from last to first included
         float goal = page;
         while (goal - cardPos > count / 2f) goal -= count;
@@ -361,7 +362,7 @@ public class RightPanelView extends View {
     }
 
     private static final long CARD_SLIDE_MS = 280;
-    private float cardPos = -1;     // set on the first draw
+    private float cardPos = Float.NaN;    // set on the first draw (negative is a valid looped position)
     private long cardLastMs;
     private boolean cardMoving;
 
