@@ -17,7 +17,12 @@ final class EfficiencyTracker {
     static final float RECENT_KM = 5f;
     static final float SEGMENT_KM = 0.1f;
     private static final int SEGMENTS = (int) (RECENT_KM / SEGMENT_KM) + 1;
-    private static final long MAX_GAP_MS = 5_000;
+    /**
+     * Longer than this between two readings counts as no data (the dash was stopped). Code 10
+     * pauses up to ~6 s while crawling (DashApp.STALE_MS notes), so this matches the 8 s feed
+     * watchdog instead of dropping those stretches (audit D10).
+     */
+    private static final long MAX_GAP_MS = 8_000;
 
     private long lastMs;
     private float lastKw, lastKmh;
