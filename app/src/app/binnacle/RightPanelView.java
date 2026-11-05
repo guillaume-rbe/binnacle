@@ -65,7 +65,13 @@ public class RightPanelView extends View {
         super(c);
         this.app = app;
         this.car = app.car;
-        pinned = app.prefs().getInt("card_pinned", -1);
+        pinned = app.prefs().getInt(PIN_KEY, -1);
+        if (!app.prefs().contains(PIN_KEY) && app.prefs().contains("card_pinned")) {
+            // the old order was sensors, tyres, efficiency
+            int old = app.prefs().getInt("card_pinned", -1);
+            pinned = old == 0 ? PAGE_SENSORS : old == 1 ? PAGE_TYRES : old == 2 ? PAGE_EFFICIENCY : -1;
+            app.prefs().edit().putInt(PIN_KEY, pinned).remove("card_pinned").apply();
+        }
         if (pinned >= PAGES) pinned = -1;
     }
 
@@ -231,7 +237,9 @@ public class RightPanelView extends View {
     }
 
     /**
-     * Middle card, three pages left to right: parking sensors, tyres, efficiency. Automatic choice:
+     * Middle card, pages left to right: tyres, efficiency, parking sensors, and Now playing while
+     * CarPlay plays (owner, 5 Nov: sensors next to Now playing, so switching between the two
+     * doesn't slide past the others). Automatic choice:
      * sensors whenever the car isn't driving (below 10 km/h, or speed not known yet: the dash nearly
      * always starts parked, and tyre pressures only arrive once driving), tyres while driving. A
      * swipe moves one page and holds until the car next drives off. Holding a finger on the card pins
@@ -249,7 +257,8 @@ public class RightPanelView extends View {
         return shownPage;
     }
 
-    /** Pinned page, or -1: automatic (saved in "card_pinned"). */
+    /** Pinned page, or -1: automatic (saved in PIN_KEY). */
+    private static final String PIN_KEY = "card_pinned_v2";
     private int pinned;
     private final Paint pinFill = Style.fill(Style.MUTED), pinStroke = Style.stroke(Style.MUTED, 2f);
     private static final long HOLD_MS = 600;
@@ -267,7 +276,7 @@ public class RightPanelView extends View {
 
     private void setPinned(int page) {
         pinned = page;
-        app.prefs().edit().putInt("card_pinned", page).apply();
+        app.prefs().edit().putInt(PIN_KEY, page).apply();
         invalidate();
     }
 
@@ -280,7 +289,7 @@ public class RightPanelView extends View {
         c.restore();
     }
 
-    static final int PAGE_SENSORS = 0, PAGE_TYRES = 1, PAGE_EFFICIENCY = 2, PAGE_MEDIA = 3, PAGES = 4;
+    static final int PAGE_TYRES = 0, PAGE_EFFICIENCY = 1, PAGE_SENSORS = 2, PAGE_MEDIA = 3, PAGES = 4;
 
     /** What CarPlay is playing; the Now playing page is there only while this isn't null. */
     private NowPlaying nowPlaying;
