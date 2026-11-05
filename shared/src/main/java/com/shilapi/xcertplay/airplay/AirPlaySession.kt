@@ -301,7 +301,9 @@ class AirPlaySession(
                     )
                     val response = try {
                         handle(request)
-                    } catch (error: Exception) {
+                    } catch (error: Throwable) {
+                        // Throwable, not Exception: a malformed body must cost one 500, never the
+                        // whole app (an Error escaping this thread kills the process; audit X3)
                         Log.e(
                             TAG,
                             "airplay handler failed ${request.method} ${request.path} cseq=$cseq",
@@ -326,7 +328,9 @@ class AirPlaySession(
                 if (parsed.messages.isNotEmpty()) displayControl.responseSent()
                 notifySetupResponseSent()
             }
-        } catch (error: Exception) {
+        } catch (error: Throwable) {
+            // also an oversized request (RtspMessage caps) or an Error: this connection closes, the
+            // app stays up
             closeReason = "control I/O failed: ${error.message ?: error.javaClass.simpleName}"
             if (!closed.get()) Log.e(TAG, "airplay $closeReason", error)
         } finally {
@@ -727,7 +731,8 @@ class AirPlaySession(
                     displayControl.responseSent()
                 }
             }
-        } catch (error: Exception) {
+        } catch (error: Throwable) {
+            // Throwable: an Error from a malformed command must not take the app down (audit X3)
             if (!closed.get()) Log.e(TAG, "airplay event read failed", error)
         } finally {
             debugLog("airplay event connection closed")

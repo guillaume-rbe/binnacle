@@ -34,12 +34,29 @@ object RtspMessage {
         500 to "Internal Server Error",
     )
 
-    /** Parses as many complete messages as are buffered, retaining any partial remainder. */
+    /**
+     * Largest header block and body accepted. The peer sets Content-Length (before pairing, too), and
+     * the session buffers until a message is complete, so without a cap one request could make it
+     * buffer until the app runs out of memory (audit 5 Nov, X3). CarPlay's own messages are a few KB.
+     */
+    const val MAX_HEADER_BYTES = 64 * 1024
+    const val MAX_BODY_BYTES = 4 * 1024 * 1024
+
+    /**
+     * Parses as many complete messages as are buffered, retaining any partial remainder. Throws
+     * [IllegalArgumentException] for a header block or body over the caps above: the session then
+     * closes the connection.
+     */
     fun parseMessages(buffer: ByteArray): Parsed {
         val messages = ArrayList<Request>()
         var offset = 0
         while (offset < buffer.size) {
-            val headerEndIndex = indexOf(buffer, headerEnd, offset) ?: break
+            val headerEndIndex = indexOf(buffer, headerEnd, offset)
+            if (headerEndIndex == null) {
+                require(buffer.size - offset <= MAX_HEADER_BYTES) { "rtsp: header too long" }
+                break
+            }
+            require(headerEndIndex - offset <= MAX_HEADER_BYTES) { "rtsp: header too long" }
             val headerText = String(buffer, offset, headerEndIndex - offset, Charsets.US_ASCII)
             val lines = headerText.split("\r\n")
             if (lines.isEmpty()) {
@@ -56,6 +73,7 @@ object RtspMessage {
             }
             val bodyStart = headerEndIndex + headerEnd.size
             val contentLength = headers["content-length"]?.toIntOrNull()?.coerceAtLeast(0) ?: 0
+            require(contentLength <= MAX_BODY_BYTES) { "rtsp: body too large ($contentLength bytes)" }
             val bodyEnd = bodyStart + contentLength
             if (bodyEnd > buffer.size) break
             messages.add(
