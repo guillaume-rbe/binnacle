@@ -66,6 +66,9 @@
 > - Malformed control messages can't crash the app: the binary-plist reader refuses cycles, deep
 >   nesting, exponential expansion and sizes past the end of the data, the control channel caps
 >   header and body sizes, and a failing request costs one error reply instead of the process
+> - Calls mirrored to the car fall back to the plain Bluetooth link when Telecom refuses them or
+>   the car ends a call the phone kept, and a car-dialled call hung up before the iPhone reported
+>   it is ended on the phone
 > - Wireless CarPlay's port 7000 only answers on the CarPlay hotspot: a connection from any other
 >   network (home Wi-Fi, a media server probing the port) is closed at once, and nothing but
 >   pairing and `/info` is served until the phone has completed pair-verify

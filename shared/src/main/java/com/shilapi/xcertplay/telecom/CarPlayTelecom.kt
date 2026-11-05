@@ -133,6 +133,12 @@ internal object CarPlayTelecom {
             requested += state.callUuid
             dialled.update(if (state.remoteId.isEmpty()) state.copy(status = CarPlayCallState.STATUS_CONNECTING) else state)
             log("carplay calls: car-dialled call placed by the iPhone")
+            if (dialled.endRequested) {
+                // the car hung up before the iPhone reported the call: that first drop had no call
+                // to act on, so drop it again now that there is one
+                log("carplay calls: car had already hung up; ending it on the phone")
+                control?.end(state.callUuid)
+            }
             return
         }
         if (state.callUuid in requested || state.callUuid in refused || !enabled()) return
@@ -167,6 +173,17 @@ internal object CarPlayTelecom {
             requested -= state.callUuid
             refuse(state.callUuid, "could not add call: ${error.message}")
         }
+    }
+
+    /** Telecom couldn't create the connection for a call we added. */
+    @Synchronized
+    internal fun creationFailed(callUuid: String?, outgoing: Boolean) {
+        val uuid = callUuid ?: calls.values.singleOrNull {
+            it.callUuid !in connections && it.callUuid in requested &&
+                (it.direction == CarPlayCallState.DIRECTION_OUTGOING) == outgoing
+        }?.callUuid
+        if (uuid == null || uuid !in calls || uuid in connections) return
+        refuse(uuid, "Telecom refused the ${if (outgoing) "outgoing" else "incoming"} call")
     }
 
     /** Listener for Telecom giving up a call's audio (the route then opens the link itself). */
@@ -247,9 +264,15 @@ internal object CarPlayTelecom {
         connections[callUuid]?.update(state)
     }
 
+    /**
+     * The car ended its side of a call the phone kept. The phone's call is no longer mirrored, so
+     * Telecom no longer owns its audio: it falls back to the plain link like a refused call.
+     */
     @Synchronized
     internal fun forget(connection: CarPlayConnection) {
-        if (connections[connection.callUuid] === connection) connections.remove(connection.callUuid)
+        if (connections[connection.callUuid] !== connection) return
+        connections.remove(connection.callUuid)
+        if (connection.callUuid in calls) refuse(connection.callUuid, "call no longer mirrored on the car")
     }
 
     @Synchronized

@@ -19,6 +19,11 @@ internal class CarPlayConnection(
 ) : Connection() {
     private var ended = false
 
+    /** The car hung up; a car-dialled call the iPhone only reports later is dropped again then. */
+    @Volatile
+    var endRequested = false
+        private set
+
     init {
         // VoIP audio mode: Telecom uses communication mode, which the CarPlay call audio expects.
         audioModeIsVoip = true
@@ -75,6 +80,7 @@ internal class CarPlayConnection(
      */
     private fun endFromCar(reason: String) {
         CarPlayTelecom.logLine("carplay calls: $reason from car")
+        endRequested = true
         control()?.end(callUuid)
         handler.postDelayed({
             if (ended) return@postDelayed
@@ -109,4 +115,16 @@ class CarPlayConnectionService : ConnectionService() {
         // a call dialled on the car (no CarPlay call behind it yet) carries only the number
         dialledNumber = request.address?.takeIf { it.scheme == PhoneAccount.SCHEME_TEL }?.schemeSpecificPart,
     )
+
+    // Telecom refused the call (for example another call in the way): the call goes on on the
+    // iPhone, so its audio falls back to the plain Bluetooth link instead of waiting for Telecom.
+    override fun onCreateIncomingConnectionFailed(
+        connectionManagerPhoneAccount: PhoneAccountHandle?,
+        request: ConnectionRequest,
+    ) = CarPlayTelecom.creationFailed(request.extras?.getString(CarPlayTelecom.EXTRA_CALL_UUID), outgoing = false)
+
+    override fun onCreateOutgoingConnectionFailed(
+        connectionManagerPhoneAccount: PhoneAccountHandle?,
+        request: ConnectionRequest,
+    ) = CarPlayTelecom.creationFailed(request.extras?.getString(CarPlayTelecom.EXTRA_CALL_UUID), outgoing = true)
 }
