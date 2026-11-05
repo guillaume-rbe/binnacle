@@ -9,8 +9,16 @@
 > **This is a fork of [shilapi/xcertplay](https://github.com/shilapi/xcertplay)**, maintained for
 > aftermarket Tesla Model 3/Y cluster screens (Unisoc UMS512, Android 10 reporting itself as 12, MFi coprocessor on
 > `/dev/i2c-1`) used with the [Binnacle](https://github.com/lotech/binnacle) dash app. All credit
-> for xcertplay goes to its author and contributors; it stays under GPL-3.0. Work happens on the
-> `binnacle` branch, which is upstream 1.4.2 plus the changes below.
+> for xcertplay goes to its author and contributors; it stays under GPL-3.0. It lives in the
+> Binnacle repository as `carplay/` (with its full history), is released with Binnacle as
+> `BinnacleCarPlay.apk` and signed with the dash's key. It was upstream 1.4.2 plus the changes
+> below; the old fork branch (lotech/xcertplay `binnacle`) is no longer updated.
+>
+> **Binnacle's CarPlay guard** (`guard/check_carplay.sh`, run before every build and on the
+> signed release APK): nothing in this app may reach the car's CAN bus, and its only message to
+> the head unit's CAN app is ZLink's call-state broadcast (`PHONE_CALL_ON` / `PHONE_CALL_OFF`,
+> addressed to `com.xbs.canapp` only, from `HeadUnitCallState`). `guard/test_carplay_guard.sh`
+> checks that it refuses known bypasses.
 >
 > **Taken from open upstream pull requests** (authors credited in the commits):
 > - MFi I2C settle delay after register select (shilapi/xcertplay#53, by BBleae)
