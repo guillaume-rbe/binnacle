@@ -225,7 +225,10 @@ class AndroidMediaSink(
         val existing = audioRenderers[id]
         if (existing?.format == format) return existing
         existing?.close()
-        if (format.audioType.equals("media", ignoreCase = true)) CarLinkVolume.onMusicStart(context, debugLog)
+        if (format.audioType.equals("media", ignoreCase = true)) {
+            CarLinkVolume.onMusicStart(context, debugLog)
+            CarAudioGate.onMusicStart(context, debugLog)
+        }
         return AudioRenderer(
             id.type,
             format,
@@ -876,6 +879,7 @@ private class AudioRenderer(
     private var latestOutputLatencyMs: Float? = null
     @Volatile private var mediaMetricsMonitor = mediaMetricsMonitor
     private val thread = Thread(::run, "carplay-audio").apply { isDaemon = true }
+    private val isMusic = format.audioType.equals("media", ignoreCase = true)
 
     fun start() {
         if (started) return
@@ -1170,6 +1174,10 @@ private class AudioRenderer(
             return
         }
         val track = track ?: return
+        if (isMusic && CarAudioGate.holding { Log.i(TAG, it) }) {
+            fadeApplied = false               // fade in once it is released
+            return
+        }
         if (!firstPcmLogged && length > 0) {
             firstPcmLogged = true
             val end = minOf(data.size, offset + minOf(length, 16))
