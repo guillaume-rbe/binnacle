@@ -72,6 +72,7 @@
 > - The CarPlay Wi-Fi Direct passphrase is random (20 characters, made once per install and kept in
 >   the app's private storage) instead of 8 hex digits derived from the MFi certificate; the iPhone
 >   gets it over iAP2 each session as before, and the network name is unchanged
+> - At most 8 saved AirPlay pairings (oldest dropped), since pair-setup uses a fixed PIN
 > - Calls mirrored to the car fall back to the plain Bluetooth link when Telecom refuses them or
 >   the car ends a call the phone kept, and a car-dialled call hung up before the iPhone reported
 >   it is ended on the phone
