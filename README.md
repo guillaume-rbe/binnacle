@@ -76,6 +76,8 @@
 > - Calls mirrored to the car fall back to the plain Bluetooth link when Telecom refuses them or
 >   the car ends a call the phone kept, and a car-dialled call hung up before the iPhone reported
 >   it is ended on the phone
+> - Embedding: a finger is lifted on the phone when the head unit lets go of the surface or a gesture
+>   ends after it, and attaching a surface no longer makes the head unit wait for xcertplay's main thread
 > - Wireless CarPlay's port 7000 only answers on the CarPlay hotspot: a connection from any other
 >   network (home Wi-Fi, a media server probing the port) is closed at once, and nothing but
 >   pairing and `/info` is served until the phone has completed pair-verify
