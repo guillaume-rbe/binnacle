@@ -66,6 +66,9 @@
 > - Malformed control messages can't crash the app: the binary-plist reader refuses cycles, deep
 >   nesting, exponential expansion and sizes past the end of the data, the control channel caps
 >   header and body sizes, and a failing request costs one error reply instead of the process
+> - The CarPlay Wi-Fi Direct passphrase is random (20 characters, made once per install and kept in
+>   the app's private storage) instead of 8 hex digits derived from the MFi certificate; the iPhone
+>   gets it over iAP2 each session as before, and the network name is unchanged
 > - Wireless CarPlay's port 7000 only answers on the CarPlay hotspot: a connection from any other
 >   network (home Wi-Fi, a media server probing the port) is closed at once, and nothing but
 >   pairing and `/info` is served until the phone has completed pair-verify
