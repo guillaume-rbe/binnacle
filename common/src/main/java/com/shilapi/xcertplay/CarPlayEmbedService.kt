@@ -39,6 +39,7 @@ class CarPlayEmbedService : Service() {
     private var lastStage = ""
     private var audioFocusRetained = false
     private var nowPlaying: CarPlayNowPlaying? = null
+    private var nowPlayingAt = 0L                       // elapsedRealtime when nowPlaying was made
     private var nowPlayingArt: ByteArray? = null       // the cover, made small for the client
     private var nowPlayingArtId = -1                    // our own number per cover (iAP2 ids repeat)
     private var artSource: ByteArray? = null            // the iPhone's cover nowPlayingArt was made from
@@ -258,6 +259,7 @@ class CarPlayEmbedService : Service() {
 
     private fun onNowPlaying(next: CarPlayNowPlaying?) {
         nowPlaying = next
+        nowPlayingAt = android.os.SystemClock.elapsedRealtime()
         val source = next?.artwork
         if (source !== artSource) {           // a new cover (or none): shrink it once
             artSource = source
@@ -285,7 +287,11 @@ class CarPlayEmbedService : Service() {
             data.putString("album", now.album)
             data.putString("app", now.appName)
             data.putLong("duration", now.durationMillis)
-            data.putLong("position", now.positionMillis)
+            // the snapshot can be older than this message (a new listener gets the cached one): move
+            // a playing position on by the time since, so the client starts from now
+            val since = if (now.playing) (android.os.SystemClock.elapsedRealtime() - nowPlayingAt).coerceAtLeast(0) else 0L
+            val position = now.positionMillis + since
+            data.putLong("position", if (now.durationMillis > 0) minOf(position, now.durationMillis) else position)
             data.putBoolean("playing", now.playing)
             data.putBoolean("controls", now.controls)
             data.putInt("artId", nowPlayingArtId)
