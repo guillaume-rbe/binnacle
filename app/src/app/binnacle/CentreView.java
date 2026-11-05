@@ -117,6 +117,15 @@ public class CentreView extends View {
     private float travel;          // metres of road travelled, drives the dash phase
     private long lastFrameMs;
 
+    /** CarPlay covers the centre window (DashActivity): the scene isn't drawn or animated. */
+    private boolean covered;
+
+    void setCovered(boolean on) {
+        if (on == covered) return;
+        covered = on;
+        invalidate();
+    }
+
     public CentreView(Context c, DashApp app) {
         super(c);
         sensorArc.setStyle(Paint.Style.STROKE);
@@ -147,6 +156,15 @@ public class CentreView extends View {
         c.scale(s, s);
         float w = getWidth() / s, pad = 14;
         box.set(pad, pad, w - pad, Style.DESIGN_H - pad);
+        if (covered) {
+            // under CarPlay: only the frame round it, no scene and no animation (audit D9); the
+            // attention overlay sits above CarPlay and stays live
+            c.drawRoundRect(box, 16, 16, edge);
+            c.restore();
+            lastFrameMs = 0;
+            if (car.driverWarning != 0 || attentionUntil > SystemClock.uptimeMillis()) attentionOverlay.invalidate();
+            return;
+        }
 
         c.save();
         path.reset();
@@ -181,12 +199,23 @@ public class CentreView extends View {
      */
     private final java.text.NumberFormat odoFormat = java.text.NumberFormat.getIntegerInstance(java.util.Locale.UK);
 
+    private String odoString, odoLabel;
+    private long odoValue;
+
     /** Odometer as a quiet line, bottom right of the centre window (moved out of the right column). */
     private void drawOdometer(Canvas c) {
         if (car.odometer < 0) return;
         Style.size(odoText, Style.T_SMALL);              // a little bigger than the 16 px scale text (in-car feedback)
         odoText.setColor(Style.FG);
-        String odo = odoFormat.format(Units.odometer(app, car.odometer)) + " " + Units.distLabel(app);
+        // rebuilt only when the reading or its unit changes, not every frame (audit D9)
+        String label = Units.distLabel(app);
+        long value = Units.odometer(app, car.odometer);
+        if (odoString == null || value != odoValue || !label.equals(odoLabel)) {
+            odoValue = value;
+            odoLabel = label;
+            odoString = odoFormat.format(value) + " " + label;
+        }
+        String odo = odoString;
         float w = odoText.measureText(odo), x = box.right - 18, y = box.bottom - 12;
         r.set(x - w - 10, y + odoText.ascent() - 4, x + 10, y + odoText.descent() + 4);
         c.drawRoundRect(r, 10, 10, badgeBg);              // backing so it reads over the road, light theme too
@@ -556,6 +585,12 @@ public class CentreView extends View {
      * colours never jump. Stops end at RAINBOW_FAR, where they'd be under a pixel apart.
      */
     private Shader rainbowShader(float top, float rh) {
+        // the same road position and size give the same stops: keep the shader (parked, or a
+        // redraw without movement) instead of building a new one (audit D9)
+        if (rbShader != null && rbTravel == travel && rbTop == top && rbHeight == rh) return rbShader;
+        rbTravel = travel;
+        rbTop = top;
+        rbHeight = rh;
         int n = (int) ((RAINBOW_FAR - NEAR) / RAINBOW_STEP) + 1;
         if (rbColours == null || rbColours.length != n) { rbColours = new int[n]; rbPos = new float[n]; }
         float yFar = top + rh * NEAR / RAINBOW_FAR, yNear = top + rh;
@@ -574,8 +609,12 @@ public class CentreView extends View {
             rbColours[i] = (Color.HSVToColor(hsv) & 0x00ffffff) | (a << 24);
             rbPos[i] = (y - yFar) / (yNear - yFar);
         }
-        return new LinearGradient(0, yFar, 0, yNear, rbColours, rbPos, Shader.TileMode.CLAMP);
+        rbShader = new LinearGradient(0, yFar, 0, yNear, rbColours, rbPos, Shader.TileMode.CLAMP);
+        return rbShader;
     }
+
+    private Shader rbShader;
+    private float rbTravel, rbTop, rbHeight;
 
     /** Quad of the lane interior between screen fractions tFar and tNear, inset by `inset` of its width each side. */
     private void lanePath(float rx0, float rw, float top, float rh, float[] topX, float[] botX, float tFar, float tNear, float inset) {
@@ -604,21 +643,14 @@ public class CentreView extends View {
 
     /** One dash of a lane line between screen fractions t0 (far) and t1 (near). */
     private void laneQuad(Canvas c, float rx0, float rw, float top, float rh, float tx, float bx, float t0, float t1) {
+        // no arrays: this runs for every dash on every frame (audit D9)
+        float x0 = rx0 + rw * (tx + (bx - tx) * t0), half0 = rw * (0.003f + 0.0035f * t0), y0 = top + rh * t0;
+        float x1 = rx0 + rw * (tx + (bx - tx) * t1), half1 = rw * (0.003f + 0.0035f * t1), y1 = top + rh * t1;
         path.reset();
-        float[] ts = {t0, t1};
-        float[] xl = new float[2], xr = new float[2], y = new float[2];
-        for (int i = 0; i < 2; i++) {
-            float t = ts[i];
-            float x = rx0 + rw * (tx + (bx - tx) * t);
-            float half = rw * (0.003f + 0.0035f * t);
-            xl[i] = x - half;
-            xr[i] = x + half;
-            y[i] = top + rh * t;
-        }
-        path.moveTo(xl[0], y[0]);
-        path.lineTo(xr[0], y[0]);
-        path.lineTo(xr[1], y[1]);
-        path.lineTo(xl[1], y[1]);
+        path.moveTo(x0 - half0, y0);
+        path.lineTo(x0 + half0, y0);
+        path.lineTo(x1 + half1, y1);
+        path.lineTo(x1 - half1, y1);
         path.close();
         c.drawPath(path, lane);
     }

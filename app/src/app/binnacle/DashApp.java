@@ -59,15 +59,36 @@ public class DashApp extends Application implements Feed.Sink, SharedPreferences
     private static final java.util.Set<String> NOT_RESTORED = new java.util.HashSet<>(
             java.util.Arrays.asList("leftlight", "rightlight", "driverwarning"));
 
+    /** What saveLights last wrote, and when (wall clock). */
+    private final java.util.Map<String, Object> lightsSaved = new java.util.HashMap<>();
+    private long lightsSavedAt;
+    /** Unchanged lights are written again only this often, to keep "_at" well inside LIGHTS_MAX_AGE_MS. */
+    private static final long LIGHTS_REFRESH_MS = 5 * 60_000L;
+
+    /**
+     * Code 9 comes several times a second (every indicator blink): it is only written when a
+     * restored value changes, or now and then to keep its time fresh (audit D9, flash wear).
+     */
     private void saveLights(Bundle b) {
-        SharedPreferences.Editor e = getSharedPreferences(LIGHTS, MODE_PRIVATE).edit().clear();
+        java.util.Map<String, Object> next = new java.util.HashMap<>();
         for (String k : b.keySet()) {
             if (NOT_RESTORED.contains(k)) continue;
             Object v = b.get(k);
-            if (v instanceof Boolean) e.putBoolean(k, (Boolean) v);
-            else if (v instanceof Integer) e.putInt(k, (Integer) v);
+            if (v instanceof Boolean || v instanceof Integer) next.put(k, v);
         }
-        e.putLong("_at", System.currentTimeMillis()).apply();
+        long now = System.currentTimeMillis();
+        long age = now - lightsSavedAt;
+        if (next.equals(lightsSaved) && age >= 0 && age < LIGHTS_REFRESH_MS) return;
+        SharedPreferences.Editor e = getSharedPreferences(LIGHTS, MODE_PRIVATE).edit().clear();
+        for (java.util.Map.Entry<String, Object> en : next.entrySet()) {
+            Object v = en.getValue();
+            if (v instanceof Boolean) e.putBoolean(en.getKey(), (Boolean) v);
+            else e.putInt(en.getKey(), (Integer) v);
+        }
+        e.putLong("_at", now).apply();
+        lightsSaved.clear();
+        lightsSaved.putAll(next);
+        lightsSavedAt = now;
     }
 
     private void restoreLights() {
@@ -377,10 +398,12 @@ public class DashApp extends Application implements Feed.Sink, SharedPreferences
      */
     public CarArt art() {
         final int colour = carColour();
-        final String hand = artSet();
-        final int key = colour * 8 + java.util.Arrays.asList(CarPacks.HANDS).indexOf(hand);   // a colour, model or side change reloads
-        fetchModelYPack(colour, hand);
+        final int handIndex = (modelY() ? 2 : 0) + (leftHandDrive() ? 1 : 0);   // index into CarPacks.HANDS, as artSet()
+        final int key = colour * 8 + handIndex;   // a colour, model or side change reloads
+        // called several times per frame: the loaded set comes back without allocating (audit D9)
         if (art != null && artColour == key) return art;
+        final String hand = CarPacks.HANDS[handIndex];
+        fetchModelYPack(colour, hand);
         if (!artLoading) {
             artLoading = true;
             new Thread(new Runnable() {
@@ -541,7 +564,12 @@ public class DashApp extends Application implements Feed.Sink, SharedPreferences
         for (Listener l : listeners) l.onCarChanged(-1);
     }
 
+    /** Values the dash saves for itself while running: not settings, so no re-read and redraw (audit D9). */
+    private static final java.util.Set<String> RUNTIME_KEYS = new java.util.HashSet<>(java.util.Arrays.asList(
+            "last_soc", "last_soc_time", POWER_ESTIMATED, "theme_last_light"));
+
     @Override public void onSharedPreferenceChanged(SharedPreferences sp, String key) {
+        if (RUNTIME_KEYS.contains(key)) return;
         readDrawPrefs();
         if ("demo".equals(key)) startFeed();
         if ("text_size".equals(key)) applyTextSize();
