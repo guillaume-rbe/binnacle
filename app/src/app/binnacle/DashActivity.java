@@ -201,6 +201,7 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
     }
 
     private void showCarPlay(int mode) {
+        if (mode == CARPLAY_FULL && camera.isRunning()) mode = CARPLAY_CENTRE;   // no full screen under the camera
         if (mode == carplayMode) return;
         // centre <-> full: hide the iPhone's blur and snap while it redraws at the new size
         if (mode != CARPLAY_OFF && carplayMode != CARPLAY_OFF) carplay.coverForResize();
@@ -400,6 +401,9 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
     }
 
     private void startDashCamera() {
+        // the camera goes in the centre window: over full-screen CarPlay it was stretched to the
+        // screen's width with CarPlay showing below it (car, 5 Nov), so CarPlay steps back first
+        if (carplayMode == CARPLAY_FULL) showCarPlay(CARPLAY_CENTRE);
         camera.start(30);   // the camera's own rate (TVI 1080p30); FramePacer evens it out on the 56 Hz panel
     }
 
