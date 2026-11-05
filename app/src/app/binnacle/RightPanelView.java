@@ -25,6 +25,8 @@ public class RightPanelView extends View {
         void onDock(int index);
         /** The small network icon was tapped. */
         void onNetIcon();
+        /** A dock button held (~0.6 s): CarPlay's hides CarPlay and keeps it running. */
+        void onDockHold(int index);
     }
 
     static final int DOCK_PHONE = 0, DOCK_CAMERA = 1, DOCK_APPS = 2, DOCK_COUNT = 3;
@@ -703,12 +705,17 @@ public class RightPanelView extends View {
         switch (e.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
                 pressed = hit;
+                held = false;
+                removeCallbacks(dockHold);
+                if (hit >= 0) postDelayed(dockHold, HOLD_MS);
                 invalidate();
                 return hit >= 0;
             case MotionEvent.ACTION_MOVE:
-                if (hit != pressed) { pressed = -1; invalidate(); }
+                if (hit != pressed) { pressed = -1; removeCallbacks(dockHold); invalidate(); }
                 return true;
             case MotionEvent.ACTION_UP:
+                removeCallbacks(dockHold);
+                if (held) { held = false; pressed = -1; invalidate(); return true; }   // the hold already acted
                 if (hit >= 0 && hit == pressed && dockListener != null) {
                     playSoundEffect(android.view.SoundEffectConstants.CLICK);
                     dockListener.onDock(hit);
@@ -717,10 +724,24 @@ public class RightPanelView extends View {
                 invalidate();
                 return true;
             case MotionEvent.ACTION_CANCEL:
+                removeCallbacks(dockHold);
+                held = false;
                 pressed = -1;
                 invalidate();
                 return true;
         }
         return super.onTouchEvent(e);
     }
+
+    /** A dock button held: acts once while still held (owner, 5 Nov: hold CarPlay to hide it). */
+    private boolean held;
+    private final Runnable dockHold = new Runnable() {
+        @Override public void run() {
+            if (pressed < 0 || dockListener == null) return;
+            held = true;
+            performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS);
+            playSoundEffect(android.view.SoundEffectConstants.CLICK);
+            dockListener.onDockHold(pressed);
+        }
+    };
 }
