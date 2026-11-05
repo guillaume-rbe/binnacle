@@ -28,7 +28,9 @@
 >   keeps running
 > - Tells the head unit's CAN app about CarPlay phone calls (the broadcast the stock ZLink app
 >   sends, addressed to the CAN app only), so the car shows a phone call without the stock car
->   service locking other apps; sends "call off" on start in case a previous run quit mid-call
+>   service locking other apps; sends "call off" on start in case a previous run quit mid-call,
+>   and otherwise only after a "call on" it actually sent (a call routed to the car over this
+>   unit's Bluetooth never tells the CAN app either way)
 > - Call microphone for a dash-mounted mic: road-rumble high-pass, automatic gain, and a
 >   half-duplex echo suppressor driven by what is actually being played (applied after the gain
 >   stages so they can't lift the echo); its levels go to the session log

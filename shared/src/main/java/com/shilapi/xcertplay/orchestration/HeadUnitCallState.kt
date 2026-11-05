@@ -24,6 +24,11 @@ internal class HeadUnitCallState(
     // reinstalled mid-call leaves the head unit in CarPlay-call mode, which blocks every other app.
     private var callOn = true
 
+    // Whether the CAN app was last told ON. OFF goes to it only after an ON it was sent (and once at
+    // start, above): a call that went to the car over this unit's Bluetooth never told it ON, so it
+    // isn't told OFF either.
+    private var canAppOn = true
+
     init {
         set(false)
     }
@@ -41,15 +46,19 @@ internal class HeadUnitCallState(
     private fun set(on: Boolean) {
         if (on == callOn) return
         callOn = on
-        if (on && BluetoothCallRoute.start(appContext, log, ::carRouteFailed)) return
-        if (!on) BluetoothCallRoute.stop()
-        send(on)
+        if (on) {
+            if (BluetoothCallRoute.start(appContext, log, ::carRouteFailed)) return
+            send(true)
+        } else {
+            BluetoothCallRoute.stop()
+            if (canAppOn) send(false)
+        }
     }
 
     /** The car's audio link never came up or dropped: tell the CAN app after all. */
     @Synchronized
     private fun carRouteFailed() {
-        if (callOn) send(true)
+        if (callOn && !canAppOn) send(true)
     }
 
     private fun send(on: Boolean) {
@@ -64,6 +73,7 @@ internal class HeadUnitCallState(
                     .putExtra(EXTRA_PHONE_MODE, PHONE_MODE_WIRELESS)
                     .putExtra(EXTRA_STATUS, status),
             )
+            canAppOn = on
             log("head unit call state $status")
         } catch (error: RuntimeException) {
             log("head unit call state $status not sent: ${error.message}")
