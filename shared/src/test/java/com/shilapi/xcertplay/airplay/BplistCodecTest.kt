@@ -100,6 +100,72 @@ class BplistCodecTest {
     private fun streams(body: String): List<Map<*, *>> =
         ((BplistCodec.decode(hex(body)) as Map<*, *>)["streams"] as List<*>).map { it as Map<*, *> }
 
+    // Peer-supplied plists arrive before pairing: malformed ones must fail with an exception the
+    // request handler catches, never a StackOverflowError or OutOfMemoryError (audit 5 Nov, X3).
+
+    @Test fun refusesAnArrayThatContainsItself() {
+        val bytes = plist(listOf(byteArrayOf(0xa1.toByte(), 0x00)))
+        assertThrows(IllegalArgumentException::class.java) { BplistCodec.decode(bytes) }
+    }
+
+    @Test fun refusesAHugeObjectCount() {
+        val bytes = BplistCodec.encode(mapOf("a" to 1L))
+        writeLong(bytes, bytes.size - 32 + 8, Long.MAX_VALUE)
+        assertThrows(IllegalArgumentException::class.java) { BplistCodec.decode(bytes) }
+        writeLong(bytes, bytes.size - 32 + 8, 0x7fffffffL)
+        assertThrows(IllegalArgumentException::class.java) { BplistCodec.decode(bytes) }
+    }
+
+    @Test fun refusesACountPastTheEnd() {
+        // an ASCII string claiming 0xffff characters with only a few there
+        val bytes = plist(listOf(byteArrayOf(0x5f, 0x11, 0xff.toByte(), 0xff.toByte(), 0x41, 0x42)))
+        assertThrows(IllegalArgumentException::class.java) { BplistCodec.decode(bytes) }
+        // an array claiming far more references than there are bytes
+        val array = plist(listOf(byteArrayOf(0xaf.toByte(), 0x12, 0x7f, 0xff.toByte(), 0xff.toByte(), 0xff.toByte(), 0x00)))
+        assertThrows(IllegalArgumentException::class.java) { BplistCodec.decode(array) }
+    }
+
+    @Test fun refusesDeepNesting() {
+        // 40 arrays, each holding the next
+        val objects = (0 until 40).map { i ->
+            if (i < 39) byteArrayOf(0xa1.toByte(), (i + 1).toByte()) else byteArrayOf(0xa0.toByte())
+        }
+        assertThrows(IllegalArgumentException::class.java) { BplistCodec.decode(plist(objects)) }
+    }
+
+    @Test fun refusesAnExponentialExpansion() {
+        // 12 levels of arrays whose 15 items all point at the next level: 15^12 objects if expanded
+        val objects = (0 until 13).map { i ->
+            if (i < 12) byteArrayOf(0xaf.toByte()) + ByteArray(15) { (i + 1).toByte() } else byteArrayOf(0x08)
+        }
+        assertThrows(IllegalArgumentException::class.java) { BplistCodec.decode(plist(objects)) }
+    }
+
+    @Test fun refusesAReferenceOutsideTheTable() {
+        val bytes = plist(listOf(byteArrayOf(0xa1.toByte(), 0x05)))
+        assertThrows(IllegalArgumentException::class.java) { BplistCodec.decode(bytes) }
+    }
+
+    /** A bplist00 of [objects] (1-byte offsets and references), object 0 on top. */
+    private fun plist(objects: List<ByteArray>): ByteArray {
+        val body = java.io.ByteArrayOutputStream()
+        body.write("bplist00".toByteArray(Charsets.US_ASCII))
+        val offsets = objects.map { o -> body.size().also { body.write(o) } }
+        val table = body.size()
+        offsets.forEach { body.write(it) }
+        val trailer = ByteArray(32)
+        trailer[6] = 1
+        trailer[7] = 1
+        writeLong(trailer, 8, objects.size.toLong())
+        writeLong(trailer, 24, table.toLong())
+        body.write(trailer)
+        return body.toByteArray()
+    }
+
+    private fun writeLong(target: ByteArray, at: Int, value: Long) {
+        for (i in 0 until 8) target[at + i] = (value ushr (56 - 8 * i)).toByte()
+    }
+
     private fun hex(value: String) = ByteArray(value.length / 2) { value.substring(it * 2, it * 2 + 2).toInt(16).toByte() }
 
     private companion object {
