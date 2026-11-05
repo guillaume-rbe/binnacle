@@ -37,6 +37,7 @@ import com.shilapi.xcertplay.iap2.session.Iap2FileTransferReceiver
 import com.shilapi.xcertplay.iap2.session.Iap2Session
 import com.shilapi.xcertplay.iap2.wire.Iap2Frame
 import com.shilapi.xcertplay.media.CarPlayMediaSessionBridge
+import com.shilapi.xcertplay.iap2.message.Iap2Messages
 import com.shilapi.xcertplay.mfi.Iap2MfiAuthenticationClient
 import com.shilapi.xcertplay.mfi.LocalMfiAuthenticationClient
 import com.shilapi.xcertplay.mfi.MfiAuthenticationClient
@@ -195,6 +196,37 @@ class CarPlayController(
         override fun end(callUuid: String) = sendCallKey("end call", CarPlayTelephonyKeys.DROP)
         override fun sendDtmf(callUuid: String, tone: Char) {
             CarPlayTelephonyKeys.keypad(tone)?.let { sendCallKey("keypad '$tone'", it) }
+        }
+        override fun dial(number: String): Boolean = initiateCall(number)
+    }
+
+    /**
+     * A call dialled on the car (its keypad or recents, over Bluetooth hands-free): the iPhone places
+     * it (iAP2 InitiateCall, type destination, service telephony). Its call state then arrives as
+     * for any other call and is mirrored back to the car.
+     */
+    private fun initiateCall(number: String): Boolean {
+        if (closed || number.isBlank()) return false
+        val session = activeMediaRemoteSession ?: return false
+        if (session.isClosed) return false
+        val frame = Iap2Messages.buildRaw(INITIATE_CALL) {
+            u8(0, 0)                // type: destination
+            string(1, number)
+            u8(2, 1)                // service: telephony
+        }
+        return try {
+            touchExecutor.execute {
+                if (closed || session.isClosed) return@execute
+                try {
+                    session.send(frame, MEDIA_REMOTE_SEND_TIMEOUT_MILLIS)
+                    debugLog("carplay calls: asked the iPhone to call a number from the car")
+                } catch (error: Exception) {
+                    debugLog("Could not send iAP2 InitiateCall", error)
+                }
+            }
+            true
+        } catch (_: Exception) {
+            false
         }
     }
 
@@ -2087,6 +2119,7 @@ class CarPlayController(
     companion object {
         private const val NOW_PLAYING_UPDATE = 0x5001
         private const val MEDIA_REMOTE_SEND_TIMEOUT_MILLIS = 2_000L
+        private const val INITIATE_CALL = 0x415A
         private const val HID_REPORT_HOLD_MILLIS = 50L
         private const val IAP2_IPHONE_UUID = "00000000-deca-fade-deca-deafdecacafe"
         private const val HOTSPOT_START_TIMEOUT_MILLIS = 60_000L

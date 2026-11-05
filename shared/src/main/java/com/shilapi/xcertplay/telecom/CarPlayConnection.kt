@@ -13,7 +13,8 @@ import android.telecom.TelecomManager
 
 /** Telecom's view of one CarPlay call; the call itself runs on the iPhone. */
 internal class CarPlayConnection(
-    val callUuid: String,
+    /** The iPhone's call id; a call dialled on the car gets it once the iPhone reports the call. */
+    var callUuid: String,
     private val control: () -> CarPlayTelecom.CallControl?,
 ) : Connection() {
     private var ended = false
@@ -82,6 +83,7 @@ internal class CarPlayConnection(
             setDisconnected(DisconnectCause(DisconnectCause.LOCAL))
             destroy()
             CarPlayTelecom.forget(this)
+            CarPlayTelecom.forgetPending(this)
         }, END_WAIT_MILLIS)
     }
 
@@ -96,10 +98,15 @@ class CarPlayConnectionService : ConnectionService() {
     override fun onCreateIncomingConnection(
         connectionManagerPhoneAccount: PhoneAccountHandle?,
         request: ConnectionRequest,
-    ): Connection = CarPlayTelecom.createConnection(request.extras?.getString(CarPlayTelecom.EXTRA_CALL_UUID))
+    ): Connection = CarPlayTelecom.createConnection(request.extras?.getString(CarPlayTelecom.EXTRA_CALL_UUID), outgoing = false)
 
     override fun onCreateOutgoingConnection(
         connectionManagerPhoneAccount: PhoneAccountHandle?,
         request: ConnectionRequest,
-    ): Connection = CarPlayTelecom.createConnection(request.extras?.getString(CarPlayTelecom.EXTRA_CALL_UUID))
+    ): Connection = CarPlayTelecom.createConnection(
+        request.extras?.getString(CarPlayTelecom.EXTRA_CALL_UUID),
+        outgoing = true,
+        // a call dialled on the car (no CarPlay call behind it yet) carries only the number
+        dialledNumber = request.address?.takeIf { it.scheme == PhoneAccount.SCHEME_TEL }?.schemeSpecificPart,
+    )
 }

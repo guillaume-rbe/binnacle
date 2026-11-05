@@ -29,6 +29,8 @@ internal object CarPlayTelecom {
         fun accept(callUuid: String)
         fun end(callUuid: String)
         fun sendDtmf(callUuid: String, tone: Char)
+        /** Ask the iPhone to call [number] (dialled on the car); false if there is no link. */
+        fun dial(number: String): Boolean
     }
 
     const val ACCOUNT_ID = "carplay"
@@ -45,6 +47,11 @@ internal object CarPlayTelecom {
     private val requested = HashSet<String>()
     /** Calls Telecom couldn't take; their audio falls back to the plain link. */
     private val refused = HashSet<String>()
+    /** A call dialled on the car, waiting for the iPhone's first call state to adopt it. */
+    private var pendingDial: CarPlayConnection? = null
+    private const val PENDING_KEY = "car-dialled"
+    private const val DIAL_WAIT_MILLIS = 15_000L
+    private val dialTimeout = Runnable { dialTimedOut() }
 
     @Synchronized
     fun attach(context: Context, control: CallControl, log: (String) -> Unit) {
@@ -71,6 +78,9 @@ internal object CarPlayTelecom {
     /** The session ended: no call can still be running. */
     @Synchronized
     fun endAll() {
+        pendingDial?.endFromPhone()
+        pendingDial = null
+        handler.removeCallbacks(dialTimeout)
         connections.values.toList().forEach { it.endFromPhone() }
         connections.clear()
         calls.clear()
@@ -111,6 +121,18 @@ internal object CarPlayTelecom {
         calls[state.callUuid] = state
         connections[state.callUuid]?.let {
             it.update(state)
+            return
+        }
+        // the iPhone's first state of a call dialled on the car: that call already has its connection
+        val dialled = pendingDial
+        if (dialled != null && state.direction == CarPlayCallState.DIRECTION_OUTGOING && state.callUuid !in requested) {
+            pendingDial = null
+            handler.removeCallbacks(dialTimeout)
+            dialled.callUuid = state.callUuid
+            connections[state.callUuid] = dialled
+            requested += state.callUuid
+            dialled.update(if (state.remoteId.isEmpty()) state.copy(status = CarPlayCallState.STATUS_CONNECTING) else state)
+            log("carplay calls: car-dialled call placed by the iPhone")
             return
         }
         if (state.callUuid in requested || state.callUuid in refused || !enabled()) return
@@ -160,14 +182,19 @@ internal object CarPlayTelecom {
 
     /** Telecom asked for the connection of a call we added. */
     @Synchronized
-    internal fun createConnection(callUuid: String?): Connection {
-        // Extras should carry the call UUID; only without one, take the single call waiting. A
-        // UUID that is gone ended before Telecom asked.
+    internal fun createConnection(callUuid: String?, outgoing: Boolean, dialledNumber: String? = null): Connection {
+        // Extras should carry the call UUID; only without one, take the single call of that
+        // direction we asked Telecom for and that has no connection yet. Any other UUID-less
+        // outgoing request was dialled on the car. A UUID that is gone ended before Telecom asked.
         val state = if (callUuid != null) {
             calls[callUuid]
         } else {
-            calls.values.singleOrNull { it.callUuid !in connections }
+            calls.values.singleOrNull {
+                it.callUuid !in connections && it.callUuid in requested &&
+                    (it.direction == CarPlayCallState.DIRECTION_OUTGOING) == outgoing
+            }
         }
+        if (state == null && callUuid == null && !dialledNumber.isNullOrBlank()) return dialFromCar(dialledNumber)
         if (state == null) {
             log("carplay calls: call $callUuid already ended")
             return Connection.createFailedConnection(DisconnectCause(DisconnectCause.REMOTE))
@@ -180,6 +207,37 @@ internal object CarPlayTelecom {
             it.update(if (outgoing) state.copy(status = CarPlayCallState.STATUS_CONNECTING) else state)
             connections[state.callUuid] = it
             if (outgoing) handler.postDelayed({ refresh(state.callUuid) }, STATE_SETTLE_MILLIS)
+        }
+    }
+
+    /** A number dialled on the car (Telecom's outgoing call for our account): the iPhone places it. */
+    private fun dialFromCar(number: String): Connection {
+        if (pendingDial != null || control?.dial(number) != true) {
+            log("carplay calls: car-dialled call refused (no CarPlay link, or one already dialling)")
+            return Connection.createFailedConnection(DisconnectCause(DisconnectCause.ERROR))
+        }
+        return CarPlayConnection(PENDING_KEY, ::controlFor).also {
+            it.setAddress(Uri.fromParts(PhoneAccount.SCHEME_TEL, number, null), TelecomManager.PRESENTATION_ALLOWED)
+            it.setDialing()
+            pendingDial = it
+            handler.postDelayed(dialTimeout, DIAL_WAIT_MILLIS)
+            log("carplay calls: call dialled on the car, asking the iPhone")
+        }
+    }
+
+    @Synchronized
+    private fun dialTimedOut() {
+        val dialled = pendingDial ?: return
+        pendingDial = null
+        log("carplay calls: the iPhone didn't place the car-dialled call")
+        dialled.endFromPhone()
+    }
+
+    @Synchronized
+    internal fun forgetPending(connection: CarPlayConnection) {
+        if (pendingDial === connection) {
+            pendingDial = null
+            handler.removeCallbacks(dialTimeout)
         }
     }
 
