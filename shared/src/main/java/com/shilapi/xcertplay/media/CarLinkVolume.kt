@@ -20,20 +20,19 @@ internal object CarLinkVolume {
         val audio = app.getSystemService(AudioManager::class.java) ?: return
         if (!musicGoesToBluetooth(audio)) return
         // the stock CAN app also mutes music (ADJUST_MUTE) when the car sleeps; a level set while
-        // muted stays silent (drive 5 Nov)
-        val muted = audio.isStreamMute(AudioManager.STREAM_MUSIC)
-        if (!muted && audio.getStreamVolume(AudioManager.STREAM_MUSIC) > 0) return
-        val max = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
-        val restored = if (audio.getStreamVolume(AudioManager.STREAM_MUSIC) > 0) audio.getStreamVolume(AudioManager.STREAM_MUSIC) else max
+        // muted stays silent (drive 5 Nov). Unmute first: a muted stream reads as 0, so the level
+        // it keeps is only known once it is unmuted.
         try {
-            if (muted) {
+            if (audio.isStreamMute(AudioManager.STREAM_MUSIC)) {
                 audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_UNMUTE, 0)
                 log("car link music was muted; unmuted")
             }
-            audio.setStreamVolume(AudioManager.STREAM_MUSIC, restored, 0)
-            log("car link music volume was 0; restored to $restored/$max")
+            if (audio.getStreamVolume(AudioManager.STREAM_MUSIC) > 0) return
+            val max = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+            audio.setStreamVolume(AudioManager.STREAM_MUSIC, max, 0)
+            log("car link music volume was 0; restored to $max/$max")
         } catch (error: SecurityException) {
-            log("car link music volume was 0; could not restore: ${error.message}")
+            log("car link music volume: could not restore: ${error.message}")
         }
     }
 
