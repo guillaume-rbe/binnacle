@@ -108,6 +108,10 @@ internal object CarPlayTelecom {
     @Synchronized
     fun ownsCallAudio(): Boolean = calls.keys.any { it !in refused } && enabled()
 
+    /** True while the phone reports any call, mirrored into Telecom or not. */
+    @Synchronized
+    fun phoneHasCall(): Boolean = calls.isNotEmpty() && enabled()
+
     @Synchronized
     fun onCallState(state: CarPlayCallState) {
         val context = appContext ?: return
