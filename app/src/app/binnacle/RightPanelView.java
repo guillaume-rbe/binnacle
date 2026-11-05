@@ -601,8 +601,8 @@ public class RightPanelView extends View {
 
     // Now playing page layout (design px): a big cover, then title and artist (owner, 5 Nov: no
     // progress bar or buttons, the cover gets the room)
-    private static final float ART = 206, ART_TOP = CARD_TOP + 18, NP_TITLE_Y = CARD_TOP + 256,
-            NP_ARTIST_Y = CARD_TOP + 282;
+    private static final float ART = 224, ART_TOP = CARD_TOP + 16, NP_TITLE_Y = CARD_TOP + 270,
+            NP_ARTIST_Y = CARD_TOP + 296;
     private final Paint npTitle = Style.text(Style.BODY_BOLD, 21, Style.FG, Paint.Align.CENTER);
     private final Paint npArtist = Style.text(Style.BODY, 17, Style.MUTED, Paint.Align.CENTER);
     private final Paint npArtBg = Style.fill(Style.PANEL2), npNote = Style.stroke(Style.DIM, 5);
