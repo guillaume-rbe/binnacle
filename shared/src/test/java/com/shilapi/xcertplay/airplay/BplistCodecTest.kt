@@ -136,9 +136,11 @@ class BplistCodecTest {
     @Test fun refusesAnExponentialExpansion() {
         // 12 levels of arrays whose 15 items all point at the next level: 15^12 objects if expanded
         val objects = (0 until 13).map { i ->
-            if (i < 12) byteArrayOf(0xaf.toByte()) + ByteArray(15) { (i + 1).toByte() } else byteArrayOf(0x08)
+            // 0xaf: array with its count in a following integer (0x10 0x0f = 15), then the references
+            if (i < 12) byteArrayOf(0xaf.toByte(), 0x10, 0x0f) + ByteArray(15) { (i + 1).toByte() } else byteArrayOf(0x08)
         }
-        assertThrows(IllegalArgumentException::class.java) { BplistCodec.decode(plist(objects)) }
+        val e = assertThrows(IllegalArgumentException::class.java) { BplistCodec.decode(plist(objects)) }
+        assertEquals("bplist: too many objects", e.message)
     }
 
     @Test fun refusesAReferenceOutsideTheTable() {
