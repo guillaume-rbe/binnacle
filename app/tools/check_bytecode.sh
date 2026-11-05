@@ -177,9 +177,10 @@ only '^java/net/(Socket|InetSocketAddress|InetAddress)(\.|$)' 'app/binnacle/Loca
 only '^java/net/(URL|URLConnection|HttpURLConnection)|^javax/net/' 'app/binnacle/(CarPacks|Updater)'
 never '^java/net/(HttpURLConnection|URLConnection)\.(setRequestMethod|setDoOutput|getOutputStream)$'
 
-# 4b. Installing apps: only Updater, one session, locked to this app's own package (Android then
-#     needs the same signing key and the user's tap). Its only web addresses are the latest
-#     release's two fixed files (javac folds RELEASE_BASE + name into one constant).
+# 4b. Installing apps: only Updater, one session, locked by target() to this app's own package or
+#     the CarPlay app's fixed one (Android then needs the installed copy's signing key and the
+#     user's tap). Its only web addresses are the latest release's three fixed files (javac folds
+#     RELEASE_BASE + name into one constant).
 only '^android/content/pm/PackageInstaller' 'app/binnacle/Updater'
 only '^android/content/pm/PackageManager\.(getPackageInstaller|canRequestPackageInstalls)$' 'app/binnacle/Updater'
 never '^android/content/pm/PackageInstaller\.(uninstall|setPermissionsResult)$|^android/content/pm/PackageInstaller\$SessionParams\.(setInstallerPackageName|setGrantedRuntimePermissions|setWhitelistedRestrictedPermissions|setInstallReason)$'
@@ -187,10 +188,14 @@ never '^android/content/pm/PackageInstaller\.(uninstall|setPermissionsResult)$|^
 [ "$(refs '^android/content/pm/PackageInstaller\.createSession$' | wc -l | tr -d ' ')" = 1 ] || bad "exactly one install session allowed (Updater)"
 printf '%s\n' "$TABLE" | awk -F'\t' '$1 == "app/binnacle/Updater" && $2 == "install"' \
     | awk -F'\t' '{ op[NR] = $3; r[NR] = $4 } END { for (i = 1; i <= NR; i++) if (r[i] ~ /SessionParams\.setAppPackageName$/) { print r[i-1]; exit } }' \
-    | grep -qx 'android/content/Context.getPackageName' || bad "Updater must lock its install session to getPackageName()"
+    | grep -qx 'app/binnacle/Updater.target' || bad "Updater must lock its install session to target()"
+# target(): getPackageName() or the CarPlay app's name, nothing else (no other call, field or text)
+t=$(printf '%s\n' "$TABLE" | awk -F'\t' '$1 == "app/binnacle/Updater" && $2 == "target" && $4 != "" { print $4 }' | sort -u | tr '\n' ' ')
+[ "$t" = "String:com.shilapi.xcertplay android/content/Context.getPackageName " ] || bad "Updater's target() changed: $t"
 got=$(refs '^String:.*(://|\.apk|\.txt)' | awk -F'\t' '$1 ~ /^app\/binnacle\/Updater(\$|$)/ { print $4 }' | sort -u)
 expected=$(sort -u <<'EOF'
 String:Binnacle.apk
+String:BinnacleCarPlay.apk
 String:base.apk
 String:binnacle-update.txt
 String:https://github.com/lotech/binnacle/releases/latest/download/

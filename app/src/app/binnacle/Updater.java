@@ -22,22 +22,27 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
 /**
- * Updates Binnacle from this project's latest GitHub release, on the owner's tap only (Advanced →
- * Updates), never in the background.
+ * Updates Binnacle, and Binnacle's CarPlay app when it is installed, from this project's latest
+ * GitHub release, on the owner's tap only (Advanced → Updates), never in the background.
  *
  * Fixed source: RELEASE_BASE + INFO (a few key=value lines: versionCode, versionName, size,
- * sha256) and RELEASE_BASE + APK (the signed APK). The guards pin both names, HTTPS only, download
- * only (GET). The APK is streamed straight into an Android PackageInstaller session (nothing is
- * written to the app's own storage), its size and SHA-256 must match the info file, and the
- * session is locked to this app's own package name, so it can only ever update Binnacle itself.
- * Android then checks the APK is signed with the same key as the installed copy and refuses a
- * lower version, and shows its own "install update?" screen: nothing installs without that tap.
- * Nothing here touches the car.
+ * sha256, and the same for the CarPlay app as carplayVersionCode, ...), RELEASE_BASE + APK (the
+ * signed dash) and RELEASE_BASE + CARPLAY_APK (the signed CarPlay app). The guards pin the three
+ * names, HTTPS only, download only (GET). The APK is streamed straight into an Android
+ * PackageInstaller session (nothing is written to the app's own storage), its size and SHA-256
+ * must match the info file, and the session is locked to one of two package names (target():
+ * this app's own, or CARPLAY_PACKAGE), so it can only ever update Binnacle or its CarPlay app. The
+ * CarPlay app is only updated when it is already installed, so Android checks the APK is signed
+ * with the same key as the installed copy in both cases, refuses a lower version, and shows its
+ * own "install update?" screen: nothing installs without that tap. Nothing here touches the car.
  */
 final class Updater {
     static final String RELEASE_BASE = "https://github.com/lotech/binnacle/releases/latest/download/";
     static final String INFO = "binnacle-update.txt";
     static final String APK = "Binnacle.apk";
+    static final String CARPLAY_APK = "BinnacleCarPlay.apk";
+    /** Binnacle's CarPlay app (carplay/ in this repo), released next to the dash. */
+    static final String CARPLAY_PACKAGE = "com.shilapi.xcertplay";
     private static final int MAX_INFO_BYTES = 4096;
     private static final long MAX_APK_BYTES = 256L * 1024 * 1024;
     private static final int TIMEOUT_MS = 20_000;
@@ -49,8 +54,11 @@ final class Updater {
         final String versionName;
         final long size;
         final String sha256;
-        Release(int versionCode, String versionName, long size, String sha256) {
+        /** The CarPlay app in the same release, or null (releases before 0.9 have none). */
+        final Release carplay;
+        Release(int versionCode, String versionName, long size, String sha256, Release carplay) {
             this.versionCode = versionCode; this.versionName = versionName; this.size = size; this.sha256 = sha256;
+            this.carplay = carplay;
         }
     }
 
@@ -71,11 +79,21 @@ final class Updater {
 
     /** The installed version code (0 if Android can't say). */
     static int installedCode(Context c) {
+        return installedCode(c, false);
+    }
+
+    /** The installed version code of Binnacle or its CarPlay app (0 if it isn't installed). */
+    static int installedCode(Context c, boolean carplay) {
         try {
-            return c.getPackageManager().getPackageInfo(c.getPackageName(), 0).versionCode;
+            return c.getPackageManager().getPackageInfo(target(c, carplay), 0).versionCode;
         } catch (PackageManager.NameNotFoundException e) {
             return 0;
         }
+    }
+
+    /** The only two packages an install session may be locked to (the guards pin this). */
+    private static String target(Context c, boolean carplay) {
+        return carplay ? CARPLAY_PACKAGE : c.getPackageName();
     }
 
     /** True if Android lets this app ask to install (Android 8+: "Install unknown apps" for Binnacle). */
@@ -102,50 +120,65 @@ final class Updater {
         }
     }
 
-    /** Reads the info file: key=value lines; every field must be there and well formed. */
+    /**
+     * Reads the info file: key=value lines; every dash field must be there and well formed. The
+     * CarPlay app's fields (the same names with a "carplay" prefix) are optional, but all or none.
+     */
     static Release parse(String text) throws IOException {
-        int code = -1;
-        String name = null, sha = null;
-        long size = -1;
+        java.util.Map<String, String> f = new java.util.HashMap<>();
         for (String line : text.split("\n")) {
             line = line.trim();
             int eq = line.indexOf('=');
             if (line.isEmpty() || line.startsWith("#") || eq < 1) continue;
-            String k = line.substring(0, eq).trim(), v = line.substring(eq + 1).trim();
-            try {
-                if (k.equals("versionCode")) code = Integer.parseInt(v);
-                else if (k.equals("versionName")) name = v;
-                else if (k.equals("size")) size = Long.parseLong(v);
-                else if (k.equals("sha256")) sha = v.toLowerCase(java.util.Locale.ROOT);
-            } catch (NumberFormatException e) {
-                throw new IOException("bad update info");
-            }
+            f.put(line.substring(0, eq).trim(), line.substring(eq + 1).trim());
         }
-        if (code < 1 || name == null || !name.matches("[0-9A-Za-z.\\-]{1,24}")
-                || size < 1 || size > MAX_APK_BYTES || sha == null || !sha.matches("[0-9a-f]{64}")) {
+        Release carplay = null;
+        if (f.containsKey("carplayVersionCode") || f.containsKey("carplayVersionName")
+                || f.containsKey("carplaySize") || f.containsKey("carplaySha256")) {
+            carplay = part(f.get("carplayVersionCode"), f.get("carplayVersionName"), f.get("carplaySize"), f.get("carplaySha256"), null);
+        }
+        return part(f.get("versionCode"), f.get("versionName"), f.get("size"), f.get("sha256"), carplay);
+    }
+
+    private static Release part(String code, String name, String size, String sha, Release carplay) throws IOException {
+        int c;
+        long n;
+        try {
+            c = code == null ? -1 : Integer.parseInt(code);
+            n = size == null ? -1 : Long.parseLong(size);
+        } catch (NumberFormatException e) {
             throw new IOException("bad update info");
         }
-        return new Release(code, name, size, sha);
+        if (sha != null) sha = sha.toLowerCase(java.util.Locale.ROOT);
+        if (c < 1 || name == null || !name.matches("[0-9A-Za-z.\\-]{1,24}")
+                || n < 1 || n > MAX_APK_BYTES || sha == null || !sha.matches("[0-9a-f]{64}")) {
+            throw new IOException("bad update info");
+        }
+        return new Release(c, name, n, sha, carplay);
     }
 
     /**
-     * Blocking: downloads the release's APK into an install session, then commits it (in Park
-     * only; see Status.ready). Android then shows its confirm screen, which Status opens. Call off
-     * the main thread.
+     * Blocking: downloads the release's dash APK, or with carplay its CarPlay app (only when that
+     * is installed), into an install session, then commits it (in Park only; see Status.ready).
+     * Android then shows its confirm screen, which Status opens. Call off the main thread.
      */
-    static void install(Context c, Release r, Progress progress) throws IOException {
-        if (r.versionCode <= installedCode(c)) throw new IOException("already up to date");
+    static void install(Context c, Release r, boolean carplay, Progress progress) throws IOException {
+        Release part = carplay ? r.carplay : r;
+        if (part == null) throw new IOException("this release has no CarPlay app");
+        int installed = installedCode(c, carplay);
+        if (carplay && installed == 0) throw new IOException("the CarPlay app isn't installed");
+        if (part.versionCode <= installed) throw new IOException("already up to date");
         if (!begin()) throw new IOException("already updating");
         try {
             PackageInstaller pi = c.getPackageManager().getPackageInstaller();
             PackageInstaller.SessionParams params = new PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL);
-            params.setAppPackageName(c.getPackageName());
-            params.setSize(r.size);
+            params.setAppPackageName(target(c, carplay));
+            params.setSize(part.size);
             int id = pi.createSession(params);
             PackageInstaller.Session session = pi.openSession(id);
             boolean written = false;
             try {
-                stream(session, r, progress);
+                stream(session, part, carplay ? CARPLAY_APK : APK, progress);
                 written = true;
             } finally {
                 if (!written) session.abandon();   // never leave a half-written session behind
@@ -174,14 +207,14 @@ final class Updater {
         }
     }
 
-    private static void stream(PackageInstaller.Session session, Release r, Progress progress) throws IOException {
+    private static void stream(PackageInstaller.Session session, Release r, String file, Progress progress) throws IOException {
         MessageDigest sha;
         try {
             sha = MessageDigest.getInstance("SHA-256");
         } catch (NoSuchAlgorithmException e) {
             throw new IOException("no SHA-256");
         }
-        HttpURLConnection http = open(APK);
+        HttpURLConnection http = open(file);
         long total = 0;
         // DigestInputStream hashes what it reads, so the digest needs no call of its own here
         try (InputStream in = new DigestInputStream(new BufferedInputStream(http.getInputStream()), sha);
@@ -202,9 +235,9 @@ final class Updater {
         if (!hex(sha.digest()).equals(r.sha256)) throw new IOException("download damaged (checksum)");
     }
 
-    /** GET one of the release's two fixed files, over HTTPS. */
+    /** GET one of the release's three fixed files, over HTTPS. */
     private static HttpURLConnection open(String file) throws IOException {
-        if (!INFO.equals(file) && !APK.equals(file)) throw new IOException("not an update file");
+        if (!INFO.equals(file) && !APK.equals(file) && !CARPLAY_APK.equals(file)) throw new IOException("not an update file");
         HttpURLConnection http = (HttpURLConnection) new URL(RELEASE_BASE + file).openConnection();
         http.setConnectTimeout(TIMEOUT_MS);
         http.setReadTimeout(TIMEOUT_MS);
@@ -281,7 +314,13 @@ final class Updater {
                 open(c, confirm);
                 return;
             }
-            if (status == PackageInstaller.STATUS_SUCCESS) return;
+            if (status == PackageInstaller.STATUS_SUCCESS) {
+                // a dash update restarts the dash, so only the CarPlay app's success is seen here
+                if (CARPLAY_PACKAGE.equals(intent.getStringExtra(PackageInstaller.EXTRA_PACKAGE_NAME))) {
+                    Toast.makeText(c, "CarPlay app updated", Toast.LENGTH_LONG).show();
+                }
+                return;
+            }
             Toast.makeText(c, reason(status, intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE)), Toast.LENGTH_LONG).show();
         }
 
@@ -341,7 +380,7 @@ final class Updater {
             case PackageInstaller.STATUS_FAILURE_ABORTED: return "Update cancelled";
             case PackageInstaller.STATUS_FAILURE_CONFLICT:
             case PackageInstaller.STATUS_FAILURE_INCOMPATIBLE:
-                return "Update refused: it isn't signed with the same key as this copy of Binnacle";
+                return "Update refused: it isn't signed with the same key as the installed copy";
             case PackageInstaller.STATUS_FAILURE_STORAGE: return "Update failed: not enough space on the unit";
             case PackageInstaller.STATUS_FAILURE_BLOCKED: return "Update blocked by Android";
             default: return "Update failed" + (message != null ? ": " + message : "");
