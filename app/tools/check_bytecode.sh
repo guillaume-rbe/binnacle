@@ -224,6 +224,8 @@ String:END_CARPLAY
 String:WIFI_REJOIN
 String:WIFI_SCANS_OFF
 String:WIFI_SCANS_ON
+String:XCERTPLAY_LOCATION
+String:appops set --uid com.shilapi.xcertplay COARSE_LOCATION allow && echo BINNACLE_OK
 String:service call wifi 58 i32 0 && echo BINNACLE_OK
 String:service call wifi 58 i32 1 && echo BINNACLE_OK
 String:service call wifi 58 i32 1 && svc wifi enable && echo BINNACLE_OK
