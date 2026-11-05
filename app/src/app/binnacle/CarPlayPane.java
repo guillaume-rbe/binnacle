@@ -259,7 +259,10 @@ final class CarPlayPane extends FrameLayout implements SurfaceHolder.Callback {
             postDelayed(uncover, AFTER_ATTACH_MS);
         }
         attached = true;
-        link.start();       // no-op when CarPlay is already running
+        // no-op when CarPlay is already running. Not after xcertplay gave up retrying: each new
+        // state relays out the video view, and starting from here made that a reconnect loop
+        // (car, 5 Nov: "Manual reconnect" every few seconds); the status tap retries instead.
+        if (link.state() != CarPlayLink.STATE_FAILED) link.start();
     }
 
     /** Before the link goes (activity destroyed): xcertplay lets go of the surface now. */
