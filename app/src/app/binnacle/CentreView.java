@@ -83,12 +83,13 @@ public class CentreView extends View {
 
     private final RectF carRect = new RectF();
     // Autopilot look
-    private static final float AP_FADE_S = 0.4f;
-    private static final int AP_LINE = 0xff7fd4ff;
+    static final float AP_FADE_S = 0.4f;   // also the left panel's Autopilot cue
+    static final int AP_LINE = 0xff7fd4ff;
     private final Paint apPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     /** Autopilot lane blue: deeper than the UI accent so it holds its own next to the rainbow. */
-    private static final int AP_BLUE = 0xff1f86ff;
-    private static final float RAINBOW_FAR = 45f, RAINBOW_STEP = 0.75f, RAINBOW_MIN_CYCLE_PX = 16f, RAINBOW_SAT = 0.75f;
+    static final int AP_BLUE = 0xff1f86ff;
+    private static final float RAINBOW_FAR = 45f, RAINBOW_STEP = 0.75f, RAINBOW_MIN_CYCLE_PX = 16f;
+    static final float RAINBOW_SAT = 0.75f;
     /** Soft lane edges: FEATHER nested passes, the innermost inset EDGE of the lane width each side. */
     private static final int FEATHER = 12;
     private static final float EDGE = 0.10f;

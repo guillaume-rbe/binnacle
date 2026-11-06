@@ -2,11 +2,13 @@ package app.binnacle;
 
 import android.content.Context;
 import android.graphics.Canvas;
+import android.graphics.Color;
 import android.graphics.LinearGradient;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.RectF;
 import android.graphics.Shader;
+import android.os.SystemClock;
 import android.view.View;
 
 /**
@@ -77,6 +79,9 @@ public class LeftPanelView extends View {
         float w = getWidth() / s, cx = w / 2f;
         c.drawRect(w - 1, 0, w, Style.DESIGN_H, line);
 
+        cue = approachCue(centreCovered && car.autopilot ? 1 : 0);
+        if (cue > 0) drawAutopilotCue(c, cx, w);   // under the sign and the power bar
+
         drawStatusRow(c, cx, 84);
 
         // speed group, vertically centred between the status row and the power bar
@@ -95,6 +100,82 @@ public class LeftPanelView extends View {
 
         drawPower(c, w);
         c.restore();
+    }
+
+    /**
+     * CarPlay (centre window) or the camera covers the centre screen, and with it the Autopilot lane
+     * (DashActivity). Full-screen CarPlay hides this panel as well.
+     */
+    private boolean centreCovered;
+
+    void setCentreCovered(boolean on) {
+        if (on == centreCovered) return;
+        centreCovered = on;
+        invalidate();
+    }
+
+    /**
+     * Autopilot cue while the centre is covered (in-car feedback, 6 Nov: on CarPlay or the camera
+     * there was no sign of Autopilot but the small wheel icon): a soft glow in the shape of the
+     * centre's Autopilot lane, from just below the gears down to the bottom of the screen behind the
+     * power bar, clear of the speed (the owner, 6 Nov). Blue, or the rainbow with Rainbow road on. No
+     * hard edges: it fades in from the top and out to nothing at the sides. It fades in and out like
+     * the centre's and then holds still (no pulse or flow), so it never pulls the eye while driving.
+     */
+    private static final float CUE_TOP = 412, CUE_TOP_W = 70;
+    /** Nested passes, each narrower toward the middle: they add up to a soft fade at the sides. */
+    private static final int CUE_FEATHER = 20;
+    private static final float CUE_EDGE = 0.48f;
+    private final Paint cueFill = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private Shader cueBlue, cueRainbow;
+    private float cue;
+    private long cueLastMs;
+
+    /** Fade the cue in and out over CentreView.AP_FADE_S, as the centre's Autopilot look does. */
+    private float approachCue(float goal) {
+        long now = SystemClock.uptimeMillis();
+        float dt = cueLastMs == 0 ? 0 : Math.min(0.1f, (now - cueLastMs) / 1000f);
+        cueLastMs = cue == goal ? 0 : now;
+        float step = dt / CentreView.AP_FADE_S;
+        float out = cue < goal ? Math.min(goal, cue + step) : Math.max(goal, cue - step);
+        if (out != goal) postInvalidateOnAnimation();
+        return out;
+    }
+
+    private void drawAutopilotCue(Canvas c, float cx, float w) {
+        float bottom = Style.DESIGN_H;
+        boolean rainbow = DashApp.get(getContext()).rainbowRoad();
+        if (rainbow && cueRainbow == null) {
+            int n = 11;
+            int[] cols = new int[n];
+            float[] pos = new float[n];
+            float[] hsv = {0, CentreView.RAINBOW_SAT, 1f};
+            for (int i = 0; i < n; i++) {
+                float t = i / (n - 1f);
+                hsv[0] = t * 330f;
+                int a = Math.round(255 * (0.05f + 0.6f * t));
+                cols[i] = (Color.HSVToColor(hsv) & 0x00ffffff) | (a << 24);
+                pos[i] = t;
+            }
+            cueRainbow = new LinearGradient(0, CUE_TOP, 0, bottom, cols, pos, Shader.TileMode.CLAMP);
+        }
+        if (!rainbow && cueBlue == null) {
+            int clear = CentreView.AP_BLUE & 0x00ffffff, a = Style.light ? 0x73 : 0x99;   // light needs less
+            cueBlue = new LinearGradient(0, CUE_TOP, 0, bottom, clear, clear | (a << 24), Shader.TileMode.CLAMP);
+        }
+        cueFill.setShader(rainbow ? cueRainbow : cueBlue);
+        cueFill.setAlpha(Math.round(255 * (1f - (float) Math.pow(1f - 0.9f * cue, 1.0 / CUE_FEATHER))));
+        for (int i = 0; i < CUE_FEATHER; i++) {
+            float k = 1f - 2f * CUE_EDGE * i / (CUE_FEATHER - 1);
+            float tw = CUE_TOP_W * k / 2f, bw = w * k / 2f;
+            path.reset();
+            path.moveTo(cx - tw, CUE_TOP);
+            path.lineTo(cx + tw, CUE_TOP);
+            path.lineTo(cx + bw, bottom);
+            path.lineTo(cx - bw, bottom);
+            path.close();
+            c.drawPath(path, cueFill);
+        }
     }
 
     /** Telltales that only show while on, in priority order (warnings first). */
