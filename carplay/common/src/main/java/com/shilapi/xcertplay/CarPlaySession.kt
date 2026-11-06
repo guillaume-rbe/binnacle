@@ -238,11 +238,25 @@ internal object CarPlaySession {
         if (areas.areas.size < 2 || active.isClosed() || suspended || resetInProgress || shuttingDown) return
         val current = active.viewAreaIndex
         val other = if (current == 0) 1 else 0
-        if (!active.showViewArea(other)) return
+        if (redrawBounce != null || !active.showViewArea(other)) return
         appendLog("No picture on the new surface: view area $current -> $other -> $current to redraw")
-        mainHandler.postDelayed({
-            if (controller === active && !active.isClosed()) active.showViewArea(current)
-        }, REDRAW_BOUNCE_MS)
+        redrawBounce = active to current
+        mainHandler.postDelayed(endRedrawBounce, REDRAW_BOUNCE_MS)
+    }
+
+    /** The controller and view area a redraw bounce goes back to, while one is under way. */
+    private var redrawBounce: Pair<CarPlayController, Int>? = null
+    private val endRedrawBounce = Runnable { finishRedrawBounce() }
+
+    /**
+     * Puts the view area back to where the bounce started. Runs first in [applyEffectiveDisplay],
+     * so a display change during the bounce is worked out from the real area and wins.
+     */
+    private fun finishRedrawBounce() {
+        mainHandler.removeCallbacks(endRedrawBounce)
+        val (active, index) = redrawBounce ?: return
+        redrawBounce = null
+        if (controller === active && !active.isClosed()) active.showViewArea(index)
     }
 
     /** Waits for the decoder to let go of [surface]; call before the surface is destroyed. */
@@ -324,6 +338,7 @@ internal object CarPlaySession {
         displayOwner()?.layout ?: activeDisplayLayout ?: DisplayLayout(splitScreen = false, portrait = false)
 
     private fun applyEffectiveDisplay() {
+        finishRedrawBounce()
         if (shuttingDown) return
         val owner = displayOwner() ?: return
         val size = owner.display ?: return
