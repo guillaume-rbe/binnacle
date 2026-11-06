@@ -252,8 +252,11 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
         centre.setCovered(mode != CARPLAY_OFF);   // the scene under CarPlay stops drawing (audit D9)
         carplay.setRounded(!full);
         centreFrame.requestLayout();
-        if (mode != CARPLAY_OFF) carplay.requestAttach();   // the new size, or a surface that already existed
-        else {
+        if (mode != CARPLAY_OFF) {
+            carplay.requestAttach();   // the new size, or a surface that already existed
+            // reopened on a session that is already drawing: xcertplay sends no new state for it
+            if (carplayLink.state() == CarPlayLink.STATE_STREAMING) carplayDrew = true;
+        } else {
             setFocus(-1);
             handler.removeCallbacks(carplayLost);
             carplayDrew = false;
