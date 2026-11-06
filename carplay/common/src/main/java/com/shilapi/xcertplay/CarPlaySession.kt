@@ -72,6 +72,8 @@ internal object CarPlaySession {
     private const val REDRAW_CHECK_MS = 2_000L
     /** How long the redraw stays on the other view area before going back. */
     private const val REDRAW_BOUNCE_MS = 400L
+    /** Still no picture this long after the redraw: the phone has stopped drawing, so reconnect. */
+    private const val REDRAW_GIVE_UP_MS = 8_000L
     private const val MAX_RECONNECT_ATTEMPTS = 3
     private const val IAP_TUNNEL_RECONNECT_DELAY_MILLIS = 15_000L
     private const val CONTROLLER_CLOSE_TIMEOUT_MILLIS = 4_000L
@@ -227,21 +229,42 @@ internal object CarPlaySession {
      * sends a picture, and on a static CarPlay screen it never does: it ignores forceKeyFrame
      * (car, 6 Nov: black window after returning from Android Settings, 115 requests unanswered).
      * The phone redraws the whole screen when the view area changes, so if no picture came, the
-     * view area goes to another declared one and straight back.
+     * view area goes to another declared one and straight back. If the picture still doesn't
+     * come, the phone has stopped drawing for this session (car, 6 Nov: it kept the session and
+     * its Wi-Fi link, call alerts still played, but sent no video for 15 minutes and showed no
+     * CarPlay itself), so the session is rebuilt instead of leaving a black window.
      */
     private val redrawIfBlank = Runnable { redrawMainIfBlank() }
+    private val reconnectIfBlank = Runnable { reconnectMainIfBlank() }
+
+    private fun mainStillBlank(): Boolean =
+        sink?.awaitingPicture(SCREEN_TYPE_MAIN) == true && shownSurfaces[SCREEN_TYPE_MAIN] != null &&
+            controller?.isClosed() == false && !suspended && !resetInProgress && !shuttingDown
 
     private fun redrawMainIfBlank() {
-        if (sink?.awaitingPicture(SCREEN_TYPE_MAIN) != true) return
-        val areas = viewAreas ?: return
+        if (!mainStillBlank()) return
         val active = controller ?: return
-        if (areas.areas.size < 2 || active.isClosed() || suspended || resetInProgress || shuttingDown) return
+        blankController = active
+        mainHandler.removeCallbacks(reconnectIfBlank)
+        mainHandler.postDelayed(reconnectIfBlank, REDRAW_GIVE_UP_MS)
+        val areas = viewAreas ?: return
+        if (areas.areas.size < 2) return
         val current = active.viewAreaIndex
         val other = if (current == 0) 1 else 0
         if (redrawBounce != null || !active.showViewArea(other)) return
         appendLog("No picture on the new surface: view area $current -> $other -> $current to redraw")
         redrawBounce = active to current
         mainHandler.postDelayed(endRedrawBounce, REDRAW_BOUNCE_MS)
+    }
+
+    /** The session the reconnect check belongs to: a session rebuilt meanwhile is left alone. */
+    private var blankController: CarPlayController? = null
+
+    private fun reconnectMainIfBlank() {
+        val active = blankController
+        blankController = null
+        if (active == null || controller !== active || !mainStillBlank()) return
+        restart("No picture ${(REDRAW_CHECK_MS + REDRAW_GIVE_UP_MS) / 1000} s after the window came back; reconnecting")
     }
 
     /** The controller and view area a redraw bounce goes back to, while one is under way. */
