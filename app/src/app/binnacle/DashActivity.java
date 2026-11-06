@@ -26,6 +26,8 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
 
     private static final int REQ_CAMERA = 2;
     private static final long FOCUS_TIMEOUT_MS = 8000;
+    /** CarPlay drew in the dash and then stopped: how long it may take to come back before the dash shows again. */
+    private static final long CARPLAY_LOST_MS = 30_000;
 
     private DashApp app;
     private LeftPanelView left;
@@ -145,6 +147,7 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
 
     @Override protected void onDestroy() {
         destroying = true;      // the unbind below is not xcertplay going away
+        handler.removeCallbacks(carplayLost);
         try { unregisterReceiver(screenOff); } catch (RuntimeException ignored) { }
         // closed for good (not recreated): nothing will hear CarPlay end, so scanning goes back on now
         if (!isChangingConfigurations()) WifiScans.forCarPlay(app.prefs(), false);
@@ -182,6 +185,7 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
         }
         @Override public void onCarPlayState(int state, String stage) {
             carplay.showState(state, stage);
+            watchCarPlayLost(state);
             WifiScans.forCarPlay(app.prefs(), CarPlayLink.running(state));
         }
         @Override public void onHostUi() {
@@ -204,6 +208,36 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
         carplayLink.declareSizes(sizes);
     }
 
+    /**
+     * A CarPlay window that was drawing and then lost its session (the phone dropped it, or
+     * xcertplay rebuilt a session that had stopped sending a picture) goes back to the dash if
+     * CarPlay isn't drawing again within CARPLAY_LOST_MS, so a half-dropped session never leaves a
+     * "Connecting" or black window up (car, 6 Nov: 15 minutes of black window, Now playing still
+     * up). The dock's CarPlay button opens it again; xcertplay keeps reconnecting meanwhile.
+     */
+    private boolean carplayDrew;
+    private final Runnable carplayLost = new Runnable() {
+        @Override public void run() {
+            if (carplayMode == CARPLAY_OFF) return;
+            android.util.Log.i("binnacle", "CarPlay hasn't drawn for " + CARPLAY_LOST_MS / 1000 + " s; back to the dash");
+            showCarPlay(CARPLAY_OFF);
+            right.setNowPlaying(null);
+        }
+    };
+
+    private void watchCarPlayLost(int state) {
+        if (state == CarPlayLink.STATE_STREAMING) {
+            carplayDrew = true;
+            handler.removeCallbacks(carplayLost);
+        } else if (carplayDrew && carplayMode != CARPLAY_OFF && state != CarPlayLink.STATE_PAUSED) {
+            // once per loss: later states (connecting, failed) don't restart the wait
+            carplayDrew = false;
+            handler.postDelayed(carplayLost, CARPLAY_LOST_MS);
+        } else if (state == CarPlayLink.STATE_PAUSED) {
+            handler.removeCallbacks(carplayLost);   // xcertplay's settings are open: the user is there
+        }
+    }
+
     private void showCarPlay(int mode) {
         if (mode == CARPLAY_FULL && camera.isRunning()) mode = CARPLAY_CENTRE;   // no full screen under the camera
         if (mode == carplayMode) return;
@@ -218,8 +252,15 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
         centre.setCovered(mode != CARPLAY_OFF);   // the scene under CarPlay stops drawing (audit D9)
         carplay.setRounded(!full);
         centreFrame.requestLayout();
-        if (mode != CARPLAY_OFF) carplay.requestAttach();   // the new size, or a surface that already existed
-        else setFocus(-1);
+        if (mode != CARPLAY_OFF) {
+            carplay.requestAttach();   // the new size, or a surface that already existed
+            // reopened on a session that is already drawing: xcertplay sends no new state for it
+            if (carplayLink.state() == CarPlayLink.STATE_STREAMING) carplayDrew = true;
+        } else {
+            setFocus(-1);
+            handler.removeCallbacks(carplayLost);
+            carplayDrew = false;
+        }
     }
 
     /**
