@@ -80,7 +80,7 @@ public class LeftPanelView extends View {
         c.drawRect(w - 1, 0, w, Style.DESIGN_H, line);
 
         cue = approachCue(centreCovered && car.autopilot ? 1 : 0);
-        if (cue > 0) drawAutopilotCue(c, cx);   // under the speed, gears and arrows
+        if (cue > 0) drawAutopilotCue(c, cx, w);   // under the sign and the power bar
 
         drawStatusRow(c, cx, 84);
 
@@ -116,17 +116,18 @@ public class LeftPanelView extends View {
 
     /**
      * Autopilot cue while the centre is covered (in-car feedback, 6 Nov: on CarPlay or the camera
-     * there was no sign of Autopilot but the small wheel icon): a small copy of the centre's
-     * Autopilot lane behind the speed, blue, or the rainbow with Rainbow road on. It fades in and out
-     * like the centre's and holds still (no pulse or flow), so it never pulls the eye while driving.
+     * there was no sign of Autopilot but the small wheel icon): a soft glow in the shape of the
+     * centre's Autopilot lane, from just below the gears down to the bottom of the screen behind the
+     * power bar, clear of the speed (the owner, 6 Nov). Blue, or the rainbow with Rainbow road on. No
+     * hard edges: it fades in from the top and out to nothing at the sides. It fades in and out like
+     * the centre's and then holds still (no pulse or flow), so it never pulls the eye while driving.
      */
-    private static final float CUE_TOP = 150, CUE_BOTTOM = 470, CUE_TOP_W = 40, CUE_BOTTOM_W = 290;
-    private static final float CUE_PEAK = 0.8f;   // fraction of the height where the fill is strongest
-    private static final int CUE_FEATHER = 6;
-    private static final float CUE_EDGE = 0.08f;
+    private static final float CUE_TOP = 412, CUE_TOP_W = 70;
+    /** Nested passes, each narrower toward the middle: they add up to a soft fade at the sides. */
+    private static final int CUE_FEATHER = 20;
+    private static final float CUE_EDGE = 0.48f;
     private final Paint cueFill = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Paint cueLine = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private Shader cueBlue, cueRainbow, cueLineShader;
+    private Shader cueBlue, cueRainbow;
     private float cue;
     private long cueLastMs;
 
@@ -141,9 +142,9 @@ public class LeftPanelView extends View {
         return out;
     }
 
-    private void drawAutopilotCue(Canvas c, float cx) {
-        DashApp app = DashApp.get(getContext());
-        boolean rainbow = app.rainbowRoad();
+    private void drawAutopilotCue(Canvas c, float cx, float w) {
+        float bottom = Style.DESIGN_H;
+        boolean rainbow = DashApp.get(getContext()).rainbowRoad();
         if (rainbow && cueRainbow == null) {
             int n = 11;
             int[] cols = new int[n];
@@ -152,46 +153,29 @@ public class LeftPanelView extends View {
             for (int i = 0; i < n; i++) {
                 float t = i / (n - 1f);
                 hsv[0] = t * 330f;
-                // stronger toward the bottom, then a soft fade so the lane has no hard lower edge
-                float alpha = t <= CUE_PEAK ? 0.1f + 0.55f * t / CUE_PEAK : 0.65f * (1f - t) / (1f - CUE_PEAK);
-                int a = Math.round(255 * alpha);
+                int a = Math.round(255 * (0.05f + 0.6f * t));
                 cols[i] = (Color.HSVToColor(hsv) & 0x00ffffff) | (a << 24);
                 pos[i] = t;
             }
-            cueRainbow = new LinearGradient(0, CUE_TOP, 0, CUE_BOTTOM, cols, pos, Shader.TileMode.CLAMP);
+            cueRainbow = new LinearGradient(0, CUE_TOP, 0, bottom, cols, pos, Shader.TileMode.CLAMP);
         }
         if (!rainbow && cueBlue == null) {
-            int a = Style.light ? 0x66 : 0x9c;   // the light theme needs less to read as blue
-            int clear = CentreView.AP_BLUE & 0x00ffffff;
-            cueBlue = new LinearGradient(0, CUE_TOP, 0, CUE_BOTTOM, new int[]{clear, clear | (a << 24), clear},
-                    new float[]{0, CUE_PEAK, 1}, Shader.TileMode.CLAMP);
-        }
-        if (cueLineShader == null) {
-            int col = Style.light ? CentreView.AP_BLUE : CentreView.AP_LINE;
-            cueLineShader = new LinearGradient(0, CUE_TOP, 0, CUE_TOP + (CUE_BOTTOM - CUE_TOP) * 0.45f,
-                    col & 0x00ffffff, col, Shader.TileMode.CLAMP);
-            cueLine.setStyle(Paint.Style.STROKE);
-            cueLine.setStrokeWidth(5);
-            cueLine.setStrokeCap(Paint.Cap.ROUND);
+            int clear = CentreView.AP_BLUE & 0x00ffffff, a = Style.light ? 0x73 : 0x99;   // light needs less
+            cueBlue = new LinearGradient(0, CUE_TOP, 0, bottom, clear, clear | (a << 24), Shader.TileMode.CLAMP);
         }
         cueFill.setShader(rainbow ? cueRainbow : cueBlue);
-        // nested, slightly narrower passes add up to the full fill in the middle: soft outer edges
         cueFill.setAlpha(Math.round(255 * (1f - (float) Math.pow(1f - 0.9f * cue, 1.0 / CUE_FEATHER))));
         for (int i = 0; i < CUE_FEATHER; i++) {
             float k = 1f - 2f * CUE_EDGE * i / (CUE_FEATHER - 1);
-            float tw = CUE_TOP_W * k / 2f, bw = CUE_BOTTOM_W * k / 2f;
+            float tw = CUE_TOP_W * k / 2f, bw = w * k / 2f;
             path.reset();
             path.moveTo(cx - tw, CUE_TOP);
             path.lineTo(cx + tw, CUE_TOP);
-            path.lineTo(cx + bw, CUE_BOTTOM);
-            path.lineTo(cx - bw, CUE_BOTTOM);
+            path.lineTo(cx + bw, bottom);
+            path.lineTo(cx - bw, bottom);
             path.close();
             c.drawPath(path, cueFill);
         }
-        cueLine.setShader(cueLineShader);
-        cueLine.setAlpha(Math.round(255 * cue));
-        c.drawLine(cx - CUE_TOP_W / 2f, CUE_TOP, cx - CUE_BOTTOM_W / 2f, CUE_BOTTOM, cueLine);
-        c.drawLine(cx + CUE_TOP_W / 2f, CUE_TOP, cx + CUE_BOTTOM_W / 2f, CUE_BOTTOM, cueLine);
     }
 
     /** Telltales that only show while on, in priority order (warnings first). */
