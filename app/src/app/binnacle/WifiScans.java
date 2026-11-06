@@ -20,9 +20,10 @@ import java.util.concurrent.Executors;
  * (proved on drives, 3-4 Nov). When CarPlay ends they are on again. Car sleep stops both apps;
  * on wake the dash links to xcertplay again, which reports "idle", and scans go back on.
  *
- * The Wi-Fi icon turns scanning and Wi-Fi on (WIFI_REJOIN), so Android rejoins the saved home
- * network; Android 10 lets no app ask Wi-Fi to connect directly. Not while CarPlay runs with
- * the pause on: that would bring the stutter back.
+ * The Wi-Fi icon turns scanning on and Wi-Fi off and on (END_CARPLAY's command), so Android
+ * rejoins the saved home network at once; Android 10 lets no app ask Wi-Fi to connect directly.
+ * With CarPlay running (pause off) only WIFI_REJOIN, which keeps CarPlay's link up. Not while
+ * CarPlay runs with the pause on: that would bring the stutter back.
  *
  * Android 10 only: the command calls a binder transaction by number, which other versions
  * number differently. Nothing here reaches the car or the MCU.
@@ -87,7 +88,7 @@ final class WifiScans {
         return supported() && prefs.getBoolean(KEY, DEFAULT);
     }
 
-    static void rejoin(Context context, SharedPreferences prefs, boolean carplayRunning) {
+    static void rejoin(Context context, SharedPreferences prefs, final boolean carplayRunning) {
         final Context app = context.getApplicationContext();
         if (!supported()) {
             Toast.makeText(app, "Join Wi-Fi in Android's settings", Toast.LENGTH_SHORT).show();
@@ -103,8 +104,20 @@ final class WifiScans {
                 String msg;
                 boolean ok = false;
                 try {
-                    LocalShell.Command cmd = LocalShell.Command.WIFI_REJOIN;
-                    LocalShell.run(cmd);
+                    if (carplayRunning) {
+                        // CarPlay keeps the radio (the pause is off): turning Wi-Fi off would end it
+                        LocalShell.Command cmd = LocalShell.Command.WIFI_REJOIN;
+                        LocalShell.run(cmd);
+                    } else {
+                        // Wi-Fi is already on, so "svc wifi enable" alone does nothing and Android's
+                        // next auto-connect scan can be minutes away (car, 6 Nov: no rejoin until a
+                        // manual scan). Scans on, then Wi-Fi off and on, which connects straight
+                        // away; the same approved command as End CarPlay.
+                        LocalShell.Command cmd = LocalShell.Command.WIFI_SCANS_ON;
+                        LocalShell.run(cmd);
+                        cmd = LocalShell.Command.END_CARPLAY;
+                        LocalShell.run(cmd);
+                    }
                     ok = true;
                     msg = "Looking for home Wi-Fi…";
                 } catch (Exception e) {
