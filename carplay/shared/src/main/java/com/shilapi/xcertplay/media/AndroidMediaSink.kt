@@ -107,6 +107,9 @@ class AndroidMediaSink(
     /** Asks the phone for a random access picture; false when the stream cannot be asked. */
     fun requestKeyFrame(type: Int): Boolean = videoRecoveryHandlers[type]?.invoke() ?: false
 
+    /** True while the screen's decoder has a surface but no picture since it got it. */
+    fun awaitingPicture(type: Int): Boolean = videoDecoders[type]?.awaitingPicture == true
+
     fun setScreenStreamActiveChangedListener(listener: ((Int, Boolean) -> Unit)?) {
         screenStreamActiveChanged = listener
     }
@@ -365,7 +368,9 @@ private class VideoDecoder(
     private var inputRetries = 0
     private var syncSkips = 0
     private var maxOutputAgeUs = 0L
-    private var needsKeyFrame = midStream
+    @Volatile private var needsKeyFrame = midStream
+    /** Waiting for a picture to show on the current surface (read from other threads). */
+    val awaitingPicture: Boolean get() = needsKeyFrame
     private var lastKeyFrameRequestNs = 0L
     @Volatile private var requestedSurface: Surface? = surface
     @Volatile private var detached: CountDownLatch? = null

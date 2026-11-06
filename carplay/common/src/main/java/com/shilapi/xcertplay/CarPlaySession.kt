@@ -68,6 +68,10 @@ internal object CarPlaySession {
     private const val RECONNECT_DELAY_MILLIS = 2_000L
     private const val RECONNECT_MAX_DELAY_MILLIS = 30_000L
     private const val RECONNECT_MAX_SHIFT = 4
+    /** After a surface attach: how long to wait for a picture before making the phone redraw. */
+    private const val REDRAW_CHECK_MS = 2_000L
+    /** How long the redraw stays on the other view area before going back. */
+    private const val REDRAW_BOUNCE_MS = 400L
     private const val MAX_RECONNECT_ATTEMPTS = 3
     private const val IAP_TUNNEL_RECONNECT_DELAY_MILLIS = 15_000L
     private const val CONTROLLER_CLOSE_TIMEOUT_MILLIS = 4_000L
@@ -211,7 +215,48 @@ internal object CarPlaySession {
         client.surfaces[type] = surface
         client.surfaceStamps[type] = ++stamp
         showBestSurface(type)
-        if (type == SCREEN_TYPE_MAIN) applyEffectiveDisplay()
+        if (type == SCREEN_TYPE_MAIN) {
+            applyEffectiveDisplay()
+            mainHandler.removeCallbacks(redrawIfBlank)
+            mainHandler.postDelayed(redrawIfBlank, REDRAW_CHECK_MS)
+        }
+    }
+
+    /**
+     * A surface handed over again (the head unit's window came back) stays empty until the phone
+     * sends a picture, and on a static CarPlay screen it never does: it ignores forceKeyFrame
+     * (car, 6 Nov: black window after returning from Android Settings, 115 requests unanswered).
+     * The phone redraws the whole screen when the view area changes, so if no picture came, the
+     * view area goes to another declared one and straight back.
+     */
+    private val redrawIfBlank = Runnable { redrawMainIfBlank() }
+
+    private fun redrawMainIfBlank() {
+        if (sink?.awaitingPicture(SCREEN_TYPE_MAIN) != true) return
+        val areas = viewAreas ?: return
+        val active = controller ?: return
+        if (areas.areas.size < 2 || active.isClosed() || suspended || resetInProgress || shuttingDown) return
+        val current = active.viewAreaIndex
+        val other = if (current == 0) 1 else 0
+        if (redrawBounce != null || !active.showViewArea(other)) return
+        appendLog("No picture on the new surface: view area $current -> $other -> $current to redraw")
+        redrawBounce = active to current
+        mainHandler.postDelayed(endRedrawBounce, REDRAW_BOUNCE_MS)
+    }
+
+    /** The controller and view area a redraw bounce goes back to, while one is under way. */
+    private var redrawBounce: Pair<CarPlayController, Int>? = null
+    private val endRedrawBounce = Runnable { finishRedrawBounce() }
+
+    /**
+     * Puts the view area back to where the bounce started. Runs first in [applyEffectiveDisplay],
+     * so a display change during the bounce is worked out from the real area and wins.
+     */
+    private fun finishRedrawBounce() {
+        mainHandler.removeCallbacks(endRedrawBounce)
+        val (active, index) = redrawBounce ?: return
+        redrawBounce = null
+        if (controller === active && !active.isClosed()) active.showViewArea(index)
     }
 
     /** Waits for the decoder to let go of [surface]; call before the surface is destroyed. */
@@ -293,6 +338,7 @@ internal object CarPlaySession {
         displayOwner()?.layout ?: activeDisplayLayout ?: DisplayLayout(splitScreen = false, portrait = false)
 
     private fun applyEffectiveDisplay() {
+        finishRedrawBounce()
         if (shuttingDown) return
         val owner = displayOwner() ?: return
         val size = owner.display ?: return

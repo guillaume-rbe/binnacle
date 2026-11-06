@@ -85,6 +85,9 @@
 > - Calls mirrored to the car fall back to the plain Bluetooth link when Telecom refuses them or
 >   the car ends a call the phone kept, and a car-dialled call hung up before the iPhone reported
 >   it is ended on the phone
+> - Embedding: when the head unit's window comes back (e.g. from another app) and no picture arrives
+>   within 2 s, the view area switches away and back so the phone redraws; a static CarPlay screen
+>   otherwise stayed black, since the phone ignores keyframe requests
 > - Embedding: a finger is lifted on the phone when the head unit lets go of the surface or a gesture
 >   ends after it, and attaching a surface no longer makes the head unit wait for xcertplay's main thread
 > - Call clean-ups: an answer or hang-up from the car is held back when the key (which has no call
