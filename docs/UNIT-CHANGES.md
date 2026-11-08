@@ -17,6 +17,8 @@ Some Binnacle features run a fixed command on the unit through its own ADB (on t
 
 Everything else works without it: the dash, the car data, the camera in the dash, CarPlay drawn in the dash, updates and setup's other steps.
 
+These still need an adb command by hand (see the table below): turning off the stock full-screen camera on Drive, blocking the stock dash's pop-ups (the white Autopilot pill) and turning off the GPS crash dumps that fill the storage.
+
 Commands assume `adb connect <unit-ip>:5555` first. `su 0` gives root on this unit (`su -c` doesn't work).
 
 > **⚠️ Network ADB is root for anyone on the same network.** This firmware's adb asks for no key or password, and `su 0` works from it. While port 5555 is open, any device on the same Wi-Fi can take full control of the unit: that includes a shared or public network, and the unit's own hotspot if you share it. Keep it on only on networks you trust, or switch it off when you're done (`adb shell su 0 setprop persist.adb.tcp.port ""`, then reboot). Details: [ADB-GUIDE.md](ADB-GUIDE.md#️-security-warning-read-this-before-making-it-persistent).
