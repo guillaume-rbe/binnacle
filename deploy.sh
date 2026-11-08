@@ -35,9 +35,22 @@ OUT=build/release
 GH_DIR="$OUT/github"
 STAMP="$OUT/BUILD_COMMIT"
 
+# Colour only on a terminal, and not when NO_COLOR is set (https://no-color.org).
+if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
+    B=$'\033[1m' D=$'\033[2m' RED=$'\033[31m' GRN=$'\033[32m' YEL=$'\033[33m' CYN=$'\033[36m' N=$'\033[0m'
+else
+    B="" D="" RED="" GRN="" YEL="" CYN="" N=""
+fi
+if [ -t 2 ] && [ -z "${NO_COLOR:-}" ]; then E_RED=$'\033[1;31m' E_YEL=$'\033[33m' E_N=$'\033[0m'
+else E_RED="" E_YEL="" E_N=""; fi
+
 say()  { printf '%s\n' "$*"; }
-warn() { printf 'warning: %s\n' "$*" >&2; }
-die()  { printf 'stopped: %s\n' "$*" >&2; exit 1; }
+good() { printf '%s\n' "$GRN$*$N"; }        # a check that passed
+bad()  { printf '%s\n' "$RED$*$N"; }        # a check that stops the command
+note() { printf '%s\n' "$YEL$*$N"; }        # worth knowing, doesn't stop anything
+title() { printf '%s\n' "$B$CYN$*$N"; }      # a heading
+warn() { printf '%s\n' "${E_YEL}warning: $*$E_N" >&2; }
+die()  { printf '%s\n' "${E_RED}stopped: $*$E_N" >&2; exit 1; }
 
 # --- versions -------------------------------------------------------------------------------
 # dash_code/cp_code [REF]: versionCode in the working tree, or at a git ref.
@@ -72,21 +85,21 @@ check_versions() {
     cp_now=$(cp_code); cp_then=$(cp_code "$tag")
     [ -n "$cp_now" ] || { say "no CarPlay versionCode in carplay/mobile/build.gradle.kts"; return 1; }
     if [ -z "$cp_then" ]; then
-        say "CarPlay: not in $tag, versionCode $cp_now is new"
+        good "CarPlay: not in $tag, versionCode $cp_now is new"
     elif carplay_changed "$tag"; then
         if [ "$cp_now" -gt "$cp_then" ]; then
-            say "CarPlay: changed since $tag, versionCode $cp_then -> $cp_now (ok)"
+            good "CarPlay: changed since $tag, versionCode $cp_then -> $cp_now (ok)"
         elif [ "${ALLOW_SAME_CARPLAY_VERSION:-}" = 1 ]; then
             warn "CarPlay changed since $tag but versionCode is still $cp_now (ALLOW_SAME_CARPLAY_VERSION=1): the dash's updater won't offer it"
         else
-            say "CarPlay: carplay/ changed since $tag but versionCode is still $cp_now."
+            bad "CarPlay: carplay/ changed since $tag but versionCode is still $cp_now."
             say "  Bump versionCode (and versionName) in carplay/mobile/build.gradle.kts, or the dash's"
             say "  updater skips the new CarPlay app. Changed files:"
             git diff --name-only "$tag" -- carplay ':(exclude,glob)carplay/**/*.md' | sed 's/^/    /' | head -20
             ok=1
         fi
     else
-        say "CarPlay: unchanged since $tag (versionCode $cp_now)"
+        good "CarPlay: unchanged since $tag (versionCode $cp_now)"
     fi
 
     local d_now d_then name
@@ -94,17 +107,17 @@ check_versions() {
     [ -n "$d_now" ] && [ -n "$name" ] || { say "no versionCode/versionName in app/AndroidManifest.xml"; return 1; }
     if [ -n "$d_then" ] && [ "$d_now" -le "$d_then" ]; then
         if [ "$mode" = release ]; then
-            say "Dash: versionCode is still $d_now, as in $tag. Bump android:versionCode and versionName in"
+            bad "Dash: versionCode is still $d_now, as in $tag. Bump android:versionCode and versionName in"
             say "  app/AndroidManifest.xml: the dash only offers a higher one."
             ok=1
         else
-            say "Dash: versionCode $d_now, same as $tag (fine for a test build; bump it before a release)"
+            note "Dash: versionCode $d_now, same as $tag (fine for a test build; bump it before a release)"
         fi
     else
-        say "Dash: versionCode ${d_then:-?} -> $d_now, versionName $name"
+        good "Dash: versionCode ${d_then:-?} -> $d_now, versionName $name"
     fi
     if [ "$mode" = release ] && git rev-parse -q --verify "refs/tags/v$name" >/dev/null; then
-        say "Tag v$name already exists: bump versionName in app/AndroidManifest.xml."
+        bad "Tag v$name already exists: bump versionName in app/AndroidManifest.xml."
         ok=1
     fi
     return $ok
@@ -127,9 +140,9 @@ pull_main() {
     git merge --quiet --ff-only origin/main
     after=$(git rev-parse HEAD)
     if [ "$before" = "$after" ]; then
-        say "main is up to date ($(git log -1 --format='%h %s'))"
+        good "main is up to date ($(git log -1 --format='%h %s'))"
     else
-        say "main updated:"; git log --format='  %h %s' "$before..$after" | head -30
+        good "main updated:"; git log --format='  %h %s' "$before..$after" | head -30
     fi
 }
 
@@ -220,16 +233,16 @@ cmd_bump() {
     gh pr create --repo "$REPO" --base main --head "$branch" --title "$msg" \
         --body "$body
 
-Opened by \`./deploy.sh bump\`. After merging: \`./deploy.sh\` -> 4 (build and publish the release)."
+Opened by \`./deploy.sh bump\`. After merging: \`./deploy.sh\` -> 6 (build and publish the release)."
     git checkout --quiet main
-    say "Back on main. Merge the PR, then choose 4 in the menu to build and publish."
+    good "Back on main. Merge the PR, then choose 6 in the menu to build and publish."
 }
 
 cmd_status() {
     fetch
     local branch tag
     branch=$(git rev-parse --abbrev-ref HEAD)
-    say "Branch: $branch ($(git log -1 --format='%h %s'))"
+    title "Branch: $branch ($(git log -1 --format='%h %s'))"
     if git rev-parse -q --verify origin/main >/dev/null; then
         local behind ahead
         behind=$(git rev-list --count HEAD..origin/main); ahead=$(git rev-list --count origin/main..HEAD)
@@ -258,7 +271,7 @@ cmd_status() {
         else say "build/release is from another commit (${built:0:7})"; fi
     fi
     say
-    say "Checks for a release:"
+    title "Checks for a release:"
     if check_versions release | sed 's/^/  /'; then :; fi
 }
 
@@ -273,7 +286,7 @@ cmd_build() {
     pull_main
     check_versions || die "fix the versions above first"
     build
-    say; say "Built from $(git log -1 --format='%h %s'). Publish with ./deploy.sh release --no-build"
+    say; good "Built from $(git log -1 --format='%h %s'). Publish with ./deploy.sh release --no-build"
 }
 
 cmd_release() {
@@ -312,12 +325,12 @@ cmd_release() {
     grep -qx "carplayVersionCode=$(cp_code)" "$GH_DIR/binnacle-update.txt" || die "binnacle-update.txt doesn't match the CarPlay version; rebuild"
 
     say
-    say "About to publish $tag on GitHub ($REPO), from $(git log -1 --format='%h %s'):"
+    title "About to publish $tag on GitHub ($REPO), from $(git log -1 --format='%h %s'):"
     say "  Binnacle.apk          dash $name (versionCode $(dash_code))"
     say "  BinnacleCarPlay.apk   CarPlay $(cp_name) (versionCode $(cp_code))"
     say "  binnacle-update.txt   and $(basename "$logger")"
-    if [ -n "$draft" ]; then say "  as a DRAFT (dashes won't see it until you publish it on GitHub)"
-    else say "  as the LATEST release: dashes will offer it under Advanced -> Updates"; fi
+    if [ -n "$draft" ]; then note "  as a DRAFT (dashes won't see it until you publish it on GitHub)"
+    else note "  as the LATEST release: dashes will offer it under Advanced -> Updates"; fi
     confirm "Publish?" || die "not published (the build stays in $OUT)"
 
     local flags
@@ -332,7 +345,7 @@ cmd_release() {
         local live
         live=$(curl -fsSL "https://github.com/$REPO/releases/latest/download/binnacle-update.txt" 2>/dev/null || true)
         if [ "$live" = "$(cat "$GH_DIR/binnacle-update.txt")" ]; then
-            say "Checked: the latest release now serves this binnacle-update.txt."
+            good "Checked: the latest release now serves this binnacle-update.txt."
         else
             warn "the latest release's binnacle-update.txt doesn't match yet (GitHub may still be updating); check $tag on GitHub"
         fi
@@ -367,34 +380,51 @@ cmd_cars() {
     fi
 }
 
+# The menu, in the order a release goes: look, prepare, build and publish; car images on their own.
+menu_items() {
+    local line="${D}  ──────────────────────────────────────────────────────${N}"
+    item() { printf '  %s%s)%s %-40s %s%s%s\n' "$B" "$1" "$N" "$2" "$D" "$3" "$N"; }
+    say
+    say "$line"
+    title "  Where things stand"
+    item 1 "Show the status"                    "status"
+    item 2 "Check the version numbers"          "check"
+    say "$line"
+    title "  Get ready"
+    item 3 "Get the latest main from GitHub"    "pull"
+    item 4 "Bump the version numbers (opens a PR)" "bump"
+    say "$line"
+    title "  Build and publish"
+    item 5 "Build signed APKs, publish nothing" "build"
+    item 6 "Build and publish the release"      "release"
+    item 7 "Build and publish it as a draft"    "release --draft"
+    item 8 "Publish the last build, no rebuild" "release --no-build"
+    say "$line"
+    title "  Car images"
+    item 9 "Publish car-image packs"            "cars"
+    say "$line"
+    item q "Quit"                               ""
+}
+
 cmd_menu() {
     cmd_status
     local choice tag last files
     while :; do
-        say
-        say "What next?"
-        say "  1) Get the latest main from GitHub            (pull)"
-        say "  2) Check the version numbers                  (check)"
-        say "  3) Build signed APKs, publish nothing         (build)"
-        say "  4) Build and publish the release              (release)"
-        say "  5) Build and publish it as a draft            (release --draft)"
-        say "  6) Publish the last build, no rebuild         (release --no-build)"
-        say "  7) Publish car-image packs                    (cars)"
-        say "  8) Show where things stand again              (status)"
-        say "  9) Bump the version numbers, open a PR        (bump)"
-        say "  q) Quit"
-        read -rp "Choose: " choice || exit 0
+        menu_items
+        read -rp "${B}Choose:${N} " choice || exit 0
         say
         # Each runs as its own ./deploy.sh, so it keeps `set -e` (a failed step stops that step) and
         # a stop goes back to the menu instead of quitting.
         case "$choice" in
-            1) "$0" pull || true ;;
+            1) cmd_status ;;
             2) "$0" check release || true ;;
-            3) "$0" build || true ;;
-            4) "$0" release || true ;;
-            5) "$0" release --draft || true ;;
-            6) "$0" release --no-build || true ;;
-            7)
+            3) "$0" pull || true ;;
+            4) "$0" bump || true ;;
+            5) "$0" build || true ;;
+            6) "$0" release || true ;;
+            7) "$0" release --draft || true ;;
+            8) "$0" release --no-build || true ;;
+            9)
                 last=$(git tag -l 'cars-v[0-9]*' --sort=-v:refname | head -1)
                 say "Last car-image release: ${last:-none}"
                 read -rp "Tag (cars-vN): " tag
@@ -404,8 +434,6 @@ cmd_menu() {
                 read -a files
                 if [ -n "$tag" ] && [ "${#files[@]}" -gt 0 ]; then "$0" cars "$tag" "${files[@]}" || true
                 else say "nothing to publish"; fi ;;
-            8) cmd_status ;;
-            9) "$0" bump || true ;;
             q|Q|"") exit 0 ;;
             *) say "pick 1-9 or q" ;;
         esac
