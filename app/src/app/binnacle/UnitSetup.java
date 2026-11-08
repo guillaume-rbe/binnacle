@@ -108,6 +108,9 @@ final class UnitSetup {
             LocalShell.Command cmd = LocalShell.Command.UNIT_STATUS;
             String out = LocalShell.run(cmd);
             s.reachable = true;
+            // the unlock may be new (setup's EngineerMode step after the dash started, when the start-up
+            // firewall found nothing to block): put the rule in place now, not at the next start
+            AdbFirewall.apply(DashApp.get(c).prefs());
             s.on.put(Change.ADB_KEEP, out.contains("adb=5555"));
             s.on.put(Change.GPS_DUMPS, out.contains("dumps=0"));
             s.on.put(Change.ANDROID_BT, out.contains("bt=2"));
