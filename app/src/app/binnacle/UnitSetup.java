@@ -31,10 +31,9 @@ final class UnitSetup {
             new ComponentName("com.sprd.engineermode", "com.sprd.engineermode.EngineerModeActivity");
 
     enum Change {
-        ADB_KEEP("Keep ADB on after a restart",
-                "Binnacle's own unit features (End CarPlay, Wi-Fi scans, Bluetooth auto-connect) use the unit's ADB, "
-                        + "which this firmware turns off at every restart. Reachable only from the unit itself unless "
-                        + "Network ADB is on", LocalShell.Command.ADB_KEEP_ON, LocalShell.Command.ADB_KEEP_OFF, false),
+        ADB_KEEP("Keep the unit unlocked after a restart",
+                "The one-time unlock (the unit's ADB, which Binnacle's unit features use) is lost at every restart "
+                        + "without this. Reachable only from the unit itself unless Network ADB is on", LocalShell.Command.ADB_KEEP_ON, LocalShell.Command.ADB_KEEP_OFF, false),
         STOCK_TOASTS("Block the stock dash's pop-ups",
                 "The stock dash keeps running behind Binnacle and shows toasts over everything (a white pill on Autopilot)",
                 LocalShell.Command.STOCK_TOASTS_OFF, LocalShell.Command.STOCK_TOASTS_ON, false),

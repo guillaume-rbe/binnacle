@@ -339,12 +339,13 @@ public final class SetupActivity extends Activity {
     private void showUnit(UnitSetup.Status st, final TextView status, final LinearLayout more) {
         more.removeAllViews();
         if (!st.reachable) {
-            status.setText("Some of Binnacle's features use the unit's own ADB: wireless CarPlay after a restart, End CarPlay, "
-                    + "Wi-Fi scan pausing, Bluetooth auto-connect and screenshots. A new unit has it off. Switch it on once:\n\n"
+            status.setText("A one-time unlock lets Binnacle set up the unit for you, and keeps wireless CarPlay working after a "
+                    + "restart (also End CarPlay, Wi-Fi scan pausing, Bluetooth auto-connect and screenshots). Nothing to install:\n\n"
                     + "1. Tap Open EngineerMode, then the DEBUG&LOG tab, then Adb shell.\n"
                     + "2. For each line below: tap Copy here, go back to EngineerMode, long-press its top field and "
                     + "tap Paste (or type it), then tap START/END.\n"
-                    + "3. Come back here with Back. Binnacle keeps ADB on from then on, reachable from the unit only.");
+                    + "3. Come back here with Back. Binnacle checks it worked and keeps it unlocked from then on, "
+                    + "reachable from the unit itself only.");
             for (String line : ENGINEER_LINES) more.addView(copyRow(line));
             final boolean hasEm = UnitSetup.hasEngineerMode(this);
             more.addView(buttons(hasEm ? new String[]{"Not now", "Check again", "Open EngineerMode"} : new String[]{"Not now", "Check again"},
@@ -371,7 +372,7 @@ public final class SetupActivity extends Activity {
             focusLast();
             return;
         }
-        status.setText("The unit's ADB is on. Binnacle can now make the changes it needs to work fully. "
+        status.setText("The unit is unlocked. Binnacle can now make the changes it needs to work fully. "
                 + "Each can be undone in Advanced → Unit setup:");
         for (UnitSetup.Change ch : todo) {
             TextView t = text("•  " + ch.title, 17, Style.FG);
