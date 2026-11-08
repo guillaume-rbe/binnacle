@@ -73,8 +73,20 @@ final class Launch {
         start(c, new Intent(c, HubActivity.class), true);
     }
 
-    /** The overlay app-op Android 10 needs before the camera may open from behind CarPlay (manifest). */
-    static final String OVERLAY_GRANT = "adb shell appops set com.xbs.launcher SYSTEM_ALERT_WINDOW allow";
+    /**
+     * Android's own "Display over other apps" switch for Binnacle (owner, 8 Nov: in place of an adb
+     * command). Android 10 needs it before the camera may open from behind CarPlay, and before the
+     * dash may reopen itself after an update (Relaunch). The user flips it; nothing is set here.
+     */
+    static void overAppsSetting(Context c) {
+        Intent i = new Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                android.net.Uri.parse("package:" + c.getPackageName()));
+        try {
+            c.startActivity(i);
+        } catch (RuntimeException e) {
+            Toast.makeText(c, "Android settings → Apps → Binnacle → Display over other apps", Toast.LENGTH_LONG).show();
+        }
+    }
 
     /**
      * Android lets this app start screens from the background: without it, the camera on Drive is

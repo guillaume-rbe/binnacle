@@ -232,7 +232,7 @@ public class HubActivity extends Activity {
         super.onResume();
         if (textScaleBuilt != Style.textScale) { recreate(); return; }   // text size changed: rebuild at the new size
         if (lightBuilt != Style.light) { recreate(); return; }           // theme changed meanwhile (Auto)
-        if (tab == 1 || tab == CAR_TAB) showTab(tab);                      // CarPlay layout / Home app may have changed meanwhile
+        if (tab == 1 || tab == 2 || tab == CAR_TAB) showTab(tab);   // 2: back from the over-apps switch                      // CarPlay layout / Home app may have changed meanwhile
         else if (resumePendingUpdate()) { /* back from the install switch: keep the page, the download shows on its button */ }
         else if (tab >= 4) showTab(tab);                                   // back from the uninstaller: logger state
     }
@@ -256,7 +256,8 @@ public class HubActivity extends Activity {
         content.removeAllViews();
         switch (i) {
             case 0: content.addView(appsGrid()); break;
-            case 1: content.addView(cards(          // most used first; the rest below the fold
+            // two independent columns (owner, 8 Nov: a short card left a gap beside a tall one)
+            case 1: content.addView(cards(stack(
                     homeCard(),
                     choiceCard("Theme", null, "theme", "auto",
                             new String[]{"auto", "light", "dark"}, new String[]{"Auto", "Light", "Dark"}),
@@ -264,28 +265,25 @@ public class HubActivity extends Activity {
                             new String[]{"100", "115", "130"}, new String[]{"100%", "115%", "130%"}),
                     choiceCard("Menu side", null, "menu_side", "right",
                             new String[]{"left", "right"}, new String[]{"Left", "Right"}),
+                    infoCard("CarPlay layout", carplayLayoutText())), stack(
                     choiceCard("Start-up volume", "Media volume set when the dash starts and when the car's Bluetooth audio "
                                     + "connects. The car sets the loudness, so full is best",
                             StartupVolume.KEY, StartupVolume.DEFAULT,
-                            new String[]{"100", "75", "50", "off"}, new String[]{"100%", "75%", "50%", "Leave as is"}),
-                    btAutoConnectCard(),
-                    choiceCard("CarPlay auto-connect", "When the dash starts or the car wakes, look for your paired iPhone. "
-                                    + "Shows nothing if it isn't there, and stops after 90 s",
+                            new String[]{"100", "75", "50", "off"}, new String[]{"100%", "75%", "50%", "As is"}),
+                    choiceCard("CarPlay auto-connect", "When the dash starts or the car wakes, look for your paired iPhone and connect. "
+                                    + "Show also opens CarPlay once connected. Stops after 90 s",
                             CarPlayAuto.KEY, CarPlayAuto.DEFAULT,
                             new String[]{CarPlayAuto.OFF, CarPlayAuto.BACKGROUND, CarPlayAuto.SHOW},
-                            new String[]{"Off", "In background", "Connect & show"}),
+                            new String[]{"Off", "Background", "Show"}),
+                    btAutoConnectCard(),
                     switchCard("Pause Wi-Fi scans during CarPlay", "Stops music and call stutter away from home. Scanning comes back on when CarPlay ends, and tapping the Wi-Fi icon rejoins home Wi-Fi", WifiScans.KEY, WifiScans.DEFAULT),
                     actionCard("End CarPlay", null,
-                            "End CarPlay", LocalShell.Command.END_CARPLAY),
-                    infoCard("CarPlay layout", carplayLayoutText()))); break;
+                            "End CarPlay", LocalShell.Command.END_CARPLAY)))); break;
             case 2: {
                 View dash = switchCard("Camera in the dash", "Forward camera in the centre window", "dash_camera", false);
                 View stock = switchCard("Open stock camera on Drive", "Stock camera screen instead", "auto_camera", false);
                 // without the overlay app-op Android blocks the Drive camera while another app is in front
-                content.addView(Launch.canOpenOverApps(this) ? cards(dash, stock) : cards(dash, stock,
-                        infoCard("Camera can't open over other apps",
-                                "With CarPlay or another app in front, Android won't let the camera open on Drive. "
-                                        + "Allow it once over ADB: " + Launch.OVERLAY_GRANT)));
+                content.addView(Launch.canOpenOverApps(this) ? cards(dash, stock) : cards(dash, stock, overlayCard()));
             } break;
             case CAR_TAB: content.addView(cards(
                     choiceCard("Car model", null, "car_model", "3",
@@ -574,6 +572,10 @@ public class HubActivity extends Activity {
         for (int i = 0; i < values.length; i++) {
             final String value = values[i];
             TextView b = chip(labels[i]);
+            // one line with a little side room: a long label wrapped and was cut off (owner, 8 Nov)
+            b.setSingleLine(true);
+            b.setEllipsize(TextUtils.TruncateAt.END);
+            b.setPadding(dp(6), 0, dp(6), 0);
             b.setSelected(value.equals(current));
             b.setOnClickListener(new View.OnClickListener() {
                 @Override public void onClick(View v) {
@@ -1081,6 +1083,25 @@ public class HubActivity extends Activity {
             }
         });
         card.addView(b, new LinearLayout.LayoutParams(-1, dp(BUTTON_DP)));
+        return card;
+    }
+
+    /**
+     * Android's "Display over other apps" for Binnacle is off: the camera can't open on Drive over
+     * CarPlay or another app, and the dash can't reopen itself after an update. The button opens
+     * Android's own switch for Binnacle (owner, 8 Nov: the card only showed an adb command); the
+     * Camera tab rebuilds on return, so the card goes once it is on.
+     */
+    private View overlayCard() {
+        LinearLayout card = card("Allow over other apps",
+                "Lets the camera open on Drive over CarPlay and other apps, and the dash reopen after an update.");
+        TextView b = chip("Allow");
+        b.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                Launch.overAppsSetting(HubActivity.this);
+            }
+        });
+        card.addView(b, new LinearLayout.LayoutParams(dp(150), dp(BUTTON_DP)));
         return card;
     }
 
