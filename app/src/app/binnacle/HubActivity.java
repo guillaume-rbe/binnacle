@@ -270,17 +270,15 @@ public class HubActivity extends Activity {
                     choiceCard("Menu side", null, "menu_side", "right",
                             new String[]{"left", "right"}, new String[]{"Left", "Right"}),
                     infoCard("CarPlay layout", carplayLayoutText())), stack(
-                    choiceCard("Start-up volume", "Media volume set when the dash starts and when the car's Bluetooth audio "
-                                    + "connects. The car sets the loudness, so full is best",
+                    choiceCard("Start-up volume", "Media volume when the dash starts. The car sets the loudness",
                             StartupVolume.KEY, StartupVolume.DEFAULT,
                             new String[]{"100", "75", "50", "off"}, new String[]{"100%", "75%", "50%", "As is"}),
-                    choiceCard("CarPlay auto-connect", "When the dash starts or the car wakes, look for your paired iPhone and connect. "
-                                    + "Show also opens CarPlay once connected. Stops after 90 s",
+                    choiceCard("CarPlay auto-connect", "Connect your iPhone when the car wakes",
                             CarPlayAuto.KEY, CarPlayAuto.DEFAULT,
                             new String[]{CarPlayAuto.OFF, CarPlayAuto.BACKGROUND, CarPlayAuto.SHOW},
                             new String[]{"Off", "Background", "Show"}),
                     btAutoConnectCard(),
-                    switchCard("Pause Wi-Fi scans during CarPlay", "Stops music and call stutter away from home. Scanning comes back on when CarPlay ends, and tapping the Wi-Fi icon rejoins home Wi-Fi", WifiScans.KEY, WifiScans.DEFAULT),
+                    switchCard("Pause Wi-Fi scans during CarPlay", "Stops music and call stutter away from home", WifiScans.KEY, WifiScans.DEFAULT),
                     actionCard("End CarPlay", null,
                             "End CarPlay", LocalShell.Command.END_CARPLAY)))); break;
             case 2: {
@@ -307,7 +305,7 @@ public class HubActivity extends Activity {
             default: content.addView(cards(
                     stack(updateCard(), setupCard(), unitSetupCard(), resetCard(), aboutCard()),
                     stack(networkAdbCard(),
-                            switchCard("Screenshot on power bar tap", "Tap the power bar to save a screenshot on the dash (Binnacle/screenshots), CarPlay and camera included", Screenshot.KEY, false),
+                            switchCard("Screenshot on power bar tap", "Saved in Binnacle/screenshots", Screenshot.KEY, false),
                             loggerCards(),
                             switchCard("Show raw CAN values", "Latest raw fields over the centre view, for in-car checks", "raw_overlay", false),
                             switchCard("Demo data", "Simulated drive instead of the car feed", "demo", false)))); break;
@@ -731,13 +729,8 @@ public class HubActivity extends Activity {
         remove.setOnClickListener(new View.OnClickListener() {
             @Override public void onClick(View v) {
                 BinnacleDialog.show(HubActivity.this, "Remove Binnacle?",
-                        "The unit goes back to the stock dash, which is still installed.\nBinnacle's settings and downloaded car images are deleted with it.\n\n"
-                                + "Binnacle turns the stock camera screen and the stock dash's pop-ups back on first. "
-                                + "The unit's ADB stays on after restarts and is then open to the Wi-Fi: turn it off in Unit setup first if you don't want that."
-                                + (stockCameraDisabled()
-                                ? "\n\nIf that fails, turn the stock camera screen back on by hand (docs/UNIT-CHANGES.md: "
-                                + "pm enable com.xbs.frontcam/com.xbs.frontcam.CameraActivity), or it won't open by itself in Drive."
-                                : ""),
+                        "The unit goes back to the stock dash, with its camera screen and pop-ups.\n"
+                                + "Turn off \"Keep the unit unlocked\" in Unit setup first, or it stays open to the Wi-Fi.",
                         new String[]{"Cancel", "Remove"}, true, new BinnacleDialog.Choice() {
                             @Override public void chosen(int index) {
                                 if (index != 1) return;
@@ -1066,8 +1059,7 @@ public class HubActivity extends Activity {
      * from a screenshot of this card. UnitSetup holds the pinned commands; this only shows them.
      */
     private View unitSetupCard() {
-        final LinearLayout card = card("Unit setup",
-                "Changes to the unit that make Binnacle work fully. Setup can do them all at once; each can be undone here");
+        final LinearLayout card = card("Unit setup", null);
         final TextView state = text("Checking…", 13, Style.MUTED);
         card.addView(state);
         final LinearLayout rows = new LinearLayout(this);
@@ -1091,12 +1083,10 @@ public class HubActivity extends Activity {
     private void showUnitSetup(UnitSetup.Status st, final TextView state, final LinearLayout rows) {
         rows.removeAllViews();
         if (!st.reachable) {
-            state.setText(st.problem != null ? "The unit's ADB answered with an error: " + st.problem
-                    : "The unit's ADB is off, so these can't be read or changed. Advanced → Run setup shows how to switch it on.");
+            state.setText(st.problem != null ? "Couldn't read: " + st.problem : "Locked. Run setup to unlock");
             state.setTextColor(Style.WARN);
         } else {
-            state.setText("✓  The unit's ADB is on (reachable from the unit itself"
-                    + (prefs.getBoolean(AdbFirewall.KEY, AdbFirewall.DEFAULT) ? " and the Wi-Fi)" : " only)"));
+            state.setText("✓  Unlocked");
             state.setTextColor(Style.GOOD);
         }
         for (final UnitSetup.Change ch : UnitSetup.Change.values()) {
@@ -1145,9 +1135,7 @@ public class HubActivity extends Activity {
      * itself (AdbFirewall); on lets a computer on the same Wi-Fi connect, for working on the unit.
      */
     private View networkAdbCard() {
-        LinearLayout card = card("Network ADB (for a computer)",
-                "Lets a computer on the same Wi-Fi connect to the unit with adb, with full control and no password. "
-                        + "Leave off unless you're working on the unit");
+        LinearLayout card = card("Network ADB", "Lets a computer on the Wi-Fi control the unit. Leave off unless needed");
         final TextView b = chip(prefs.getBoolean(AdbFirewall.KEY, AdbFirewall.DEFAULT) ? "On" : "Off");
         b.setSelected(prefs.getBoolean(AdbFirewall.KEY, AdbFirewall.DEFAULT));
         b.setOnClickListener(new View.OnClickListener() {
@@ -1215,8 +1203,7 @@ public class HubActivity extends Activity {
      * Camera tab rebuilds on return, so the card goes once it is on.
      */
     private View overlayCard() {
-        LinearLayout card = card("Allow over other apps",
-                "Lets the camera open on Drive over CarPlay and other apps, and the dash reopen after an update.");
+        LinearLayout card = card("Allow over other apps", "So the camera can open over CarPlay");
         TextView b = chip("Allow");
         b.setOnClickListener(new View.OnClickListener() {
             @Override public void onClick(View v) {

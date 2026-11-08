@@ -288,8 +288,7 @@ public final class SetupActivity extends Activity {
             // audit D6: otherwise Android silently blocks the Drive camera while another app is in front.
             // The button opens Android's own switch for Binnacle (owner, 8 Nov: no adb needed); this
             // step redraws on return, so the note goes once it is on.
-            TextView t = text("Allow Binnacle over other apps, so the camera can open on Drive over CarPlay "
-                    + "and the dash can reopen after an update.", 15, Style.WARN);
+            TextView t = text("Allow over other apps, so the camera can open over CarPlay.", 15, Style.WARN);
             t.setPadding(0, 0, 0, dp(4));
             s.addView(t);
             s.addView(buttons(new String[]{"Allow over other apps"}, new Runnable[]{new Runnable() {
@@ -339,13 +338,10 @@ public final class SetupActivity extends Activity {
     private void showUnit(UnitSetup.Status st, final TextView status, final LinearLayout more) {
         more.removeAllViews();
         if (!st.reachable) {
-            status.setText("A one-time unlock lets Binnacle set up the unit for you, and keeps wireless CarPlay working after a "
-                    + "restart (also End CarPlay, Wi-Fi scan pausing, Bluetooth auto-connect and screenshots). Nothing to install:\n\n"
-                    + "1. Tap Open EngineerMode, then the DEBUG&LOG tab, then Adb shell.\n"
-                    + "2. For each line below: tap Copy here, go back to EngineerMode, long-press its top field and "
-                    + "tap Paste (or type it), then tap START/END.\n"
-                    + "3. Come back here with Back. Binnacle checks it worked and keeps it unlocked from then on, "
-                    + "reachable from the unit itself only.");
+            status.setText("A one-time unlock, so Binnacle can set up the unit:\n"
+                    + "1. Open EngineerMode → DEBUG&LOG → Adb shell.\n"
+                    + "2. For each line: Copy here, long-press the top field there, Paste, START/END.\n"
+                    + "3. Come back here with Back.");
             for (String line : ENGINEER_LINES) more.addView(copyRow(line));
             final boolean hasEm = UnitSetup.hasEngineerMode(this);
             more.addView(buttons(hasEm ? new String[]{"Not now", "Check again", "Open EngineerMode"} : new String[]{"Not now", "Check again"},
@@ -367,13 +363,12 @@ public final class SetupActivity extends Activity {
             else todo.add(ch);
         }
         if (todo.isEmpty()) {
-            status.setText("The unit is set up. Each change can be undone in Advanced → Unit setup.");
+            status.setText("The unit is set up.");
             more.addView(buttons(new String[]{"Next"}, new Runnable[]{new Runnable() { @Override public void run() { next(); } }}));
             focusLast();
             return;
         }
-        status.setText("The unit is unlocked. Binnacle can now make the changes it needs to work fully. "
-                + "Each can be undone in Advanced → Unit setup:");
+        status.setText("Binnacle will make these changes (undo in Advanced → Unit setup):");
         for (UnitSetup.Change ch : todo) {
             TextView t = text("•  " + ch.title, 17, Style.FG);
             t.setPadding(0, dp(2), 0, 0);
@@ -406,7 +401,7 @@ public final class SetupActivity extends Activity {
                         if (step != 5) return;
                         status.setText(failed.isEmpty() ? "Done." : "Done, except:");
                         for (String f : failed) more.addView(text(f, 15, Style.WARN));
-                        if (needRestart) more.addView(text("Restart the unit to finish (Bluetooth changes).", 17, Style.FG));
+                        if (needRestart) more.addView(text("Restart the unit to finish.", 17, Style.FG));
                         more.addView(buttons(new String[]{"Next"}, new Runnable[]{new Runnable() { @Override public void run() { next(); } }}));
                         focusLast();
                     }

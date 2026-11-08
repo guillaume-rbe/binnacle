@@ -32,36 +32,27 @@ final class UnitSetup {
 
     enum Change {
         ADB_KEEP("Keep the unit unlocked after a restart",
-                "The one-time unlock (the unit's ADB, which Binnacle's unit features use) is lost at every restart "
-                        + "without this. Reachable only from the unit itself unless Network ADB is on", LocalShell.Command.ADB_KEEP_ON, LocalShell.Command.ADB_KEEP_OFF, false),
+                LocalShell.Command.ADB_KEEP_ON, LocalShell.Command.ADB_KEEP_OFF, false),
         STOCK_TOASTS("Block the stock dash's pop-ups",
-                "The stock dash keeps running behind Binnacle and shows toasts over everything (a white pill on Autopilot)",
                 LocalShell.Command.STOCK_TOASTS_OFF, LocalShell.Command.STOCK_TOASTS_ON, false),
         STOCK_CAMERA("Turn off the stock full-screen camera",
-                "It opens on Drive over everything; Binnacle shows the camera in the dash instead. "
-                        + "Turn it back on if you use the stock camera", LocalShell.Command.STOCK_CAMERA_OFF, LocalShell.Command.STOCK_CAMERA_ON, false),
+                LocalShell.Command.STOCK_CAMERA_OFF, LocalShell.Command.STOCK_CAMERA_ON, false),
         GPS_DUMPS("Stop the GPS crash dumps",
-                "The GPS service crashes often and saved up to 470 MB each time, filling the storage. "
-                        + "Turns them off and deletes the saved ones; GPS keeps working",
                 LocalShell.Command.GPS_DUMPS_OFF, LocalShell.Command.GPS_DUMPS_ON, false),
         ANDROID_BT("Android Bluetooth for wireless CarPlay",
-                "Turns on the unit's own Bluetooth beside the stock module, which wireless CarPlay needs. Restart the unit after",
                 LocalShell.Command.ANDROID_BT_ON, LocalShell.Command.ANDROID_BT_OFF, true),
         BT_VOLUME_FIX("Car Bluetooth volume fix",
-                "Some cars set Bluetooth audio volume to zero (silent CarPlay audio). Lets the car's own volume rule. "
-                        + "Restart the unit after", LocalShell.Command.BT_VOLUME_FIX_ON, LocalShell.Command.BT_VOLUME_FIX_OFF, true),
+                LocalShell.Command.BT_VOLUME_FIX_ON, LocalShell.Command.BT_VOLUME_FIX_OFF, true),
         CARPLAY_CALLS("CarPlay calls",
-                "Calls go through the iPhone over CarPlay, and Android's own call screen stays off the dash",
                 LocalShell.Command.CARPLAY_CALLS_ON, LocalShell.Command.CARPLAY_CALLS_OFF, false);
 
-        final String title, summary;
+        final String title;
         final LocalShell.Command on, off;
         /** Takes effect only after the unit restarts. */
         final boolean needsRestart;
 
-        Change(String title, String summary, LocalShell.Command on, LocalShell.Command off, boolean needsRestart) {
+        Change(String title, LocalShell.Command on, LocalShell.Command off, boolean needsRestart) {
             this.title = title;
-            this.summary = summary;
             this.on = on;
             this.off = off;
             this.needsRestart = needsRestart;
