@@ -342,12 +342,10 @@ public final class SetupActivity extends Activity {
             status.setText("Some of Binnacle's features use the unit's own ADB: wireless CarPlay after a restart, End CarPlay, "
                     + "Wi-Fi scan pausing, Bluetooth auto-connect and screenshots. A new unit has it off. Switch it on once:\n\n"
                     + "1. Tap Open EngineerMode, then the DEBUG&LOG tab, then Adb shell.\n"
-                    + "2. Type each line below in the top field, close the keyboard, and tap START/END.\n"
+                    + "2. For each line below: tap Copy here, go back to EngineerMode, long-press its top field and "
+                    + "tap Paste (or type it), then tap START/END.\n"
                     + "3. Come back here with Back. Binnacle keeps ADB on from then on, reachable from the unit only.");
-            TextView lines = text("setprop service.adb.tcp.port 5555\nsettings put global adb_enabled 1\nsetprop ctl.restart adbd", 17, Style.FG);
-            lines.setTypeface(android.graphics.Typeface.MONOSPACE);
-            lines.setPadding(dp(16), dp(10), 0, 0);
-            more.addView(lines);
+            for (String line : ENGINEER_LINES) more.addView(copyRow(line));
             final boolean hasEm = UnitSetup.hasEngineerMode(this);
             more.addView(buttons(hasEm ? new String[]{"Not now", "Check again", "Open EngineerMode"} : new String[]{"Not now", "Check again"},
                     hasEm ? new Runnable[]{
@@ -414,6 +412,36 @@ public final class SetupActivity extends Activity {
                 });
             }
         }, "unit-setup").start();
+    }
+
+    /** EngineerMode's Adb shell runs one command at a time (docs/ADB-GUIDE.md step 5). */
+    private static final String[] ENGINEER_LINES = {
+            "setprop service.adb.tcp.port 5555", "settings put global adb_enabled 1", "setprop ctl.restart adbd"};
+
+    /** One command in monospace with a Copy button: the unit's keyboard is awkward to type on. */
+    private View copyRow(final String line) {
+        LinearLayout row = new LinearLayout(this);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(16), dp(6), 0, 0);
+        TextView t = text(line, 17, Style.FG);
+        t.setTypeface(android.graphics.Typeface.MONOSPACE);
+        row.addView(t, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+        final TextView copy = text("Copy", 15, Style.FG);
+        copy.setGravity(Gravity.CENTER);
+        copy.setFocusable(true);
+        copy.setClickable(true);
+        copy.setPadding(dp(18), 0, dp(18), 0);
+        copy.setBackground(states(Style.PANEL2, Style.PANEL2));
+        copy.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                android.content.ClipboardManager cm = (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+                if (cm == null) return;
+                cm.setPrimaryClip(android.content.ClipData.newPlainText("EngineerMode", line));
+                copy.setText("Copied");
+            }
+        });
+        row.addView(copy, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(40)));
+        return row;
     }
 
     private void openEngineerMode() {
