@@ -18,11 +18,14 @@ final class AdbFirewall {
     static final String KEY = "network_adb";
     static final boolean DEFAULT = false;
 
+    /** One at a time, in order: a quick On then Off must end with the rule in place (Codex). */
+    private static final java.util.concurrent.ExecutorService ONE = java.util.concurrent.Executors.newSingleThreadExecutor();
+
     /** Puts the rule in place, or takes it away if Network ADB is on. Off the main thread. */
-    static void apply(SharedPreferences prefs) {
-        final boolean network = prefs.getBoolean(KEY, DEFAULT);
-        new Thread(new Runnable() {
+    static void apply(final SharedPreferences prefs) {
+        ONE.execute(new Runnable() {
             @Override public void run() {
+                boolean network = prefs.getBoolean(KEY, DEFAULT);   // the latest switch position, read here
                 try {
                     LocalShell.Command cmd = network ? LocalShell.Command.ADB_NETWORK : LocalShell.Command.ADB_LOCAL_ONLY;
                     LocalShell.run(cmd);
@@ -32,6 +35,6 @@ final class AdbFirewall {
                     Log.w("Binnacle", "ADB firewall not changed: " + e.getMessage());
                 }
             }
-        }, "adb-firewall").start();
+        });
     }
 }

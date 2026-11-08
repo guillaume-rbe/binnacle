@@ -711,6 +711,14 @@ public class HubActivity extends Activity {
         return card;
     }
 
+    private void uninstall() {
+        try {
+            startActivity(new Intent(Intent.ACTION_DELETE, android.net.Uri.parse("package:" + getPackageName())));
+        } catch (RuntimeException e) {
+            Toast.makeText(this, "Couldn't open the uninstaller", Toast.LENGTH_SHORT).show();
+        }
+    }
+
     private View resetCard() {
         LinearLayout card = card("Reset or remove", null);
         LinearLayout row = new LinearLayout(this);
@@ -738,15 +746,19 @@ public class HubActivity extends Activity {
                                 final boolean camera = stockCameraDisabled();
                                 new Thread(new Runnable() {
                                     @Override public void run() {
-                                        try { if (camera) UnitSetup.set(UnitSetup.Change.STOCK_CAMERA, false); } catch (Exception ignored) { }
+                                        boolean failed = false;
+                                        try { if (camera) UnitSetup.set(UnitSetup.Change.STOCK_CAMERA, false); } catch (Exception e) { failed = true; }
                                         try { UnitSetup.set(UnitSetup.Change.STOCK_TOASTS, false); } catch (Exception ignored) { }
+                                        final boolean cameraOff = failed;
                                         runOnUiThread(new Runnable() {
                                             @Override public void run() {
-                                                try {
-                                                    startActivity(new Intent(Intent.ACTION_DELETE, android.net.Uri.parse("package:" + getPackageName())));
-                                                } catch (RuntimeException e) {
-                                                    Toast.makeText(HubActivity.this, "Couldn't open the uninstaller", Toast.LENGTH_SHORT).show();
-                                                }
+                                                if (!cameraOff) { uninstall(); return; }
+                                                // without Binnacle the camera wouldn't open on Drive at all (Codex)
+                                                BinnacleDialog.show(HubActivity.this, "Stock camera still off",
+                                                        "It won't open on Drive without Binnacle. Fix: docs/UNIT-CHANGES.md.",
+                                                        new String[]{"Cancel", "Remove anyway"}, true, new BinnacleDialog.Choice() {
+                                                            @Override public void chosen(int i) { if (i == 1) uninstall(); }
+                                                        });
                                             }
                                         });
                                     }
