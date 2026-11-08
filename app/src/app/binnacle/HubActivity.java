@@ -294,12 +294,14 @@ public class HubActivity extends Activity {
                             new String[]{"psi", "bar"}, new String[]{"psi", "bar"}),
                     stepperCard("Range at 100%", "For the km estimate under the battery %", "full_range_km", 410, 150, 700, 5, "km"),
                     pairCard("Autopilot indication", "autopilot_rainbow", "Normal", "Rainbow road"))); break;
+            // two independent columns: in a two-column grid each row is as tall as its taller cell,
+            // which left a gap under the short cards (owner, 8 Nov); developer switches at the bottom
             default: content.addView(cards(
-                    switchCard("Show raw CAN values", "Latest raw fields over the centre view, for in-car checks", "raw_overlay", false),
-                    switchCard("Screenshot on power bar tap", "Tap the power bar to save a screenshot on the dash (Binnacle/screenshots), CarPlay and camera included", Screenshot.KEY, false),
-                    switchCard("Demo data", "Simulated drive instead of the car feed", "demo", false),
-                    loggerCards(),
-                    stack(updateCard(), setupCard(), resetCard(), aboutCard()))); break;
+                    stack(updateCard(), setupCard(), resetCard(), aboutCard()),
+                    stack(switchCard("Screenshot on power bar tap", "Tap the power bar to save a screenshot on the dash (Binnacle/screenshots), CarPlay and camera included", Screenshot.KEY, false),
+                            loggerCards(),
+                            switchCard("Show raw CAN values", "Latest raw fields over the centre view, for in-car checks", "raw_overlay", false),
+                            switchCard("Demo data", "Simulated drive instead of the car feed", "demo", false)))); break;
         }
         final ScrollView sv = pageScroll();
         if (keepScroll > 0 && sv != null) {
