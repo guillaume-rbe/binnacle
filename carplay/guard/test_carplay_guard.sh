@@ -14,7 +14,8 @@ fails=0; n=0
 copy() {
   rm -rf "$WORK/c"; mkdir -p "$WORK/c/guard"
   cp "$ROOT/guard/check_carplay.sh" "$WORK/c/guard/"
-  for m in "$ROOT"/*/src/main; do
+  for m in "$ROOT"/*/src/*; do
+    case "$m" in */src/test*|*/src/androidTest*) continue;; esac
     rel=${m#"$ROOT"/}; mkdir -p "$WORK/c/$(dirname "$rel")"; cp -R "$m" "$WORK/c/$rel"
   done
 }
@@ -67,6 +68,22 @@ expect fail "native code by path" "append $OTHER 'fun l() = System.load(\"/data/
 expect fail "I2C path check loosened" "edit $I2C 'Regex(\"/dev/i2c-[0-9]+\")' 'Regex(\"/dev/.+\")'"
 expect fail "native source changed" "append shared/src/main/jni/linux_i2c_jni.c '/* changed */'"
 expect fail "new native source" "printf 'int x;\n' > shared/src/main/jni/extra.c"
+
+NEWF=shared/src/main/java/com/shilapi/xcertplay/media/CarAudioGate.kt
+expect fail "settings write by import alias" "append $OTHER 'import android.provider.Settings.System as S'"
+expect fail "settings write by member import" "append $OTHER 'import android.provider.Settings.System.putInt'"
+expect fail "process by member import" "append $OTHER 'import java.lang.Runtime.getRuntime'"
+expect fail "another class loader" "append $OTHER 'fun cl(p: String) = dalvik.system.DelegateLastClassLoader(p, null)'"
+expect fail "reflection by constructor in a new file" "append $NEWF 'internal fun r(c: Class<*>) = c.getConstructor().newInstance()'"
+expect fail "reflection by method handle in a new file" "append $NEWF 'internal fun r() = java.lang.invoke.MethodHandles.lookup()'"
+expect fail "bindService in another file" "append $NEWF 'internal fun b(c: android.content.Context, s: android.content.ServiceConnection) = c.bindService(android.content.Intent(), s, 1)'"
+expect fail "a third bindService in a reviewed file" "append $OTHER 'internal fun b(c: android.content.Context, s: android.content.ServiceConnection) = c.bindService(android.content.Intent(), s, 1)'"
+expect fail "service start" "append $OTHER 'internal fun s(c: android.content.Context) = c.startService(android.content.Intent())'"
+expect fail "raw transact" "append $OTHER 'internal fun t(b: android.os.IBinder) = b.transact(1, android.os.Parcel.obtain(), null, 0)'"
+expect fail "Messenger send in another file" "append $OTHER 'internal fun m(x: android.os.Messenger) = x.send(Message.obtain())'"
+expect fail "ContentResolver write" "append $OTHER 'internal fun w(c: android.content.Context, u: android.net.Uri) = c.contentResolver.delete(u, null, null)'"
+expect fail "ContentResolver in a new file" "append $NEWF 'internal fun q(c: android.content.Context) = c.contentResolver'"
+expect fail "code in src/release" "mkdir -p shared/src/release/java && printf 'fun x() = Runtime.getRuntime()\n' > shared/src/release/java/X.kt"
 
 echo "$((n - fails))/$n cases as expected"
 [ $fails = 0 ]
