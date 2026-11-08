@@ -19,6 +19,12 @@ KEYSTORE="${KEYSTORE:-$HOME/.android/binnacle-release.jks}"
 KS_ALIAS="${KS_ALIAS:-binnacle}"
 [ -f "$KEYSTORE" ] || { echo "no keystore at $KEYSTORE"; exit 1; }
 
+# Version check (./deploy.sh check): only a warning here, so a test build of the same version still
+# builds; ./deploy.sh publish refuses to publish it.
+if [ -z "${DEPLOY_CHECKED:-}" ]; then
+    ./deploy.sh check || echo "release.sh: the version check above failed: fine for a test build, but ./deploy.sh publish will refuse it"
+fi
+
 # Unsigned release builds; the guards, tests and iCloud-copy check run inside Gradle and stop it
 # on any failure.
 ./gradlew -Pbinnacle.unsigned=true :app:assembleRelease :logger:assembleRelease
@@ -81,8 +87,10 @@ carplayVersionName=$CP_NAME
 carplaySize=$(wc -c < "$GH/BinnacleCarPlay.apk" | tr -d ' ')
 carplaySha256=$(sha256 "$GH/BinnacleCarPlay.apk")
 EOF
+# Which commit this is, for ./deploy.sh publish (not uploaded).
+{ echo "commit=$(git rev-parse HEAD)"
+  if [ -n "$(git status --porcelain --untracked-files=no)" ]; then echo "dirty=yes"; else echo "dirty=no"; fi
+} > "$GH/built-from.txt"
 echo
-echo "for in-app updates, publish both files in $GH as the latest release, e.g.:"
-echo "  gh release create v$(version app) $GH/Binnacle.apk $GH/BinnacleCarPlay.apk $GH/binnacle-update.txt $LOG_OUT --title \"Binnacle $(version app)\" --latest"
-echo "(bump versionCode first: the dash only offers a higher one; bump the CarPlay app's versionCode"
-echo " in carplay/mobile/build.gradle.kts when it changed. Car-image releases: --latest=false.)"
+echo "to publish it as the latest release (checks it first, asks before publishing): ./deploy.sh publish"
+echo "to install it on a dash over adb: DASH=<ip> ./deploy.sh install"

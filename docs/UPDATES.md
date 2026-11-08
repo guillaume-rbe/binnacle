@@ -41,15 +41,17 @@ It is never installed fresh from here, only updated: Android then insists on the
 
 ## Publishing a release (maintainer)
 
-1. Bump `android:versionCode` (and `versionName`) in `app/AndroidManifest.xml`. The dash only offers a higher versionCode.
-2. If the CarPlay app changed, bump its `versionCode` (and `versionName`) in `carplay/mobile/build.gradle.kts`.
-3. `./release.sh` (signs with the release key, as before). Besides `build/release/Binnacle-<version>.apk` it writes `build/release/BinnacleCarPlay-<version>.apk` and, for the release, `build/release/github/Binnacle.apk`, `build/release/github/BinnacleCarPlay.apk` and `build/release/github/binnacle-update.txt` (which also lists the CarPlay app's `carplayVersionCode`, `carplayVersionName`, `carplaySize` and `carplaySha256`), and prints the `gh release create` command.
-4. Publish those files (and the logger APK if you like) as the **latest** release, for example:
-   ```
-   gh release create v0.9 build/release/github/Binnacle.apk build/release/github/BinnacleCarPlay.apk \
-       build/release/github/binnacle-update.txt build/release/BinnacleLogger-0.9.apk --title "Binnacle 0.9" --latest
-   ```
-5. Car-image releases (`cars-v…`) must **not** become the latest release: publish them with `--latest=false`, or the dash would look for an update there and say "no update published yet".
+`./deploy.sh` does the routine steps and refuses the usual mistakes. `./deploy.sh` alone lists the commands.
+
+1. `./deploy.sh pull`: switch to `main` and bring it up to date with GitHub (`release.sh` builds whatever is checked out, and doesn't pull).
+2. Bump `android:versionCode` (and `versionName`) in `app/AndroidManifest.xml`; the dash only offers a higher versionCode, and the release is named after it. If `carplay/` changed, also bump `versionCode` (and `versionName`) in `carplay/mobile/build.gradle.kts`, or the dash never offers the new CarPlay app. `./deploy.sh check` compares with the latest release and says which bump is missing (changes to `*.md` files don't count). The bump goes through a PR like any other change.
+3. `./deploy.sh build`: the check, then `./release.sh` (asks for the keystore password). It writes `build/release/github/Binnacle.apk`, `BinnacleCarPlay.apk` and `binnacle-update.txt` (with the CarPlay app's `carplay*` lines), plus `built-from.txt`, which records the commit (not uploaded). `./release.sh` on its own still works and only warns about versions, for test builds.
+4. `./deploy.sh publish`: refuses a build with uncommitted changes, from another commit, not yet on GitHub's `main`, whose files don't match the info file, or whose version already has a release. Then it shows what it will publish, asks, and runs `gh release create v<versionName> … --latest` with the three files and the logger APK, tagged on the built commit. Release notes are GitHub's list of merged PRs, or `NOTES=notes.md ./deploy.sh publish`.
+5. On the dash: **Apps → Advanced → Updates → Check for updates**, in Park. Or over adb: `DASH=<ip> ./deploy.sh install` installs what is newer (CarPlay app first), after saving the installed copies to `build/rollback/` and printing the commands to put them back.
+
+`./deploy.sh release` runs 1, 3 and 4 in a row (after the bump is merged). `./deploy.sh status` shows the checkout, the versions here, in the last build and (with `DASH=<ip>`) on a dash, and what a release would need.
+
+Car-image releases (`cars-v…`) must **not** become the latest release: publish them by hand with `--latest=false`, or the dash would look for an update there and say "no update published yet".
 
 Undo a bad release: mark the previous release as latest again (or delete the new one). Dashes that already installed it stay on it until a higher versionCode is published; Android doesn't allow going back through the updater, only `adb install -r -d` or uninstall + install.
 
