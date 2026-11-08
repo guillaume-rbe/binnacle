@@ -60,7 +60,7 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
         lightBuilt = Style.light;
-        driveCamera = state == null && getIntent() != null && getIntent().getBooleanExtra(Launch.EXTRA_DRIVE_CAMERA, false);
+        driveCamera = Launch.takeDriveCamera() && state == null;
         if (state != null && state.containsKey(KEY_THEME_CAMERA)) {
             themeCamera = state.getBoolean(KEY_THEME_CAMERA);
             themeCameraAuto = state.getBoolean(KEY_THEME_CAMERA_AUTO, true);
@@ -400,7 +400,7 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
     @Override protected void onNewIntent(android.content.Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
-        if (intent.getBooleanExtra(Launch.EXTRA_DRIVE_CAMERA, false)) driveCamera = true;
+        if (Launch.takeDriveCamera()) driveCamera = true;   // never read from the intent's extras
     }
 
     @Override protected void onResume() {
