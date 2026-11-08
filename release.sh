@@ -19,6 +19,11 @@ KEYSTORE="${KEYSTORE:-$HOME/.android/binnacle-release.jks}"
 KS_ALIAS="${KS_ALIAS:-binnacle}"
 [ -f "$KEYSTORE" ] || { echo "no keystore at $KEYSTORE"; exit 1; }
 
+# Stops here if carplay/ changed since the last release tag without a higher CarPlay versionCode
+# (the dash's updater would skip it). ALLOW_SAME_CARPLAY_VERSION=1 builds anyway. ./deploy.sh build
+# and ./deploy.sh release also pull main first and publish the release.
+[ -n "${BINNACLE_DEPLOY:-}" ] || ./deploy.sh check
+
 # Unsigned release builds; the guards, tests and iCloud-copy check run inside Gradle and stop it
 # on any failure.
 ./gradlew -Pbinnacle.unsigned=true :app:assembleRelease :logger:assembleRelease
@@ -82,6 +87,7 @@ carplaySize=$(wc -c < "$GH/BinnacleCarPlay.apk" | tr -d ' ')
 carplaySha256=$(sha256 "$GH/BinnacleCarPlay.apk")
 EOF
 echo
+echo "to publish: ./deploy.sh release --no-build (or by hand, as below)"
 echo "for in-app updates, publish both files in $GH as the latest release, e.g.:"
 echo "  gh release create v$(version app) $GH/Binnacle.apk $GH/BinnacleCarPlay.apk $GH/binnacle-update.txt $LOG_OUT --title \"Binnacle $(version app)\" --latest"
 echo "(bump versionCode first: the dash only offers a higher one; bump the CarPlay app's versionCode"
