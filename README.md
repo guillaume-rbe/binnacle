@@ -61,6 +61,8 @@ Setting up the unit hides the stock camera screen and pop-ups, turns on Android 
 
 **Update:** **Apps → Advanced → Updates → Check for updates** (0.8 and later), in Park, over Wi-Fi. It updates Binnacle and its CarPlay together, and keeps your settings. Android asks you to confirm, and the first time to allow Binnacle to install apps. If Play Protect warns, tap **Install anyway** or **Install without scanning**. Details: [docs/UPDATES.md](docs/UPDATES.md).
 
+**Check a download:** both APKs are signed with the same key. `apksigner verify --print-certs Binnacle.apk` should show the SHA-256 certificate digest `14ee8d96b1c63874f0767871f5346178d52fd8497cb813ce7ff5f9c507d4fa84`. Android also refuses an update signed with any other key.
+
 **Remove:** **Apps → Advanced → Remove Binnacle**. The stock dash was never removed and comes straight back.
 
 ## The hardware (what the listings don't tell you)
@@ -140,6 +142,9 @@ Model Y renders (dark grey right-hand drive bundled, the rest downloaded from th
 CarPlay: built from [xcertplay](https://github.com/shilapi/xcertplay) by shilapi and its contributors (GPL-3.0), with fixes from open upstream pull requests by BBleae and code-new-bie; changes for this unit are listed in `carplay/README.md`.
 
 The in-app credit is under **Apps → Advanced → About**.
+
+## Security
+Please report security problems privately, not in a public issue: see [SECURITY.md](SECURITY.md).
 
 ## Licence
 Code: GNU General Public License version 3 (see `LICENSE`), for the dash, the logger and CarPlay alike. Releases up to and including 0.8 were MIT; from 0.9 the whole repository is GPL-3.0, to match xcertplay (© shilapi and contributors; upstream credits are kept in `carplay/README.md` and in each commit). Car renders in `app/assets/cars/` and the release packs: CC BY 4.0, from 3D models by Ameer Studio (Model 3) and tonielpro520 (Model Y), modified (see Credits). Not affiliated with Tesla, ZIQI or any head-unit vendor; "Tesla", "Model 3" and "Model Y" are used only to say which car this is for.
