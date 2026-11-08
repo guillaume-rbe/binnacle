@@ -62,6 +62,13 @@ final class Launch {
         } catch (RuntimeException ignored) {}
     }
 
+    /** Binnacle's own Home screen, from outside it (after an update: Relaunch). */
+    static void dash(Context c) {
+        Intent home = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
+                .setComponent(new ComponentName(c, "com.xbs.launcher.MainActivity"));
+        start(c, home, false);
+    }
+
     static void apps(Context c) {
         start(c, new Intent(c, HubActivity.class), true);
     }

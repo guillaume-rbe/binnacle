@@ -74,5 +74,11 @@
             android:theme="@style/Dash.List" />
         <!-- Android's installer reports back here (opens its confirm screen, shows failures). -->
         <receiver android:name=".Updater$Status" android:exported="false" />
+        <!-- After an in-app update of Binnacle itself, reopens the dash (Relaunch). -->
+        <receiver android:name=".Relaunch" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>
