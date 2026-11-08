@@ -150,10 +150,11 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
     private final BroadcastReceiver screenOff = new BroadcastReceiver() {
         @Override public void onReceive(Context c, Intent i) {
             if (Intent.ACTION_SCREEN_ON.equals(i.getAction())) { carplayAuto.onScreenOn(); return; }
-            carplayAuto.onScreenOff();
             // the car sleeps only when parked: a screen time-out behind another app while driving
-            // (Android's 10 min, the dash keeps its own screen on) must not end CarPlay
+            // (Android's 10 min, the dash keeps its own screen on) must not end CarPlay, nor an
+            // auto-connect attempt (it keeps its 90 s limit and its show-on-connect)
             if (app.car.moving() || app.car.speedKmh() >= 1) return;
+            carplayAuto.onScreenOff();   // CarPlay is ended just below
             if (carplayMode != CARPLAY_OFF) showCarPlay(CARPLAY_OFF);
             if (carplayLink.connected() && CarPlayLink.running(carplayLink.state())) carplayLink.disconnect();
         }
