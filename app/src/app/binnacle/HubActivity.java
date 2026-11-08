@@ -1190,13 +1190,18 @@ public class HubActivity extends Activity {
 
     /** Back from Android's install switch: carry on with the update if it is now on. True if one was waiting. */
     private boolean resumePendingUpdate() {
-        Updater.Release r = pendingUpdate;
-        TextView b = pendingCarplay ? carplayButton : updateButton;
+        final Updater.Release r = pendingUpdate;
+        final TextView b = pendingCarplay ? carplayButton : updateButton;
+        final boolean carplay = pendingCarplay;
         if (r == null || b == null) return false;
         pendingUpdate = null;
         if (!Updater.allowedToInstall(this)) return true;
         b.setVisibility(View.VISIBLE);
-        startUpdate(r, b, pendingCarplay);
+        // a rebuilt card's button has no update listener yet: the retry after a failed download needs one
+        b.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) { offerUpdate(r, b, carplay); }
+        });
+        startUpdate(r, b, carplay);
         return true;
     }
 
