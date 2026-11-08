@@ -4,7 +4,7 @@
 
 <p align="center">A **read-only** replacement instrument-cluster app and tooling for the Carview / ZIQI "A007" 10.25" Tesla Model 3/Y Android cluster (sold as Hansshow / Tesery / VJOYCAR / Satonic).</p>
 
-Aimed at fixing some of the jank in the shipped software. We were promised over the air updates which never came. After trying to patch the app, I ended up fixing the app by just replacing it with the help of Claude. This whole new dash uses the same real car data (speed, battery %, gear, odometer, TPMS, lights, parking sensors, doors) and also supports correctly handing off to CarPlay / Android Auto and the forward camera. The install is fully reversible.
+Aimed at fixing some of the jank in the shipped software. We were promised over the air updates which never came. After trying to patch the app, I ended up fixing the app by just replacing it with the help of Claude. This whole new dash uses the same real car data (speed, battery %, gear, odometer, TPMS, lights, parking sensors, doors) and also supports correctly handing off to wireless CarPlay ~~/ Android Auto~~ and the forward camera. The install is fully reversible.
 
 ![Binnacle in the light theme](docs/images/20261106-120619.png)
 ![Binnacle in the light theme](docs/images/20261106-120639.png)
@@ -43,10 +43,10 @@ On a ship, the binnacle is the stand in front of the helm that holds the compass
 - **Theme that doesn't flip-flop:** Auto waits for the car's light level to settle before switching.
 
 ## Planned/Hoped for Features.
-- CarPlay/Android Auto in the centre of the screen.
-- Restore 2nd Bluetooth device on the dash.
-- Installed Navigation apps in the centre of the screen with access to Cached data.
-- Improved design with more options, particularly for centre screen.
+- Much improved default dash design.
+- Bring back Android Auto support.
+- Run other local Android apps in the centre of the screen such as [Horizon Maps](https://github.com/benbishop028-arch/Horizon-Maps).
+- Some lame Tesla style easter egg.
 
 ## Install
 **Will it work on my dash?** See [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md) for the dashes and software versions tried so far, and how to check yours.
@@ -57,7 +57,7 @@ No computer or adb needed for the basics.
 3. Open **Binnacle**. The setup wizard asks about your car (model, steering-wheel side, colour), offers to make Binnacle the Home app, and asks for the compass (location) and in-dash camera. Any step can be skipped; **Apps → Advanced → Run setup** shows it again.
 4. Optional extras that hide the stock camera screen and stock pop-ups need a one-time change on the unit itself: see `docs/UNIT-CHANGES.md` (and `docs/ADB-GUIDE.md` for network ADB). **End CarPlay** and **Bluetooth auto-connect** also use network ADB; without it, End CarPlay opens Android's Wi-Fi screen instead.
 
-To update it later: **Apps → Advanced → Updates → Check for updates** (from 0.8 on). It checks this project's latest release over Wi-Fi only when you tap, downloads the new version and hands it to Android's installer, which asks you to confirm. One question covers the whole release: Binnacle's CarPlay support updates first if it changed, then the dash. The first time, Android asks you to allow Binnacle to install apps. If Google Play Protect asks to scan or warns about the app, tap **Install anyway**: it does that for any app from outside the Play Store. Only in Park, because the dash restarts while it installs; settings and car images are kept. Details: [docs/UPDATES.md](docs/UPDATES.md).
+To update it later: **Apps → Advanced → Updates → Check for updates** (from 0.8 on). It checks this project's latest release over Wi-Fi only when you tap, downloads the new version and hands it to Android's installer, which asks you to confirm. The first time, Android asks you to allow Binnacle to install apps. If Google Play Protect asks to scan or warns about the app, tap **Install anyway**: it does that for any app from outside the Play Store. Update only in Park, settings and car images are kept. Details: [docs/UPDATES.md](docs/UPDATES.md).
 
 To remove it: **Apps → Advanced → Remove Binnacle**. The stock dash was never removed and comes straight back.
 
