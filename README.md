@@ -48,6 +48,8 @@ On a ship, the binnacle is the stand in front of the helm that holds the compass
 - Improved design with more options, particularly for centre screen.
 
 ## Install
+**Will it work on my dash?** See [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md) for the dashes and software versions tried so far, and how to check yours.
+
 No computer or adb needed for the basics.
 1. Download the latest `Binnacle.apk` (or `Binnacle-<version>.apk` on older releases) from this project's [Releases](https://github.com/lotech/binnacle/releases).
 2. Copy it to a USB stick, plug the stick into the unit, open it in the unit's file manager and tap the APK. Android asks once to allow installing apps from the file manager.
@@ -101,7 +103,7 @@ In daily use on my 2023 Model 3 since 27 Oct 2026, as the unit's Home app (it re
 | `carplay/` | Binnacle's CarPlay app (`com.shilapi.xcertplay`), a fork of [xcertplay](https://github.com/shilapi/xcertplay) by shilapi, with its full history; a separate APK and its own Gradle build, held to its own guard (`carplay/guard/`). See `carplay/README.md` |
 | `capture/` | Optional developer tool: Binnacle logger, a separate read-only app that records the car data feed (no location) to its private storage; used to derive the field map |
 | `mockups/` | HTML mockups of the dash layout — **own artwork only**, no vendor assets |
-| `docs/` | `FIELD_MAP.md` (decoded CAN fields), the ADB access guide, and `UNIT-CHANGES.md` (changes made to the unit outside the app) |
+| `docs/` | `COMPATIBILITY.md` (dashes tried so far), `FIELD_MAP.md` (decoded CAN fields), the ADB access guide, and `UNIT-CHANGES.md` (changes made to the unit outside the app) |
 | `app/tests/` | Plain-Java tests (tyre pressure, battery decoding), run by every build |
 | `buildSrc/`, `gradle/`, `*.gradle.kts` | The Gradle build (see Build below); `app/build.sh` and `capture/build.sh` still work as before |
 | `app/assets/cars/` | The dash's car renders, made from a CC BY 4.0 model (see Credits) |
