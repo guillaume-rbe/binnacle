@@ -834,10 +834,32 @@ public class HubActivity extends Activity {
                 prefs.edit().putBoolean(key, now).apply();
                 b.setSelected(now);
                 b.setText(now ? "On" : "Off");
+                // unit setup may have turned the stock camera screen off: it has to come back (Codex)
+                if (now && "auto_camera".equals(key) && stockCameraDisabled()) restoreStockCamera();
             }
         });
         card.addView(b, new LinearLayout.LayoutParams(dp(150), dp(BUTTON_DP)));
         return card;
+    }
+
+    private void restoreStockCamera() {
+        new Thread(new Runnable() {
+            @Override public void run() {
+                String err = null;
+                try {
+                    UnitSetup.set(UnitSetup.Change.STOCK_CAMERA, false);
+                } catch (Exception e) {
+                    err = e.getMessage();
+                }
+                final String problem = err;
+                runOnUiThread(new Runnable() {
+                    @Override public void run() {
+                        if (problem != null) Toast.makeText(HubActivity.this,
+                                "Stock camera is off: turn it on in Advanced → Unit setup", Toast.LENGTH_LONG).show();
+                    }
+                });
+            }
+        }, "stock-camera").start();
     }
 
     /** − value + for a number kept as a string preference (as the old EditText setting stored it). */
