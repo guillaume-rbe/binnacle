@@ -881,6 +881,9 @@ internal object CarPlaySession {
             }
 
             override fun onDebugLog(message: String) {
+                // TRACE lines hold decrypted control traffic: only with Debug logs on, since the
+                // session log is in shared storage (users attach it to issues)
+                if (message.startsWith("TRACE ") && !AirPlayPersistence.loadDebugLogsEnabled(app)) return
                 val now = System.currentTimeMillis()
                 log.appendTimestamped(message, now)
                 clients.forEach { it.onDebugLog(controllerGeneration, message, now) }
