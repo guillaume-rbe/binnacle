@@ -36,6 +36,8 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
     /** CarPlay in the dash's own window (xcertplay's service), when xcertplay allows it. */
     private CarPlayLink carplayLink;
     private CarPlayPane carplay;
+    /** CarPlay auto-connect at start and wake (off by default), behind the dash until it connects. */
+    private CarPlayAuto carplayAuto;
     private static final int CARPLAY_OFF = 0, CARPLAY_CENTRE = 1, CARPLAY_FULL = 2;
     private int carplayMode = CARPLAY_OFF;
     private LinearLayout root;
@@ -94,6 +96,12 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
         camera.setVisibility(View.GONE);
         carplayLink = new CarPlayLink(this, carplayListener);
         carplay = new CarPlayPane(this, carplayLink);
+        carplayAuto = new CarPlayAuto(this, app.prefs(), carplayLink, new CarPlayAuto.Host() {
+            @Override public void showConnectedCarPlay() {
+                // only over the dash itself: another app in front (Settings, the stock camera) stays
+                if (resumed && carplayMode == CARPLAY_OFF) showCarPlay(CARPLAY_CENTRE);
+            }
+        });
         carplay.setVisibility(View.GONE);
         carplay.setOnStatusTap(new View.OnClickListener() {
             @Override public void onClick(View v) {
@@ -127,20 +135,26 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
         setContentView(root);
         // no storage permission: the car renders are bundled (or in this app's own files dir)
         carplayLink.bind();     // false when xcertplay is missing or signed differently: its own screen then
-        registerReceiver(screenOff, new IntentFilter(Intent.ACTION_SCREEN_OFF));
+        IntentFilter screen = new IntentFilter(Intent.ACTION_SCREEN_OFF);
+        screen.addAction(Intent.ACTION_SCREEN_ON);
+        registerReceiver(screenOff, screen);
     }
 
     /**
      * The car "sleeping" only turns the dash's screen off; apps keep running. When it woke, CarPlay
      * was still in the centre and started at once, before the car's Bluetooth was back (owner,
      * 5 Nov). So when the screen goes off while parked, CarPlay ends and the dash goes back to its own view; on
-     * wake CarPlay waits for a tap on CarPlay (the owner's choice).
+     * wake CarPlay waits for a tap on CarPlay (the owner's choice), unless CarPlay auto-connect is
+     * on (CarPlayAuto: it waits for the car's Bluetooth audio first, then tries behind the dash).
      */
     private final BroadcastReceiver screenOff = new BroadcastReceiver() {
         @Override public void onReceive(Context c, Intent i) {
+            if (Intent.ACTION_SCREEN_ON.equals(i.getAction())) { carplayAuto.onScreenOn(); return; }
             // the car sleeps only when parked: a screen time-out behind another app while driving
-            // (Android's 10 min, the dash keeps its own screen on) must not end CarPlay
+            // (Android's 10 min, the dash keeps its own screen on) must not end CarPlay, nor an
+            // auto-connect attempt (it keeps its 90 s limit and its show-on-connect)
             if (app.car.moving() || app.car.speedKmh() >= 1) return;
+            carplayAuto.onScreenOff();   // CarPlay is ended just below
             if (carplayMode != CARPLAY_OFF) showCarPlay(CARPLAY_OFF);
             if (carplayLink.connected() && CarPlayLink.running(carplayLink.state())) carplayLink.disconnect();
         }
@@ -149,6 +163,7 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
     @Override protected void onDestroy() {
         destroying = true;      // the unbind below is not xcertplay going away
         handler.removeCallbacks(carplayLost);
+        carplayAuto.release();
         try { unregisterReceiver(screenOff); } catch (RuntimeException ignored) { }
         // closed for good (not recreated): nothing will hear CarPlay end, so scanning goes back on now
         if (!isChangingConfigurations()) WifiScans.forCarPlay(app.prefs(), false);
@@ -171,6 +186,7 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
                 // a pane already on screen tried to hand over its surface before the link was up
                 // (after a restart its surface already exists, so nothing else would resend it)
                 if (carplayMode != CARPLAY_OFF) carplay.requestAttach();   // also asks for CarPlay
+                carplayAuto.onLinkUp();         // the first link since the dash started counts as a start
             } else if (carplayMode != CARPLAY_OFF) {
                 showCarPlay(CARPLAY_OFF);       // xcertplay went away; the dock opens its own screen now
             }
@@ -187,6 +203,7 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
         @Override public void onCarPlayState(int state, String stage) {
             carplay.showState(state, stage);
             watchCarPlayLost(state);
+            carplayAuto.onCarPlayState(state);
             WifiScans.forCarPlay(app.prefs(), CarPlayLink.running(state));
         }
         @Override public void onHostUi() {
@@ -255,6 +272,7 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
         carplay.setRounded(!full);
         centreFrame.requestLayout();
         if (mode != CARPLAY_OFF) {
+            carplayAuto.userTookOver();   // CarPlay is on screen now: a background attempt is not ours to end
             carplay.requestAttach();   // the new size, or a surface that already existed
             // reopened on a session that is already drawing: xcertplay sends no new state for it
             if (carplayLink.state() == CarPlayLink.STATE_STREAMING) carplayDrew = true;

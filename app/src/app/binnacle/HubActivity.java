@@ -269,6 +269,11 @@ public class HubActivity extends Activity {
                             StartupVolume.KEY, StartupVolume.DEFAULT,
                             new String[]{"100", "75", "50", "off"}, new String[]{"100%", "75%", "50%", "Leave as is"}),
                     btAutoConnectCard(),
+                    choiceCard("CarPlay auto-connect", "When the dash starts or the car wakes, look for your paired iPhone. "
+                                    + "Shows nothing if it isn't there, and stops after 90 s",
+                            CarPlayAuto.KEY, CarPlayAuto.DEFAULT,
+                            new String[]{CarPlayAuto.OFF, CarPlayAuto.BACKGROUND, CarPlayAuto.SHOW},
+                            new String[]{"Off", "In background", "Connect & show"}),
                     switchCard("Pause Wi-Fi scans during CarPlay", "Stops music and call stutter away from home. Scanning comes back on when CarPlay ends, and tapping the Wi-Fi icon rejoins home Wi-Fi", WifiScans.KEY, WifiScans.DEFAULT),
                     actionCard("End CarPlay", null,
                             "End CarPlay", LocalShell.Command.END_CARPLAY),

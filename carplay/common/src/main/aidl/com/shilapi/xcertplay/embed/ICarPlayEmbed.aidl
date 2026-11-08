@@ -51,7 +51,10 @@ interface ICarPlayEmbed {
     /** 6. Wheel and media keys. True when CarPlay takes the key (a session is up and it maps). */
     boolean sendKey(in KeyEvent event);
 
-    /** 7. Starts a session if none runs and xcertplay has every permission it needs. */
+    /**
+     * 7. Starts a session if none runs and xcertplay has every permission it needs. Called before
+     * any attachSurface, the session starts at the first size given to declareSizes.
+     */
     void start();
 
     /** 8. Ends the running session, and keeps it ended until start() or xcertplay's own screen. */

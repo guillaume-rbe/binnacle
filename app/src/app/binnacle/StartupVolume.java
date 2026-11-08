@@ -36,6 +36,19 @@ final class StartupVolume {
     private StartupVolume() {}
 
     /**
+     * The car's Bluetooth audio (the dash's A2DP link to the car) is connected; read only. Also used
+     * by CarPlayAuto, which waits for it after a start or wake (CarPlay's sound goes over it).
+     */
+    static boolean carBluetoothAudio(Context context) {
+        AudioManager audio = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
+        if (audio == null) return true;
+        for (AudioDeviceInfo d : audio.getDevices(AudioManager.GET_DEVICES_OUTPUTS)) {
+            if (d.getType() == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP) return true;
+        }
+        return false;
+    }
+
+    /**
      * Called once from DashApp.onCreate. The car "sleeping" only turns the screen off (the app keeps
      * running), and the CAN app mutes music and sets it to 0 then; so the level is also set again
      * when the screen comes back on (drive 5 Nov: no sound until the volume was raised by hand).

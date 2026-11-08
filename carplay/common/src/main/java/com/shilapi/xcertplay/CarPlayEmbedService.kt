@@ -154,6 +154,9 @@ class CarPlayEmbedService : Service() {
         override fun start() {
             onMain {
                 session.clearStop()
+                // asked for in the background (the dash's auto-connect) before any surface: start at
+                // the size the client declared, so the session needn't wait for a window
+                session.useDeclaredSizeIfNoDisplay(client)
                 // A dead controller is dropped (its teardown then starts afresh); a live one whose
                 // retries ran out gets the retry button's reconnect.
                 if (!session.dropClosedController()) {

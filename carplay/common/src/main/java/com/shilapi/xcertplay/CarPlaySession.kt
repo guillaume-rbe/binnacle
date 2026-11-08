@@ -349,6 +349,18 @@ internal object CarPlaySession {
         applyEffectiveDisplay()
     }
 
+    /**
+     * A client asking for a session before it has shown CarPlay anywhere (the dash's auto-connect
+     * right after it starts): no display size is known yet, so the client's first declared size
+     * (the dash's centre window) stands in until it hands over a surface. A known size is kept.
+     */
+    fun useDeclaredSizeIfNoDisplay(client: Client) {
+        if (activeDisplaySize != null || client.display != null) return
+        val size = client.declaredSizes.firstOrNull() ?: return
+        appendLog("No display yet; using the declared ${size.width}x${size.height} until one is shown")
+        setDisplay(client, size, DisplayLayout(splitScreen = false, portrait = size.height > size.width))
+    }
+
     /** The client whose view the phone draws for. */
     private fun displayOwner(): Client? {
         val sized = clients.filter { it.display != null }
