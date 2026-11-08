@@ -23,6 +23,9 @@ KS_ALIAS="${KS_ALIAS:-binnacle}"
 # (the dash's updater would skip it). ALLOW_SAME_CARPLAY_VERSION=1 builds anyway. ./deploy.sh build
 # and ./deploy.sh release also pull main first and publish the release.
 [ -n "${BINNACLE_DEPLOY:-}" ] || ./deploy.sh check
+# The commit this build is from, only when nothing is changed locally (./deploy.sh release
+# --no-build publishes only a build stamped with the current commit).
+COMMIT=""; [ -n "$(git status --porcelain)" ] || COMMIT=$(git rev-parse HEAD)
 
 # Unsigned release builds; the guards, tests and iCloud-copy check run inside Gradle and stop it
 # on any failure.
@@ -86,6 +89,7 @@ carplayVersionName=$CP_NAME
 carplaySize=$(wc -c < "$GH/BinnacleCarPlay.apk" | tr -d ' ')
 carplaySha256=$(sha256 "$GH/BinnacleCarPlay.apk")
 EOF
+[ -z "$COMMIT" ] || echo "$COMMIT" > "$OUT/BUILD_COMMIT"
 echo
 echo "to publish: ./deploy.sh release --no-build (or by hand, as below)"
 echo "for in-app updates, publish both files in $GH as the latest release, e.g.:"

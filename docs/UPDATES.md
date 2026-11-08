@@ -41,7 +41,7 @@ It is never installed fresh from here, only updated: Android then insists on the
 
 ## Publishing a release (maintainer)
 
-`./deploy.sh` does the chores; run it with no arguments to see where things stand (branch, versions, the last release, what changed since it, which versionCode still needs a bump).
+`./deploy.sh` does the chores. Run it with no arguments for a menu: it first shows where things stand (branch, versions, the last release, what changed since it, which versionCode still needs a bump), then offers each step below by number, so no flags to remember. The commands below do the same from the command line.
 
 1. Bump `android:versionCode` (and `versionName`) in `app/AndroidManifest.xml`. The dash only offers a higher versionCode.
 2. If the CarPlay app changed, bump its `versionCode` (and `versionName`) in `carplay/mobile/build.gradle.kts`. `deploy.sh` and `release.sh` stop if `carplay/` changed since the last `v*` tag (Markdown aside) without a higher CarPlay versionCode, because the dash's updater would skip it. `ALLOW_SAME_CARPLAY_VERSION=1` builds anyway.

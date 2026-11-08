@@ -1,7 +1,8 @@
 #!/bin/bash
 # One command for the release chores, run from the repo on the owner's Mac.
 #
-#   ./deploy.sh [status]      where things stand: branch, versions, the last release, what changed
+#   ./deploy.sh               a menu (on a terminal): pick what to do by number, no flags to remember
+#   ./deploy.sh status        where things stand: branch, versions, the last release, what changed
 #                             since it and which versionCode needs a bump (changes nothing)
 #   ./deploy.sh pull          switch to main and fast-forward it from GitHub
 #   ./deploy.sh check         the version checks alone (release.sh runs this too)
@@ -141,9 +142,8 @@ confirm() {   # confirm QUESTION: yes unless the answer isn't y
     case "$a" in y|Y|yes|YES) return 0 ;; *) return 1 ;; esac
 }
 
-build() {
+build() {   # release.sh writes $STAMP itself (the commit, when the tree was clean)
     BINNACLE_DEPLOY=1 ./release.sh   # the checks already ran; release.sh skips its own copy
-    git rev-parse HEAD > "$STAMP"
 }
 
 # --- commands -------------------------------------------------------------------------------
@@ -218,7 +218,7 @@ cmd_release() {
 
     if [ -n "$nobuild" ]; then
         [ -f "$STAMP" ] && [ "$(cat "$STAMP")" = "$(git rev-parse HEAD)" ] ||
-            die "build/release isn't from this commit; run without --no-build"
+            die "build/release isn't from this commit (or was built with local changes); run without --no-build"
     else
         build
     fi
@@ -287,8 +287,53 @@ cmd_cars() {
     fi
 }
 
-cmd="${1:-status}"
-[ $# -eq 0 ] || shift
+cmd_menu() {
+    cmd_status
+    local choice tag last files
+    while :; do
+        say
+        say "What next?"
+        say "  1) Get the latest main from GitHub            (pull)"
+        say "  2) Check the version numbers                  (check)"
+        say "  3) Build signed APKs, publish nothing         (build)"
+        say "  4) Build and publish the release              (release)"
+        say "  5) Build and publish it as a draft            (release --draft)"
+        say "  6) Publish the last build, no rebuild         (release --no-build)"
+        say "  7) Publish car-image packs                    (cars)"
+        say "  8) Show where things stand again              (status)"
+        say "  q) Quit"
+        read -rp "Choose: " choice || exit 0
+        say
+        # Each runs in a subshell, so a stop goes back to the menu instead of quitting.
+        case "$choice" in
+            1) ( cmd_pull ) || true ;;
+            2) ( cmd_check release ) || true ;;
+            3) ( cmd_build ) || true ;;
+            4) ( cmd_release ) || true ;;
+            5) ( cmd_release --draft ) || true ;;
+            6) ( cmd_release --no-build ) || true ;;
+            7)
+                last=$(git tag -l 'cars-v[0-9]*' --sort=-v:refname | head -1)
+                say "Last car-image release: ${last:-none}"
+                read -rp "Tag (cars-vN): " tag
+                # Without -r, read keeps backslash-escaped spaces, as Terminal writes dragged files.
+                say "Drag the pack files here (or type their paths), then press Return:"
+                # shellcheck disable=SC2162
+                read -a files
+                if [ -n "$tag" ] && [ "${#files[@]}" -gt 0 ]; then ( cmd_cars "$tag" "${files[@]}" ) || true
+                else say "nothing to publish"; fi ;;
+            8) cmd_status ;;
+            q|Q|"") exit 0 ;;
+            *) say "pick 1-8 or q" ;;
+        esac
+    done
+}
+
+if [ $# -eq 0 ]; then
+    if [ -t 0 ] && [ -t 1 ]; then cmd_menu; else cmd_status; fi
+    exit 0
+fi
+cmd="$1"; shift
 case "$cmd" in
     status)  cmd_status ;;
     pull)    cmd_pull ;;
