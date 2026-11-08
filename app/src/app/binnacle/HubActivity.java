@@ -1103,6 +1103,8 @@ public class HubActivity extends Activity {
         b.setEnabled(!Updater.installing());
         final TextView cp = chip("Update CarPlay");
         cp.setVisibility(View.GONE);
+        updateButton = b;
+        carplayButton = cp;
         b.setOnClickListener(new View.OnClickListener() {
             @Override public void onClick(View v) {
                 b.setEnabled(false);
@@ -1176,19 +1178,25 @@ public class HubActivity extends Activity {
                 });
     }
 
-    /** An update waiting on Android's "Install unknown apps" switch; it resumes on return (onResume). */
-    private Updater.Release pendingUpdate;
-    private TextView pendingButton;
-    private boolean pendingCarplay;
+    /**
+     * An update waiting on Android's "Install unknown apps" switch; it resumes on return (onResume).
+     * Static so it outlives this screen being rebuilt meanwhile (theme or text size changed); the
+     * rebuilt Updates card's buttons show the download.
+     */
+    private static Updater.Release pendingUpdate;
+    private static boolean pendingCarplay;
+    /** The Updates card's buttons on screen now (dash, CarPlay app); set by updateCard(). */
+    private TextView updateButton, carplayButton;
 
     /** Back from Android's install switch: carry on with the update if it is now on. True if one was waiting. */
     private boolean resumePendingUpdate() {
         Updater.Release r = pendingUpdate;
-        TextView b = pendingButton;
+        TextView b = pendingCarplay ? carplayButton : updateButton;
         if (r == null || b == null) return false;
         pendingUpdate = null;
-        pendingButton = null;
-        if (Updater.allowedToInstall(this)) startUpdate(r, b, pendingCarplay);
+        if (!Updater.allowedToInstall(this)) return true;
+        b.setVisibility(View.VISIBLE);
+        startUpdate(r, b, pendingCarplay);
         return true;
     }
 
@@ -1204,7 +1212,6 @@ public class HubActivity extends Activity {
             // straight to Android's switch (owner, 8 Nov: fewer stops); the update carries on by
             // itself on return (onResume), so no second tap and the page keeps its place
             pendingUpdate = r;
-            pendingButton = b;
             pendingCarplay = carplay;
             Toast.makeText(this, "Turn on \"Allow from this source\", then go back", Toast.LENGTH_LONG).show();
             try {
@@ -1212,7 +1219,6 @@ public class HubActivity extends Activity {
                         android.net.Uri.parse("package:" + getPackageName())));
             } catch (RuntimeException e) {
                 pendingUpdate = null;
-                pendingButton = null;
                 Toast.makeText(HubActivity.this, "Couldn't open the setting: Android settings → Apps → Binnacle → Install unknown apps",
                         Toast.LENGTH_LONG).show();
             }
