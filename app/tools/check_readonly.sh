@@ -129,7 +129,8 @@ grep -nwE 'ProcessBuilder|getRuntime|exec' src/app/binnacle/LocalShell.java && b
 awk '/enum Command \{/ { on = 1; next } /final String shell;/ { on = 0 } on' src/app/binnacle/LocalShell.java \
     | grep -vE '^ *(/\*\*|\*|\*/|//)|^ *$' | grep -vxE ' *[A-Z_]+\("[^"\\]*"\)[,;]' && bad "LocalShell commands must each be one plain string on one line (above)"
 cmds=$(grep -oE '^ *[A-Z_]+\("[^"]*"\)' src/app/binnacle/LocalShell.java | sed -E 's/^ *//')
-expected='END_CARPLAY("svc wifi disable && sleep 2 && svc wifi enable && echo BINNACLE_OK")
+expected=$(cat <<'EOF'
+END_CARPLAY("svc wifi disable && sleep 2 && svc wifi enable && echo BINNACLE_OK")
 BT_AUTOCONNECT_GET("settings get system xbs_isautoconnect && echo BINNACLE_OK")
 BT_AUTOCONNECT_ON("settings put system xbs_isautoconnect true && echo BINNACLE_OK")
 BT_AUTOCONNECT_OFF("settings put system xbs_isautoconnect false && echo BINNACLE_OK")
@@ -137,7 +138,26 @@ WIFI_SCANS_ON("service call wifi 58 i32 1 && echo BINNACLE_OK")
 WIFI_SCANS_OFF("service call wifi 58 i32 0 && echo BINNACLE_OK")
 SCREENSHOT("mkdir -p /sdcard/Binnacle/screenshots && screencap -p /sdcard/Binnacle/screenshots/$(date +%Y%m%d-%H%M%S).png && echo BINNACLE_OK")
 XCERTPLAY_LOCATION("appops set --uid com.shilapi.xcertplay COARSE_LOCATION allow && echo BINNACLE_OK")
-WIFI_REJOIN("service call wifi 58 i32 1 && svc wifi enable && echo BINNACLE_OK")'
+WIFI_REJOIN("service call wifi 58 i32 1 && svc wifi enable && echo BINNACLE_OK")
+UNIT_STATUS("echo adb=$(getprop persist.adb.tcp.port) dumps=$(getprop persist.vendor.sys.core.enabled) bt=$(getprop persist.car.use_system_bt) absvol=$(getprop persist.bluetooth.disableabsvol) && appops get com.xbs.launcher1 TOAST_WINDOW; echo BINNACLE_OK")
+ADB_KEEP_ON("su 0 setprop persist.adb.tcp.port 5555 && echo BINNACLE_OK")
+ADB_KEEP_OFF("su 0 setprop persist.adb.tcp.port '' && echo BINNACLE_OK")
+ADB_LOCAL_ONLY("{ su 0 iptables -C INPUT -p tcp --dport 5555 ! -i lo -j DROP 2>/dev/null || su 0 iptables -I INPUT -p tcp --dport 5555 ! -i lo -j DROP; } && { su 0 ip6tables -C INPUT -p tcp --dport 5555 ! -i lo -j DROP 2>/dev/null || su 0 ip6tables -I INPUT -p tcp --dport 5555 ! -i lo -j DROP; } && echo BINNACLE_OK")
+ADB_NETWORK("while su 0 iptables -D INPUT -p tcp --dport 5555 ! -i lo -j DROP 2>/dev/null; do :; done; while su 0 ip6tables -D INPUT -p tcp --dport 5555 ! -i lo -j DROP 2>/dev/null; do :; done; echo BINNACLE_OK")
+GPS_DUMPS_OFF("su 0 setprop persist.vendor.sys.core.enabled 0 && su 0 sh -c 'rm -rf /data/corefile/*' && echo BINNACLE_OK")
+GPS_DUMPS_ON("su 0 setprop persist.vendor.sys.core.enabled 1 && echo BINNACLE_OK")
+STOCK_CAMERA_OFF("su 0 pm disable com.xbs.frontcam/com.xbs.frontcam.CameraActivity && echo BINNACLE_OK")
+STOCK_CAMERA_ON("su 0 pm enable com.xbs.frontcam/com.xbs.frontcam.CameraActivity && echo BINNACLE_OK")
+STOCK_TOASTS_OFF("appops set com.xbs.launcher1 TOAST_WINDOW ignore && echo BINNACLE_OK")
+STOCK_TOASTS_ON("appops set com.xbs.launcher1 TOAST_WINDOW allow && echo BINNACLE_OK")
+ANDROID_BT_ON("su 0 setprop persist.car.use_system_bt 2 && echo BINNACLE_OK")
+ANDROID_BT_OFF("su 0 setprop persist.car.use_system_bt '' && echo BINNACLE_OK")
+BT_VOLUME_FIX_ON("su 0 setprop persist.bluetooth.disableabsvol true && echo BINNACLE_OK")
+BT_VOLUME_FIX_OFF("su 0 setprop persist.bluetooth.disableabsvol '' && echo BINNACLE_OK")
+CARPLAY_CALLS_ON("pm grant com.shilapi.xcertplay android.permission.CALL_PHONE && telecom set-phone-account-enabled com.shilapi.xcertplay/com.shilapi.xcertplay.telecom.CarPlayConnectionService carplay 0 && telecom set-user-selected-outgoing-phone-account com.shilapi.xcertplay/com.shilapi.xcertplay.telecom.CarPlayConnectionService carplay 0 && su 0 pm disable com.android.dialer/com.android.incallui.InCallServiceImpl && echo BINNACLE_OK")
+CARPLAY_CALLS_OFF("su 0 pm enable com.android.dialer/com.android.incallui.InCallServiceImpl && telecom set-phone-account-disabled com.shilapi.xcertplay/com.shilapi.xcertplay.telecom.CarPlayConnectionService carplay 0 && pm revoke com.shilapi.xcertplay android.permission.CALL_PHONE && echo BINNACLE_OK")
+EOF
+)
 [ "$cmds" = "$expected" ] || bad "LocalShell command list changed: review it, then update this guard"
 [ "$(grep -c 'shell:' src/app/binnacle/LocalShell.java)" = 1 ] && grep -qF '("shell:" + cmd.shell + "\0")' src/app/binnacle/LocalShell.java || bad "LocalShell may only open shell:<Command.shell>"
 [ "$(grep -cw 'A_OPEN' src/app/binnacle/LocalShell.java)" = 2 ] || bad "LocalShell may open exactly one ADB stream"

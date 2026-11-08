@@ -44,7 +44,7 @@ public final class SetupActivity extends Activity {
     /** The step to come back to if the wizard was closed under us (Android's Home picker). */
     private static final String STEP_KEY = "setup_step";
     private static final int REQ_LOCATION = 11, REQ_CAMERA = 12;
-    private static final int STEPS = 6;
+    private static final int STEPS = 7;
     private static final int BUTTON_DP = 52;
     /** Paint swatches in carcolor order: white, red, blue, black, dark grey (silver). */
     private static final int[] PAINT = {0xfff2f2f0, 0xffb3202a, 0xff1f4f9f, 0xff121314, 0xff4b4f55};
@@ -94,6 +94,7 @@ public final class SetupActivity extends Activity {
         super.onResume();
         if (step == 2) show(2);     // back from Android's Home picker: show whether it took
         if (step == 4) show(4);     // back from Android's over-other-apps switch
+        if (step == 5) show(5);     // back from EngineerMode: check whether ADB answers now
     }
 
     /**
@@ -143,6 +144,7 @@ public final class SetupActivity extends Activity {
             case 2: v = home(); break;
             case 3: v = compass(); break;
             case 4: v = camera(); break;
+            case 5: v = unit(); break;
             default: v = finished(); break;
         }
         page.addView(v);
@@ -286,8 +288,7 @@ public final class SetupActivity extends Activity {
             // audit D6: otherwise Android silently blocks the Drive camera while another app is in front.
             // The button opens Android's own switch for Binnacle (owner, 8 Nov: no adb needed); this
             // step redraws on return, so the note goes once it is on.
-            TextView t = text("Allow Binnacle over other apps, so the camera can open on Drive over CarPlay "
-                    + "and the dash can reopen after an update.", 15, Style.WARN);
+            TextView t = text("Allow over other apps, so the camera can open over CarPlay.", 15, Style.WARN);
             t.setPadding(0, 0, 0, dp(4));
             s.addView(t);
             s.addView(buttons(new String[]{"Allow over other apps"}, new Runnable[]{new Runnable() {
@@ -309,10 +310,154 @@ public final class SetupActivity extends Activity {
         return s;
     }
 
+    /**
+     * Set up the unit (owner, 8 Nov): what the owner did by hand over adb, so a new user only has to
+     * install Binnacle. A fresh unit has its ADB off, and only EngineerMode can switch it on the
+     * first time, so this step shows how (three lines typed there) and checks again on return.
+     * Once ADB answers, one button makes every recommended change (UnitSetup, pinned commands, each
+     * undone in Advanced → Unit setup). Nothing here reaches the car.
+     */
+    private View unit() {
+        final LinearLayout s = stepLayout("Set up the unit", null);
+        final TextView status = text("Checking the unit…", 17, Style.MUTED);
+        s.addView(status, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        final LinearLayout more = new LinearLayout(this);
+        more.setOrientation(LinearLayout.VERTICAL);
+        s.addView(more);
+        new Thread(new Runnable() {
+            @Override public void run() {
+                final UnitSetup.Status st = UnitSetup.read(SetupActivity.this);
+                status.post(new Runnable() {
+                    @Override public void run() { if (step == 5) showUnit(st, status, more); }
+                });
+            }
+        }, "unit-status").start();
+        return s;
+    }
+
+    private void showUnit(UnitSetup.Status st, final TextView status, final LinearLayout more) {
+        more.removeAllViews();
+        if (!st.reachable) {
+            status.setText("A one-time unlock, so Binnacle can set up the unit:\n"
+                    + "1. Open EngineerMode → DEBUG&LOG → Adb shell.\n"
+                    + "2. For each line: Copy here, long-press the top field there, Paste, START/END.\n"
+                    + "3. Come back here with Back.");
+            for (String line : ENGINEER_LINES) more.addView(copyRow(line));
+            final boolean hasEm = UnitSetup.hasEngineerMode(this);
+            more.addView(buttons(hasEm ? new String[]{"Not now", "Check again", "Open EngineerMode"} : new String[]{"Not now", "Check again"},
+                    hasEm ? new Runnable[]{
+                            new Runnable() { @Override public void run() { next(); } },
+                            new Runnable() { @Override public void run() { show(5); } },
+                            new Runnable() { @Override public void run() { openEngineerMode(); } }}
+                            : new Runnable[]{
+                            new Runnable() { @Override public void run() { next(); } },
+                            new Runnable() { @Override public void run() { show(5); } }}));
+            focusLast();
+            return;
+        }
+        final ArrayList<UnitSetup.Change> todo = new ArrayList<>();
+        StringBuilder done = new StringBuilder();
+        for (UnitSetup.Change ch : UnitSetup.Change.values()) {
+            if (!ch.recommended(this)) continue;
+            if (st.isOn(ch)) more.addView(tick(ch.title));
+            else todo.add(ch);
+        }
+        if (todo.isEmpty()) {
+            status.setText("The unit is set up.");
+            more.addView(buttons(new String[]{"Next"}, new Runnable[]{new Runnable() { @Override public void run() { next(); } }}));
+            focusLast();
+            return;
+        }
+        status.setText("Binnacle will make these changes (undo in Advanced → Unit setup):");
+        for (UnitSetup.Change ch : todo) {
+            TextView t = text("•  " + ch.title, 17, Style.FG);
+            t.setPadding(0, dp(2), 0, 0);
+            more.addView(t);
+        }
+        more.addView(buttons(new String[]{"Not now", "Set up the unit"}, new Runnable[]{
+                new Runnable() { @Override public void run() { next(); } },
+                new Runnable() { @Override public void run() { applyUnit(todo, status, more); } }}));
+        focusLast();
+    }
+
+    private void applyUnit(final ArrayList<UnitSetup.Change> todo, final TextView status, final LinearLayout more) {
+        more.removeAllViews();
+        status.setText("Setting up the unit…");
+        new Thread(new Runnable() {
+            @Override public void run() {
+                final ArrayList<String> failed = new ArrayList<>();
+                boolean restart = false;
+                for (UnitSetup.Change ch : todo) {
+                    try {
+                        UnitSetup.set(ch, true);
+                        restart |= ch.needsRestart;
+                    } catch (Exception e) {
+                        failed.add(ch.title + ": " + e.getMessage());
+                    }
+                }
+                final boolean needRestart = restart;
+                status.post(new Runnable() {
+                    @Override public void run() {
+                        if (step != 5) return;
+                        status.setText(failed.isEmpty() ? "Done." : "Done, except:");
+                        for (String f : failed) more.addView(text(f, 15, Style.WARN));
+                        if (needRestart) more.addView(text("Restart the unit to finish.", 17, Style.FG));
+                        more.addView(buttons(new String[]{"Next"}, new Runnable[]{new Runnable() { @Override public void run() { next(); } }}));
+                        focusLast();
+                    }
+                });
+            }
+        }, "unit-setup").start();
+    }
+
+    /** EngineerMode's Adb shell runs one command at a time (docs/ADB-GUIDE.md step 5). */
+    private static final String[] ENGINEER_LINES = {
+            "setprop service.adb.tcp.port 5555", "settings put global adb_enabled 1", "setprop ctl.restart adbd"};
+
+    /** One command in monospace with a Copy button: the unit's keyboard is awkward to type on. */
+    private View copyRow(final String line) {
+        LinearLayout row = new LinearLayout(this);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(16), dp(6), 0, 0);
+        TextView t = text(line, 17, Style.FG);
+        t.setTypeface(android.graphics.Typeface.MONOSPACE);
+        row.addView(t, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+        final TextView copy = text("Copy", 15, Style.FG);
+        copy.setGravity(Gravity.CENTER);
+        copy.setFocusable(true);
+        copy.setClickable(true);
+        copy.setPadding(dp(18), 0, dp(18), 0);
+        copy.setBackground(states(Style.PANEL2, Style.PANEL2));
+        copy.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                android.content.ClipboardManager cm = (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+                if (cm == null) return;
+                cm.setPrimaryClip(android.content.ClipData.newPlainText("EngineerMode", line));
+                copy.setText("Copied");
+            }
+        });
+        row.addView(copy, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(40)));
+        return row;
+    }
+
+    private void openEngineerMode() {
+        try {
+            startActivity(new Intent().setComponent(UnitSetup.ENGINEER_MODE));
+        } catch (RuntimeException e) {
+            // not on this firmware: the guide in docs/ADB-GUIDE.md has another way
+        }
+    }
+
+    /** The step's buttons came after show(): give the main one the wheel's focus. */
+    private void focusLast() {
+        ArrayList<View> f = page.getFocusables(View.FOCUS_FORWARD);
+        if (!f.isEmpty()) f.get(f.size() - 1).requestFocus();
+    }
+
     private View finished() {
         LinearLayout s = stepLayout("All set",
                 "Everything here can be changed in Apps → Settings, and Advanced → Run setup shows these steps again.\n\n"
-                        + "For a complete takeover, some steps need doing by hand. See UNIT-CHANGES.md in the repo "
+                        + "A few changes stay manual (they need the system partition). See UNIT-CHANGES.md in the repo "
                         + "(github.com/lotech/binnacle) for details.");
         s.addView(buttons(new String[]{"Done"}, new Runnable[]{
                 new Runnable() { @Override public void run() { finishSetup(); } }}));

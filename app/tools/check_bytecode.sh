@@ -264,32 +264,66 @@ got=$(refs '^String:' | awk -F'\t' '$1 ~ /^app\/binnacle\/LocalShell(\$|$)/ { pr
 expected=$(sort -u <<'EOF'
 String:127.0.0.1
 String:ADB on the unit asks for a key
+String:ADB_KEEP_OFF
+String:ADB_KEEP_ON
+String:ADB_LOCAL_ONLY
+String:ADB_NETWORK
+String:ANDROID_BT_OFF
+String:ANDROID_BT_ON
 String:BINNACLE_OK
 String:BT_AUTOCONNECT_GET
 String:BT_AUTOCONNECT_OFF
 String:BT_AUTOCONNECT_ON
+String:BT_VOLUME_FIX_OFF
+String:BT_VOLUME_FIX_ON
+String:CARPLAY_CALLS_OFF
+String:CARPLAY_CALLS_ON
 String:END_CARPLAY
+String:GPS_DUMPS_OFF
+String:GPS_DUMPS_ON
+String:SCREENSHOT
+String:STOCK_CAMERA_OFF
+String:STOCK_CAMERA_ON
+String:STOCK_TOASTS_OFF
+String:STOCK_TOASTS_ON
+String:UNIT_STATUS
+String:UTF-8
 String:WIFI_REJOIN
 String:WIFI_SCANS_OFF
 String:WIFI_SCANS_ON
-String:SCREENSHOT
 String:XCERTPLAY_LOCATION
-String:mkdir -p /sdcard/Binnacle/screenshots && screencap -p /sdcard/Binnacle/screenshots/$(date +%Y%m%d-%H%M%S).png && echo BINNACLE_OK
+String:\u0000
 String:appops set --uid com.shilapi.xcertplay COARSE_LOCATION allow && echo BINNACLE_OK
+String:appops set com.xbs.launcher1 TOAST_WINDOW allow && echo BINNACLE_OK
+String:appops set com.xbs.launcher1 TOAST_WINDOW ignore && echo BINNACLE_OK
+String:bad ADB message
+String:echo adb=$(getprop persist.adb.tcp.port) dumps=$(getprop persist.vendor.sys.core.enabled) bt=$(getprop persist.car.use_system_bt) absvol=$(getprop persist.bluetooth.disableabsvol) && appops get com.xbs.launcher1 TOAST_WINDOW; echo BINNACLE_OK
+String:host::\u0000
+String:mkdir -p /sdcard/Binnacle/screenshots && screencap -p /sdcard/Binnacle/screenshots/$(date +%Y%m%d-%H%M%S).png && echo BINNACLE_OK
+String:no reply from the shell
+String:pm grant com.shilapi.xcertplay android.permission.CALL_PHONE && telecom set-phone-account-enabled com.shilapi.xcertplay/com.shilapi.xcertplay.telecom.CarPlayConnectionService carplay 0 && telecom set-user-selected-outgoing-phone-account com.shilapi.xcertplay/com.shilapi.xcertplay.telecom.CarPlayConnectionService carplay 0 && su 0 pm disable com.android.dialer/com.android.incallui.InCallServiceImpl && echo BINNACLE_OK
 String:service call wifi 58 i32 0 && echo BINNACLE_OK
 String:service call wifi 58 i32 1 && echo BINNACLE_OK
 String:service call wifi 58 i32 1 && svc wifi enable && echo BINNACLE_OK
-String:UTF-8
-String:\u0000
-String:bad ADB message
-String:host::\u0000
-String:no reply from the shell
 String:settings get system xbs_isautoconnect && echo BINNACLE_OK
 String:settings put system xbs_isautoconnect false && echo BINNACLE_OK
 String:settings put system xbs_isautoconnect true && echo BINNACLE_OK
 String:shell:
+String:su 0 pm disable com.xbs.frontcam/com.xbs.frontcam.CameraActivity && echo BINNACLE_OK
+String:su 0 pm enable com.android.dialer/com.android.incallui.InCallServiceImpl && telecom set-phone-account-disabled com.shilapi.xcertplay/com.shilapi.xcertplay.telecom.CarPlayConnectionService carplay 0 && pm revoke com.shilapi.xcertplay android.permission.CALL_PHONE && echo BINNACLE_OK
+String:su 0 pm enable com.xbs.frontcam/com.xbs.frontcam.CameraActivity && echo BINNACLE_OK
+String:su 0 setprop persist.adb.tcp.port \'\' && echo BINNACLE_OK
+String:su 0 setprop persist.adb.tcp.port 5555 && echo BINNACLE_OK
+String:su 0 setprop persist.bluetooth.disableabsvol \'\' && echo BINNACLE_OK
+String:su 0 setprop persist.bluetooth.disableabsvol true && echo BINNACLE_OK
+String:su 0 setprop persist.car.use_system_bt \'\' && echo BINNACLE_OK
+String:su 0 setprop persist.car.use_system_bt 2 && echo BINNACLE_OK
+String:su 0 setprop persist.vendor.sys.core.enabled 0 && su 0 sh -c \'rm -rf /data/corefile/*\' && echo BINNACLE_OK
+String:su 0 setprop persist.vendor.sys.core.enabled 1 && echo BINNACLE_OK
 String:svc wifi disable && sleep 2 && svc wifi enable && echo BINNACLE_OK
 String:unexpected ADB reply
+String:while su 0 iptables -D INPUT -p tcp --dport 5555 ! -i lo -j DROP 2>/dev/null; do :; done; while su 0 ip6tables -D INPUT -p tcp --dport 5555 ! -i lo -j DROP 2>/dev/null; do :; done; echo BINNACLE_OK
+String:{ su 0 iptables -C INPUT -p tcp --dport 5555 ! -i lo -j DROP 2>/dev/null || su 0 iptables -I INPUT -p tcp --dport 5555 ! -i lo -j DROP; } && { su 0 ip6tables -C INPUT -p tcp --dport 5555 ! -i lo -j DROP 2>/dev/null || su 0 ip6tables -I INPUT -p tcp --dport 5555 ! -i lo -j DROP; } && echo BINNACLE_OK
 EOF
 )
 [ "$got" = "$expected" ] || { diff <(printf '%s\n' "$expected") <(printf '%s\n' "$got") >&2; bad "LocalShell strings changed: review, then update this guard"; }
@@ -308,7 +342,7 @@ if [ -n "$SHELL_CLASSES" ]; then
     elif command -v shasum >/dev/null 2>&1; then hash_cmd='shasum -a 256'
     else bad "no sha256sum or shasum found: cannot check LocalShell's code"; hash_cmd='false'; fi
     sum=$(printf '%s\n' "$shell_code" | $hash_cmd | cut -c1-64)
-    [ "$sum" = '731bb438af6fa6ed7ad9fb682d4641c6eada025c1d734ecd177c44a7148620a9' ] || { printf '%s\n' "$shell_code" >&2; bad "LocalShell's code changed (hash $sum): review the listing above, then update this guard"; }
+    [ "$sum" = 'cd5d80e8f196da2737556a79f4e92a857082e1f766619c1be0ffff45995ffcc3' ] || { printf '%s\n' "$shell_code" >&2; bad "LocalShell's code changed (hash $sum): review the listing above, then update this guard"; }
     # and, readably: send() only from run(), four times (connect, open the one shell stream, ack, close)
     [ "$(refs '^app/binnacle/LocalShell\.send$' | awk -F'\t' '$1 == "app/binnacle/LocalShell" && $2 == "run"' | wc -l | tr -d ' ')" = 4 ] \
         && [ "$(refs '^app/binnacle/LocalShell\.send$' | wc -l | tr -d ' ')" = 4 ] || bad "LocalShell.run must send exactly its four ADB messages"
