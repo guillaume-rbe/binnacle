@@ -837,7 +837,17 @@ class CarPlayHostActivity : ComponentActivity() {
 
     private fun requestWirelessPermissions() {
         // Optional: lets outgoing CarPlay calls be mirrored to a hands-free car (telecom/).
-        val permissions = session.requiredWirelessPermissions() + Manifest.permission.CALL_PHONE
+        // Optional on Android 10: "Allow all the time" location, so Wi-Fi Direct still works while
+        // CarPlay runs behind another app (Binnacle's dash). Android keeps that across restarts and
+        // updates; with "only while using" the unit resets the app-op on every restart and the group
+        // fails ("createGroup failed: generic error"). Asked in the same dialog on Android 10 only:
+        // later versions want it asked separately, from settings.
+        val permissions = session.requiredWirelessPermissions() + Manifest.permission.CALL_PHONE +
+            if (Build.VERSION.SDK_INT == Build.VERSION_CODES.Q) {
+                listOf(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+            } else {
+                emptyList()
+            }
         if (permissions.all { checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED }) {
             wirelessPermissionsReady = true
             updateHotspotStatusBlock()

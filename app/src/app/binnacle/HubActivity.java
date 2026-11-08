@@ -270,17 +270,15 @@ public class HubActivity extends Activity {
                     choiceCard("Menu side", null, "menu_side", "right",
                             new String[]{"left", "right"}, new String[]{"Left", "Right"}),
                     infoCard("CarPlay layout", carplayLayoutText())), stack(
-                    choiceCard("Start-up volume", "Media volume set when the dash starts and when the car's Bluetooth audio "
-                                    + "connects. The car sets the loudness, so full is best",
+                    choiceCard("Start-up volume", "Media volume when the dash starts. The car sets the loudness",
                             StartupVolume.KEY, StartupVolume.DEFAULT,
                             new String[]{"100", "75", "50", "off"}, new String[]{"100%", "75%", "50%", "As is"}),
-                    choiceCard("CarPlay auto-connect", "When the dash starts or the car wakes, look for your paired iPhone and connect. "
-                                    + "Show also opens CarPlay once connected. Stops after 90 s",
+                    choiceCard("CarPlay auto-connect", "Connect your iPhone when the car wakes",
                             CarPlayAuto.KEY, CarPlayAuto.DEFAULT,
                             new String[]{CarPlayAuto.OFF, CarPlayAuto.BACKGROUND, CarPlayAuto.SHOW},
                             new String[]{"Off", "Background", "Show"}),
                     btAutoConnectCard(),
-                    switchCard("Pause Wi-Fi scans during CarPlay", "Stops music and call stutter away from home. Scanning comes back on when CarPlay ends, and tapping the Wi-Fi icon rejoins home Wi-Fi", WifiScans.KEY, WifiScans.DEFAULT),
+                    switchCard("Pause Wi-Fi scans during CarPlay", "Stops music and call stutter away from home", WifiScans.KEY, WifiScans.DEFAULT),
                     actionCard("End CarPlay", null,
                             "End CarPlay", LocalShell.Command.END_CARPLAY)))); break;
             case 2: {
@@ -305,8 +303,9 @@ public class HubActivity extends Activity {
             // two independent columns: in a two-column grid each row is as tall as its taller cell,
             // which left a gap under the short cards (owner, 8 Nov); developer switches at the bottom
             default: content.addView(cards(
-                    stack(updateCard(), setupCard(), resetCard(), aboutCard()),
-                    stack(switchCard("Screenshot on power bar tap", "Tap the power bar to save a screenshot on the dash (Binnacle/screenshots), CarPlay and camera included", Screenshot.KEY, false),
+                    stack(updateCard(), setupCard(), unitSetupCard(), resetCard(), aboutCard()),
+                    stack(networkAdbCard(),
+                            switchCard("Screenshot on power bar tap", "Saved in Binnacle/screenshots", Screenshot.KEY, false),
                             loggerCards(),
                             switchCard("Show raw CAN values", "Latest raw fields over the centre view, for in-car checks", "raw_overlay", false),
                             switchCard("Demo data", "Simulated drive instead of the car feed", "demo", false)))); break;
@@ -712,6 +711,14 @@ public class HubActivity extends Activity {
         return card;
     }
 
+    private void uninstall() {
+        try {
+            startActivity(new Intent(Intent.ACTION_DELETE, android.net.Uri.parse("package:" + getPackageName())));
+        } catch (RuntimeException e) {
+            Toast.makeText(this, "Couldn't open the uninstaller", Toast.LENGTH_SHORT).show();
+        }
+    }
+
     private View resetCard() {
         LinearLayout card = card("Reset or remove", null);
         LinearLayout row = new LinearLayout(this);
@@ -730,19 +737,32 @@ public class HubActivity extends Activity {
         remove.setOnClickListener(new View.OnClickListener() {
             @Override public void onClick(View v) {
                 BinnacleDialog.show(HubActivity.this, "Remove Binnacle?",
-                        "The unit goes back to the stock dash, which is still installed.\nBinnacle's settings and downloaded car images are deleted with it."
-                                + (stockCameraDisabled()
-                                ? "\n\nThe stock camera screen is still switched off, so it won't open by itself in Drive. "
-                                + "Turn it back on first (docs/UNIT-CHANGES.md: pm enable com.xbs.frontcam/com.xbs.frontcam.CameraActivity)."
-                                : ""),
+                        "The unit goes back to the stock dash, with its camera screen and pop-ups.\n"
+                                + "Turn off \"Keep the unit unlocked\" in Unit setup first, or it stays open to the Wi-Fi.",
                         new String[]{"Cancel", "Remove"}, true, new BinnacleDialog.Choice() {
                             @Override public void chosen(int index) {
                                 if (index != 1) return;
-                                try {
-                                    startActivity(new Intent(Intent.ACTION_DELETE, android.net.Uri.parse("package:" + getPackageName())));
-                                } catch (RuntimeException e) {
-                                    Toast.makeText(HubActivity.this, "Couldn't open the uninstaller", Toast.LENGTH_SHORT).show();
-                                }
+                                // undo what only Binnacle replaces (camera, pop-ups), then Android's uninstaller
+                                final boolean camera = stockCameraDisabled();
+                                new Thread(new Runnable() {
+                                    @Override public void run() {
+                                        boolean failed = false;
+                                        try { if (camera) UnitSetup.set(UnitSetup.Change.STOCK_CAMERA, false); } catch (Exception e) { failed = true; }
+                                        try { UnitSetup.set(UnitSetup.Change.STOCK_TOASTS, false); } catch (Exception ignored) { }
+                                        final boolean cameraOff = failed;
+                                        runOnUiThread(new Runnable() {
+                                            @Override public void run() {
+                                                if (!cameraOff) { uninstall(); return; }
+                                                // without Binnacle the camera wouldn't open on Drive at all (Codex)
+                                                BinnacleDialog.show(HubActivity.this, "Stock camera still off",
+                                                        "It won't open on Drive without Binnacle. Fix: docs/UNIT-CHANGES.md.",
+                                                        new String[]{"Cancel", "Remove anyway"}, true, new BinnacleDialog.Choice() {
+                                                            @Override public void chosen(int i) { if (i == 1) uninstall(); }
+                                                        });
+                                            }
+                                        });
+                                    }
+                                }, "unit-undo").start();
                             }
                         });
             }
@@ -814,10 +834,32 @@ public class HubActivity extends Activity {
                 prefs.edit().putBoolean(key, now).apply();
                 b.setSelected(now);
                 b.setText(now ? "On" : "Off");
+                // unit setup may have turned the stock camera screen off: it has to come back (Codex)
+                if (now && "auto_camera".equals(key) && stockCameraDisabled()) restoreStockCamera();
             }
         });
         card.addView(b, new LinearLayout.LayoutParams(dp(150), dp(BUTTON_DP)));
         return card;
+    }
+
+    private void restoreStockCamera() {
+        new Thread(new Runnable() {
+            @Override public void run() {
+                String err = null;
+                try {
+                    UnitSetup.set(UnitSetup.Change.STOCK_CAMERA, false);
+                } catch (Exception e) {
+                    err = e.getMessage();
+                }
+                final String problem = err;
+                runOnUiThread(new Runnable() {
+                    @Override public void run() {
+                        if (problem != null) Toast.makeText(HubActivity.this,
+                                "Stock camera is off: turn it on in Advanced → Unit setup", Toast.LENGTH_LONG).show();
+                    }
+                });
+            }
+        }, "stock-camera").start();
     }
 
     /** − value + for a number kept as a string preference (as the old EditText setting stored it). */
@@ -1045,6 +1087,104 @@ public class HubActivity extends Activity {
         }, "local-shell").start();
     }
 
+    /**
+     * Unit setup (owner, 8 Nov): what setup's "Set up the unit" step changes, each with its state
+     * and an On / Off chip (Off is its undo), so a user's unit can be compared with the owner's
+     * from a screenshot of this card. UnitSetup holds the pinned commands; this only shows them.
+     */
+    private View unitSetupCard() {
+        final LinearLayout card = card("Unit setup", null);
+        final TextView state = text("Checking…", 13, Style.MUTED);
+        card.addView(state);
+        final LinearLayout rows = new LinearLayout(this);
+        rows.setOrientation(LinearLayout.VERTICAL);
+        card.addView(rows);
+        refreshUnitSetup(state, rows);
+        return card;
+    }
+
+    private void refreshUnitSetup(final TextView state, final LinearLayout rows) {
+        new Thread(new Runnable() {
+            @Override public void run() {
+                final UnitSetup.Status st = UnitSetup.read(HubActivity.this);
+                state.post(new Runnable() {
+                    @Override public void run() { showUnitSetup(st, state, rows); }
+                });
+            }
+        }, "unit-status").start();
+    }
+
+    private void showUnitSetup(UnitSetup.Status st, final TextView state, final LinearLayout rows) {
+        rows.removeAllViews();
+        if (!st.reachable) {
+            state.setText(st.problem != null ? "Couldn't read: " + st.problem : "Locked. Run setup to unlock");
+            state.setTextColor(Style.WARN);
+        } else {
+            state.setText("✓  Unlocked");
+            state.setTextColor(Style.GOOD);
+        }
+        for (final UnitSetup.Change ch : UnitSetup.Change.values()) {
+            if (!ch.applies(this)) continue;
+            LinearLayout row = new LinearLayout(this);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            row.setPadding(0, dp(6), 0, 0);
+            boolean on = st.isOn(ch);
+            TextView name = text((on ? "✓  " : "•  ") + ch.title, 14, on ? Style.FG : Style.MUTED);
+            row.addView(name, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+            final TextView b = chip(on ? "On" : "Off");
+            b.setSelected(on);
+            b.setEnabled(st.reachable);
+            b.setOnClickListener(new View.OnClickListener() {
+                @Override public void onClick(View v) {
+                    final boolean want = !b.isSelected();
+                    b.setEnabled(false);
+                    b.setText("Working…");
+                    new Thread(new Runnable() {
+                        @Override public void run() {
+                            String err = null;
+                            try {
+                                UnitSetup.set(ch, want);
+                            } catch (Exception e) {
+                                err = e.getMessage();
+                            }
+                            final String problem = err;
+                            b.post(new Runnable() {
+                                @Override public void run() {
+                                    if (problem != null) Toast.makeText(HubActivity.this, "Couldn't change: " + problem, Toast.LENGTH_LONG).show();
+                                    else if (ch.needsRestart) Toast.makeText(HubActivity.this, "Restart the unit to finish", Toast.LENGTH_LONG).show();
+                                    refreshUnitSetup(state, rows);
+                                }
+                            });
+                        }
+                    }, "unit-setup").start();
+                }
+            });
+            row.addView(b, new LinearLayout.LayoutParams(dp(110), dp(40)));
+            rows.addView(row);
+        }
+    }
+
+    /**
+     * Network ADB (owner, 8 Nov): off by default, so the unit's ADB is reachable only from the unit
+     * itself (AdbFirewall); on lets a computer on the same Wi-Fi connect, for working on the unit.
+     */
+    private View networkAdbCard() {
+        LinearLayout card = card("Network ADB", "Lets a computer on the Wi-Fi control the unit. Leave off unless needed");
+        final TextView b = chip(prefs.getBoolean(AdbFirewall.KEY, AdbFirewall.DEFAULT) ? "On" : "Off");
+        b.setSelected(prefs.getBoolean(AdbFirewall.KEY, AdbFirewall.DEFAULT));
+        b.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                boolean now = !b.isSelected();
+                prefs.edit().putBoolean(AdbFirewall.KEY, now).apply();
+                AdbFirewall.apply(prefs);
+                b.setSelected(now);
+                b.setText(now ? "On" : "Off");
+            }
+        });
+        card.addView(b, new LinearLayout.LayoutParams(dp(150), dp(BUTTON_DP)));
+        return card;
+    }
+
     /** A card with one button that runs a fixed LocalShell command off the main thread. */
     private View actionCard(String title, String summary, String label, final LocalShell.Command cmd) {
         LinearLayout card = card(title, summary);
@@ -1097,8 +1237,7 @@ public class HubActivity extends Activity {
      * Camera tab rebuilds on return, so the card goes once it is on.
      */
     private View overlayCard() {
-        LinearLayout card = card("Allow over other apps",
-                "Lets the camera open on Drive over CarPlay and other apps, and the dash reopen after an update.");
+        LinearLayout card = card("Allow over other apps", "So the camera can open over CarPlay");
         TextView b = chip("Allow");
         b.setOnClickListener(new View.OnClickListener() {
             @Override public void onClick(View v) {

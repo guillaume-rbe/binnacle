@@ -29,6 +29,8 @@
 > - Wi-Fi Direct group on the connected network's 5 GHz channel (not on radar/DFS channels), so a
 >   single-radio chip doesn't hop channels (fixes audio/video stutter while on home Wi-Fi)
 > - Remove a leftover Wi-Fi Direct group when start-up reports "busy" (no Wi-Fi off/on needed)
+> - Asks for "Allow all the time" location on Android 10, so the Wi-Fi Direct group still starts
+>   while CarPlay runs behind the dash, after restarts and updates too
 > - Keep the CarPlay session, and its audio, when an unrelated AirPlay client (e.g. a media server
 >   probing port 7000) disconnects
 > - Steering-wheel keys sent to CarPlay as knob and media controls
