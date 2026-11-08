@@ -12,6 +12,8 @@
 #       --draft      publish it as a draft instead (not visible to the dash until you publish it)
 #       --no-build   reuse build/release from an earlier `build` of this same commit
 #       --yes        don't ask before publishing
+#   ./deploy.sh bump [--yes]  bump the dash's version (and CarPlay's if carplay/ changed) on a new
+#                             branch and open the PR; merge it, then release
 #   ./deploy.sh cars TAG FILE... [--yes]   publish car-image packs (TAG = cars-vN) as a release that never
 #                             becomes the latest (--latest=false), or add the files to it
 #
@@ -147,6 +149,82 @@ build() {   # release.sh writes $STAMP itself (the commit, when the tree was cle
 }
 
 # --- commands -------------------------------------------------------------------------------
+# next_name VERSION: the last number plus one (0.9 -> 0.10, 0.9.1 -> 0.9.2, 1.4.2 -> 1.4.3).
+next_name() { local v="$1"; echo "${v%.*}.$(( ${v##*.} + 1 ))"; }
+
+ask() {   # ask QUESTION DEFAULT: what was typed, or DEFAULT on Return
+    local a; read -rp "$1 [$2]: " a; echo "${a:-$2}"
+}
+
+# Bump the dash's version (and the CarPlay app's when carplay/ changed since the last release) on a
+# new branch and open a PR for it: main is protected, so the bump lands through a merge like any
+# other change. After merging it, release from the menu (or ./deploy.sh release).
+cmd_bump() {
+    while [ $# -gt 0 ]; do
+        case "$1" in --yes|-y) YES=1 ;; *) die "unknown option $1" ;; esac
+        shift
+    done
+    need_gh
+    pull_main
+    local tag d_code d_name cp_c cp_n new_name new_code cp_new_name="" cp_new_code="" branch
+    tag=$(last_tag)
+    d_code=$(dash_code); d_name=$(dash_name); cp_c=$(cp_code); cp_n=$(cp_name)
+    [ -n "$d_code" ] && [ -n "$d_name" ] && [ -n "$cp_c" ] && [ -n "$cp_n" ] || die "couldn't read the current versions"
+
+    say "Dash is $d_name (versionCode $d_code)."
+    if [ -n "$tag" ] && [ -n "$(dash_code "$tag")" ] && [ "$d_code" -gt "$(dash_code "$tag")" ] &&
+        ! git rev-parse -q --verify "refs/tags/v$d_name" >/dev/null; then
+        say "  It is already bumped past $tag: nothing to do for the dash."
+    else
+        if [ "${YES:-}" = 1 ]; then new_name=$(next_name "$d_name"); else new_name=$(ask "New dash versionName" "$(next_name "$d_name")"); fi
+        new_code=$((d_code + 1))
+        git rev-parse -q --verify "refs/tags/v$new_name" >/dev/null && die "tag v$new_name already exists; pick another name"
+    fi
+
+    if [ -n "$tag" ] && [ -n "$(cp_code "$tag")" ] && carplay_changed "$tag" && [ "$cp_c" -le "$(cp_code "$tag")" ]; then
+        say "CarPlay changed since $tag and is still $cp_n (versionCode $cp_c)."
+        if [ "${YES:-}" = 1 ]; then cp_new_name=$(next_name "$cp_n"); else cp_new_name=$(ask "New CarPlay versionName" "$(next_name "$cp_n")"); fi
+        cp_new_code=$((cp_c + 1))
+    else
+        say "CarPlay: no bump needed ($cp_n, versionCode $cp_c)."
+    fi
+    [ -n "${new_name:-}" ] || [ -n "$cp_new_name" ] || { say "Nothing to bump."; return 0; }
+
+    say
+    [ -z "${new_name:-}" ] || say "  dash:    $d_name ($d_code) -> $new_name ($new_code)"
+    [ -z "$cp_new_name" ] || say "  CarPlay: $cp_n ($cp_c) -> $cp_new_name ($cp_new_code)"
+    branch="release-${new_name:-carplay-$cp_new_name}"
+    git rev-parse -q --verify "refs/heads/$branch" >/dev/null && die "branch $branch already exists here"
+    git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1 && die "branch $branch already exists on GitHub (an open bump PR?)"
+    confirm "Make branch $branch with this bump and open a PR?" || die "nothing changed"
+
+    git checkout --quiet -b "$branch"
+    local msg="" body=""
+    if [ -n "${new_name:-}" ]; then
+        sed -i.bak "s/android:versionCode=\"$d_code\" android:versionName=\"$d_name\"/android:versionCode=\"$new_code\" android:versionName=\"$new_name\"/" app/AndroidManifest.xml
+        rm -f app/AndroidManifest.xml.bak
+        [ "$(dash_code)" = "$new_code" ] && [ "$(dash_name)" = "$new_name" ] || die "couldn't edit app/AndroidManifest.xml (branch $branch left as is)"
+        msg="Release $new_name (versionCode $new_code)"
+        body="Dash $d_name ($d_code) -> $new_name ($new_code)."
+    fi
+    if [ -n "$cp_new_name" ]; then
+        sed -i.bak -e "s/^\( *versionCode = \)$cp_c\$/\1$cp_new_code/" \
+            -e "s/^\( *versionName = \)\"$cp_n\"\$/\1\"$cp_new_name\"/" carplay/mobile/build.gradle.kts
+        rm -f carplay/mobile/build.gradle.kts.bak
+        [ "$(cp_code)" = "$cp_new_code" ] && [ "$(cp_name)" = "$cp_new_name" ] || die "couldn't edit carplay/mobile/build.gradle.kts (branch $branch left as is)"
+        msg="${msg:+$msg, }CarPlay $cp_new_name ($cp_new_code)"
+        body="$body CarPlay $cp_n ($cp_c) -> $cp_new_name ($cp_new_code), because carplay/ changed since $tag. Touches carplay/: merge with a merge commit, not squash."
+    fi
+    git commit --quiet -am "$msg"
+    git push --quiet -u origin "$branch"
+    gh pr create --repo "$REPO" --base main --head "$branch" --title "$msg" \
+        --body "$body
+
+Opened by \`./deploy.sh bump\`. After merging: \`./deploy.sh\` -> 4 (build and publish the release)."
+    git checkout --quiet main
+    say "Back on main. Merge the PR, then choose 4 in the menu to build and publish."
+}
+
 cmd_status() {
     fetch
     local branch tag
@@ -303,6 +381,7 @@ cmd_menu() {
         say "  6) Publish the last build, no rebuild         (release --no-build)"
         say "  7) Publish car-image packs                    (cars)"
         say "  8) Show where things stand again              (status)"
+        say "  9) Bump the version numbers, open a PR        (bump)"
         say "  q) Quit"
         read -rp "Choose: " choice || exit 0
         say
@@ -326,8 +405,9 @@ cmd_menu() {
                 if [ -n "$tag" ] && [ "${#files[@]}" -gt 0 ]; then "$0" cars "$tag" "${files[@]}" || true
                 else say "nothing to publish"; fi ;;
             8) cmd_status ;;
+            9) "$0" bump || true ;;
             q|Q|"") exit 0 ;;
-            *) say "pick 1-8 or q" ;;
+            *) say "pick 1-9 or q" ;;
         esac
     done
 }
@@ -343,6 +423,7 @@ case "$cmd" in
     check)   cmd_check "${1:-}" ;;
     build)   cmd_build ;;
     release) cmd_release "$@" ;;
+    bump)    cmd_bump "$@" ;;
     cars)    cmd_cars "$@" ;;
     -h|--help|help) sed -n '2,/^set -euo/p' "$0" | sed '$d' | sed 's/^# \{0,1\}//' ;;
     *) die "unknown command $cmd (try ./deploy.sh help)" ;;
