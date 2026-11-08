@@ -18,7 +18,8 @@ import android.util.Log;
  * This is Android's own music volume, the one the wheel's volume keys change (the CAN app sets it
  * on the unit too). It is not the car-setup speaker level, which goes to the MCU. Nothing here
  * reaches the car or the MCU. The volume keys still change it at any time; it is only set again
- * at the next start or Bluetooth audio connection.
+ * at the next start, screen-on or Bluetooth audio connection, and for a minute after each of those
+ * if music is zeroed or muted again (by the CAN app, or by hand within that minute).
  */
 final class StartupVolume {
     static final String KEY = "startup_volume";
@@ -26,6 +27,11 @@ final class StartupVolume {
     private static final String TAG = "Binnacle";
     /** The CAN app puts the volume back itself on wake; set ours after it. */
     private static final long SETTLE_MS = 3000;
+    /**
+     * After setting it, watch this long for something zeroing or muting music again: on 8 Nov it
+     * was 0 on getting in, so something set it after the 3 s mark. Checked every WATCH_STEP_MS.
+     */
+    private static final long WATCH_MS = 60_000, WATCH_STEP_MS = 2000;
 
     private StartupVolume() {}
 
@@ -38,8 +44,21 @@ final class StartupVolume {
         final AudioManager audio = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
         if (audio == null) return;
         final Handler main = new Handler(Looper.getMainLooper());
+        final long[] watchUntil = {0};
+        final Runnable watch = new Runnable() {
+            @Override public void run() {
+                if (android.os.SystemClock.uptimeMillis() >= watchUntil[0]) return;
+                if (silent(audio)) apply(audio, prefs);
+                main.postDelayed(this, WATCH_STEP_MS);
+            }
+        };
         final Runnable apply = new Runnable() {
-            @Override public void run() { apply(audio, prefs); }
+            @Override public void run() {
+                apply(audio, prefs);
+                watchUntil[0] = android.os.SystemClock.uptimeMillis() + WATCH_MS;
+                main.removeCallbacks(watch);
+                main.postDelayed(watch, WATCH_STEP_MS);
+            }
         };
         main.postDelayed(apply, SETTLE_MS);
         // Each output keeps its own level: the car's Bluetooth audio is set when it connects.
@@ -71,6 +90,15 @@ final class StartupVolume {
         } catch (NumberFormatException e) {
             return 100;
         }
+    }
+
+    /**
+     * Music at 0 or muted. Within the watch only this is put back: a level turned down by hand
+     * stays, and so does a 0 set by hand after the minute is up.
+     */
+    private static boolean silent(AudioManager audio) {
+        return audio.getStreamVolume(AudioManager.STREAM_MUSIC) == 0
+                || (android.os.Build.VERSION.SDK_INT >= 23 && audio.isStreamMute(AudioManager.STREAM_MUSIC));
     }
 
     private static void apply(AudioManager audio, SharedPreferences prefs) {
