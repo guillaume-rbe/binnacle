@@ -71,7 +71,8 @@ final class UnitSetup {
         /** Part of setup's one button: the camera one only when the dash shows the camera itself. */
         boolean recommended(Context c) {
             if (!applies(c)) return false;
-            if (this == STOCK_CAMERA) return DashApp.get(c).prefs().getBoolean("dash_camera", false);
+            // only when Binnacle shows the camera instead: dash camera on, and Binnacle is Home (Codex)
+            if (this == STOCK_CAMERA) return DashApp.get(c).prefs().getBoolean("dash_camera", false) && Launch.isDefaultHome(c);
             return true;
         }
     }
