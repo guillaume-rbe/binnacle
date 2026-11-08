@@ -78,8 +78,8 @@ BODY
 [ "$(grep -B1 -E '(^|[^A-Za-z])bindService\(' shared/src/main/java/com/shilapi/xcertplay/orchestration/CarPlayController.kt)" = "$VPN_BIND" ] \
     && [ "$(grep -B2 -E '(^|[^A-Za-z])bindService\(' shared/src/main/java/com/shilapi/xcertplay/media/CarPlayMediaSessionService.kt)" = "$MEDIA_BIND" ] \
     || bad "bindService may only target the app's own services (the intent lines changed: review, then update this guard)"
-grep -rnE "${CODE[@]}" 'bindIsolatedService|start(Foreground)?Service\s*\(|\.transact\s*\(|IBinder\.(dump|shellCommand)|\.(dumpAsync|shellCommand)\s*\(' $SRC \
-    && bad "service starts, raw transacts or binder shell calls (above)"
+grep -rnE "${CODE[@]}" 'bindIsolatedService|(^|[^A-Za-z0-9_])(start(Foreground)?Service|transact|dump|dumpAsync|shellCommand)\s*\(|IBinder\.(dump|shellCommand)' $SRC \
+    && bad "service starts, raw transacts or binder shell calls (above; matched by name, with or without a receiver)"
 # Messenger only in CarPlayEmbedService: any send needs one, and naming the type is the way to get
 # one, so a send with a variable receiver is caught too.
 for f in $(grep -rlE --include='*.kt' --include='*.java' '\bI?Messenger\b|android\.os\.Message\b' $SRC); do

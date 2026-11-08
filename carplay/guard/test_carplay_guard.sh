@@ -97,6 +97,8 @@ expect fail "resolver write by callable reference" "append $OTHER 'internal fun 
 expect fail "native load by static import" "printf 'package x;\nimport static java.lang.System.load;\nclass L { static void l(String p) { load(p); } }\n' > shared/src/main/java/com/shilapi/xcertplay/media/L.java"
 expect fail "member import from a platform class" "append $OTHER 'import java.lang.System.loadLibrary'"
 expect fail "star import of a platform class's members" "append $OTHER 'import java.lang.System.*'"
+expect fail "raw transact with an implicit receiver" "append $NEWF 'internal fun raw(b: android.os.IBinder, p: android.os.Parcel) = b.run { transact(1, p, null, 0) }'"
+expect fail "service start with an implicit receiver" "append $NEWF 'internal fun s(c: android.content.Context, i: android.content.Intent) = with(c) { startService(i) }'"
 expect fail "code in src/release" "mkdir -p shared/src/release/java && printf 'fun x() = Runtime.getRuntime()\n' > shared/src/release/java/X.kt"
 
 echo "$((n - fails))/$n cases as expected"
