@@ -238,6 +238,24 @@ only '\.bindService$' 'app/binnacle/(CanFeed|CarPlayLink)'
 only '\.sendBroadcast$' 'app/binnacle/(Launch|DashApp)'
 only '\.(startService|startForegroundService)$' 'app/binnacle/DashActivity'
 never '\.(sendOrderedBroadcast|sendStickyBroadcast|sendBroadcastAsUser|startInstrumentation)$'
+# 7b. Each send is pinned to its method and its strings (audit #8a): a broadcast or service start
+#     added to Launch, DashApp or DashActivity with another target (ZLink's call-state message is
+#     forwarded to the MCU) fails here even though the class is allowed above.
+[ "$(refs '\.sendBroadcast$' | awk -F'\t' '($1 == "app/binnacle/Launch" && $2 == "closeCamera") || ($1 == "app/binnacle/DashApp" && $2 == "checkLogger")' | wc -l | tr -d ' ')" = 2 ] \
+    && [ "$(refs '\.sendBroadcast$' | wc -l | tr -d ' ')" = 2 ] || bad "sendBroadcast only once in Launch.closeCamera and once in DashApp.checkLogger"
+[ "$(refs '\.(startService|startForegroundService)$' | awk -F'\t' '$1 != "app/binnacle/DashActivity" || $2 != "startLogger"')" = "" ] \
+    || bad "services may only be started in DashActivity.startLogger"
+strings_of() { refs '^String:' | C="$1" M="$2" awk -F'\t' '$1 == ENVIRON["C"] && $2 == ENVIRON["M"] { print $4 }' | sort -u | tr '\n' '|'; }
+[ "$(strings_of app/binnacle/Launch closeCamera)" = 'String:com.xbs.action.reqcam|String:com.xbs.frontcam|String:reqVal|' ] \
+    || bad "Launch.closeCamera's strings changed: $(strings_of app/binnacle/Launch closeCamera)"
+[ "$(strings_of app/binnacle/DashApp checkLogger)" = 'String:app.binnacle.logger|String:app.binnacle.logger.QUERY|String:app.binnacle.permission.CONTROL_LOGGER|String:com.lotech.tesladash|' ] \
+    || bad "DashApp.checkLogger's strings changed: $(strings_of app/binnacle/DashApp checkLogger)"
+[ "$(strings_of app/binnacle/DashActivity startLogger)" = 'String:app.binnacle.logger|String:app.binnacle.logger.CaptureService|String:binnacle|String:drive logger not started:|String:logger_autostart|' ] \
+    || bad "DashActivity.startLogger's strings changed: $(strings_of app/binnacle/DashActivity startLogger)"
+never '^String:.*(PHONE_CALL|phoneMode|carplay_wireless)'
+only '^String:.*zjinnova' 'app/binnacle/(Launch|HubActivity)'
+# binder calls that run code in another process without transact (audit #8c)
+never '^android/os/(IBinder|Binder)\.(dump|dumpAsync|shellCommand)$'
 # PendingIntents and IntentSenders deliver an intent later, or as another app: only Updater's one
 # broadcast back to its own Status receiver (the install result). No alarms, no isolated services.
 never '^android/app/PendingIntent\.(getService|getForegroundService|getActivity|getActivities|send)$|^android/content/IntentSender\.sendIntent$|\.bindIsolatedService$|^android/app/AlarmManager(\.|$)'

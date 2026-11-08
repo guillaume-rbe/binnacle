@@ -96,6 +96,16 @@ edit "CarPlayLink: binds the CAN app"      CarPlayLink.java 's|    private stati
 edit "CarPlayLink: txn changed on the way" CarPlayLink.java 's|            if (!b.transact(txn, data, reply, oneway ? IBinder.FLAG_ONEWAY : 0)) return false;|            if (!b.transact(txn + 1, data, reply, oneway ? IBinder.FLAG_ONEWAY : 0)) return false;|'
 edit "CarPlayLink: sends on a Messenger"   CarPlayLink.java 's|    void start() { call(TX_START, token(), false); }|    void start() { call(TX_START, token(), false); try { new Messenger(binder).send(Message.obtain()); } catch (RemoteException e) { } }|'
 edit "CarPlayLink: a second transact"      CarPlayLink.java 's|    void disconnect() { call(TX_DISCONNECT, token(), false); }|    void disconnect() { try { binder.transact(99, token(), null, 0); } catch (RemoteException e) { } }|'
+# sends added in place, in the files allowed to send (audit #8a)
+edit "Launch: ZLink call state in closeCamera"  Launch.java 's|        i.putExtra("reqVal", false);|        i.putExtra("reqVal", false); i.setAction("com.zjinnova.zlink.CALL"); i.putExtra("status", "PHONE_CALL_ON");|'
+edit "Launch: a second broadcast"               Launch.java 's|    static void closeCamera(Context c) {|    static void call(Context c) { c.sendBroadcast(new Intent("x").setPackage("com.xbs.canapp")); }\n    static void closeCamera(Context c) {|'
+edit "DashApp: logger query sent elsewhere"     DashApp.java 's|("app.binnacle.logger.QUERY").setPackage(LOGGER_PKG)|("app.binnacle.logger.QUERY").setPackage("com.xbs.canapp")|'
+edit "DashActivity: a second service start"     DashActivity.java 's|    private void startLogger() {|    private void evil() { startService(new android.content.Intent().setPackage("com.xbs.canapp")); }\n    private void startLogger() {|'
+edit "DashActivity: logger start retargeted"    DashActivity.java 's|"app.binnacle.logger", "app.binnacle.logger.CaptureService"|"com.xbs.canapp", "com.xbs.canapp.Svc"|'
+evil "IBinder.dump"                             'b.dump(new java.io.FileDescriptor(), new String[0]);'
+d=$(copy_app); mkdir -p "$d/src/android/os"
+printf 'package android.os;\nfinal class Evil { }\n' > "$d/src/android/os/Evil.java"
+expect "source in another package" any "$(guards "$d" "$d/src" "$T/gen")"
 evil "network outside CarPacks/Updater"   'new java.net.URL("https://example.com/x").openConnection().getInputStream();'
 evil "PackageInstaller outside Updater"  'c.getPackageManager().getPackageInstaller().createSession(new android.content.pm.PackageInstaller.SessionParams(1));'
 edit "Updater: another address"          Updater.java 's|releases/latest/download/";|releases/download/other/";|'

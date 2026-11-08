@@ -31,6 +31,56 @@ for f in $(grep -rlE 'startService|startForegroundService|bindService' src); do
   case "$f" in src/app/binnacle/DashActivity.java|src/app/binnacle/CanFeed.java|src/app/binnacle/CarPlayLink.java) ;; *) bad "service started or bound outside DashActivity/CanFeed/CarPlayLink: $f";; esac
 done
 grep -rnE 'sendOrderedBroadcast|sendStickyBroadcast' src && bad "ordered/sticky broadcasts are not allowed (above)"
+# Each send is pinned to its exact code, not just its file (audit #8a): a call-state broadcast to
+# ZLink's receivers, added to Launch or DashApp, would be an MCU write. The two broadcasts and the one
+# service start are the lines below; Launch.closeCamera and DashActivity.startLogger are pinned whole.
+[ "$(grep -rcE 'sendBroadcast\s*\(' src | awk -F: '{ n += $2 } END { print n }')" = 2 ] \
+    && grep -qxF '        else sendBroadcast(new android.content.Intent("app.binnacle.logger.QUERY").setPackage(LOGGER_PKG), LOGGER_PERMISSION);' src/app/binnacle/DashApp.java \
+    && grep -qxF '            c.sendBroadcast(i);' src/app/binnacle/Launch.java \
+    || bad "broadcasts changed: only the logger query (DashApp) and the camera close (Launch)"
+body() { awk -v head="$2" 'index($0, head) == 1 { on = 1; next } on && /^    \}$/ { exit } on' "$1"; }
+CLOSE_CAMERA=$(cat <<'BODY'
+        Intent i = new Intent("com.xbs.action.reqcam").setPackage("com.xbs.frontcam");
+        i.putExtra("reqVal", false);
+        try {
+            c.sendBroadcast(i);
+        } catch (RuntimeException ignored) {}
+BODY
+)
+[ "$(body src/app/binnacle/Launch.java '    static void closeCamera(Context c) {')" = "$CLOSE_CAMERA" ] \
+    || bad "Launch.closeCamera changed: review it, then update this guard"
+START_LOGGER=$(cat <<'BODY'
+        if (!app.prefs().getBoolean("logger_autostart", false)) return;   // opt-in only (Advanced -> Drive logger)
+        try {
+            android.content.Intent i = new android.content.Intent().setComponent(
+                    new android.content.ComponentName("app.binnacle.logger", "app.binnacle.logger.CaptureService"));
+            if (Build.VERSION.SDK_INT >= 26) startForegroundService(i); else startService(i);
+        } catch (RuntimeException e) {
+            android.util.Log.i("binnacle", "drive logger not started: " + e.getMessage());
+        }
+BODY
+)
+[ "$(grep -rcE 'start(Foreground)?Service\s*\(' src | awk -F: '{ n += $2 } END { print n }')" = 1 ] \
+    && [ "$(body src/app/binnacle/DashActivity.java '    private void startLogger() {')" = "$START_LOGGER" ] \
+    || bad "service starts changed: only DashActivity.startLogger may start the logger"
+# ZLink's call-state message (the one the CAN app forwards to the MCU) is the CarPlay app's alone
+grep -rnE 'PHONE_CALL|phoneMode|carplay_wireless' src && bad "call-state message names in the dash (above)"
+ZLINK_LINES=$(cat <<'BODY'
+src/app/binnacle/Launch.java:11:    static final String ZLINK_PKG = "com.zjinnova.zlink";
+src/app/binnacle/Launch.java:12:    static final String ZLINK_ACTION = "zjinnova.android.intent.action.ZLINK_MAIN";
+BODY
+)
+[ "$(grep -rn 'zjinnova' src)" = "$ZLINK_LINES" ] || bad "ZLink named outside Launch's two constants"
+
+# Sources only in the app's own packages (audit #8c): a class under android.* or elsewhere would
+# shadow the framework or slip past the per-class rules; AGP's default source sets (src/release,
+# src/main, ...) would be another package here and are refused too. No whitespace in any name
+# under src, res or assets (the loops above split on it).
+find src -name '*.java' | grep -vE '^src/(app/binnacle|com/xbs/launcher)/[A-Za-z0-9_]+\.java$' && bad "sources outside app/binnacle and com/xbs/launcher (above)"
+find src -type f ! -name '*.java' | grep . && bad "non-Java files under src (above)"
+find src res assets -name '*[[:space:]]*' 2>/dev/null | grep . && bad "whitespace in file names (above)"
+# binder calls that run code in another process without transact (IBinder.dump/dumpAsync/shellCommand)
+grep -rnE '\.(dump|dumpAsync|shellCommand)\s*\(' src && bad "binder dump/shell calls (above)"
 
 # 1e. Audio settings: only the start-up media volume (owner OK 4 Nov), exactly once, in StartupVolume.
 #     Android's own music volume, which the wheel keys change too; nothing else (ringer, other
