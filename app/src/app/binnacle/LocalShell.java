@@ -67,7 +67,7 @@ final class LocalShell {
         /**
          * Unit setup (owner OK 8 Nov: a new user should get the owner's setup without adb, root
          * allowed). The only root (su 0) commands the dash has; each is opt-in in setup or
-         * Advanced → Unit setup, with its undo beside it, and listed in docs/UNIT-CHANGES.md.
+         * Settings → Unit, with its undo beside it, and listed in docs/UNIT-CHANGES.md.
          * None touches the car, the MCU or CAN. Only UnitSetup and AdbFirewall run them.
          */
         /** What is in place now: one line of name=value pairs, then the stock dash's toast app-op (no error if it is missing). */
@@ -81,7 +81,7 @@ final class LocalShell {
          * go at a restart; AdbFirewall puts them back each time the dash starts.
          */
         ADB_LOCAL_ONLY("{ su 0 iptables -C INPUT -p tcp --dport 5555 ! -i lo -j DROP 2>/dev/null || su 0 iptables -I INPUT -p tcp --dport 5555 ! -i lo -j DROP; } && { su 0 ip6tables -C INPUT -p tcp --dport 5555 ! -i lo -j DROP 2>/dev/null || su 0 ip6tables -I INPUT -p tcp --dport 5555 ! -i lo -j DROP; } && echo BINNACLE_OK"),
-        /** Advanced → Network ADB on: the same rules removed, so a computer on the Wi-Fi can connect. */
+        /** Settings → Unit → Network ADB on: the same rules removed, so a computer on the Wi-Fi can connect. */
         ADB_NETWORK("while su 0 iptables -D INPUT -p tcp --dport 5555 ! -i lo -j DROP 2>/dev/null; do :; done; while su 0 ip6tables -D INPUT -p tcp --dport 5555 ! -i lo -j DROP 2>/dev/null; do :; done; echo BINNACLE_OK"),
         /** The GPS daemon's crash dumps (up to ~470 MB each, filling the storage) off, and the folder cleared. */
         GPS_DUMPS_OFF("su 0 setprop persist.vendor.sys.core.enabled 0 && su 0 sh -c 'rm -rf /data/corefile/*' && echo BINNACLE_OK"),

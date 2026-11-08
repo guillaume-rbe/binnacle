@@ -6,7 +6,7 @@ import android.util.Log;
 /**
  * Keeps the unit's ADB off the Wi-Fi (owner, 8 Nov). Android 10's adbd listens on every network
  * once its port is open and can't be told to listen on loopback only, so each time the dash starts
- * (and when Advanced → Network ADB changes) this drops port 5555 on every interface but loopback:
+ * (and when Settings → Unit → Network ADB changes) this drops port 5555 on every interface but loopback:
  * Binnacle's own LocalShell keeps working, a computer on the Wi-Fi can't connect. Network ADB on
  * (off by default) removes the rule, for working on the unit from a computer. The rule goes at
  * every restart, so for the seconds between boot and the dash starting the port is reachable.
@@ -17,6 +17,13 @@ final class AdbFirewall {
 
     static final String KEY = "network_adb";
     static final boolean DEFAULT = false;
+
+    /**
+     * Whether the last attempt to keep ADB off the Wi-Fi failed while ADB was reachable (for
+     * example no root on other unit software): the Unit page warns, since ADB is then open to the
+     * Wi-Fi. False when it worked, when Network ADB is on, or when ADB isn't on at all.
+     */
+    static volatile boolean failed;
 
     /** One at a time, in order: a quick On then Off must end with the rule in place (Codex). */
     private static final java.util.concurrent.ExecutorService ONE = java.util.concurrent.Executors.newSingleThreadExecutor();
@@ -29,9 +36,15 @@ final class AdbFirewall {
                 try {
                     LocalShell.Command cmd = network ? LocalShell.Command.ADB_NETWORK : LocalShell.Command.ADB_LOCAL_ONLY;
                     LocalShell.run(cmd);
+                    failed = false;
                     Log.i("Binnacle", network ? "network ADB allowed" : "ADB reachable from the unit only");
-                } catch (Exception e) {
+                } catch (java.net.ConnectException e) {
                     // no ADB yet (a fresh unit): nothing to block, and nothing can reach it either
+                    failed = false;
+                    Log.w("Binnacle", "ADB firewall not changed: " + e.getMessage());
+                } catch (Exception e) {
+                    // ADB answered but the rule didn't go in: it is open to the Wi-Fi (unless the switch is on)
+                    failed = !network;
                     Log.w("Binnacle", "ADB firewall not changed: " + e.getMessage());
                 }
             }

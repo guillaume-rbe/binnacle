@@ -371,5 +371,14 @@ public class CameraPane extends TextureView implements TextureView.SurfaceTextur
         @Override public void run() { if (wanted) animate().alpha(1f).setDuration(FADE_MS); }
     };
 
-    @Override public void onSurfaceTextureUpdated(SurfaceTexture st) {}
+    /** Set once the dash's camera has shown a frame on this unit (UnitSetup recommends the stock camera off only then). */
+    static final String SEEN_KEY = "camera_seen";
+    private boolean seenSaved;
+
+    @Override public void onSurfaceTextureUpdated(SurfaceTexture st) {
+        if (seenSaved) return;
+        seenSaved = true;
+        android.content.SharedPreferences p = DashApp.get(getContext()).prefs();
+        if (!p.getBoolean(SEEN_KEY, false)) p.edit().putBoolean(SEEN_KEY, true).apply();
+    }
 }

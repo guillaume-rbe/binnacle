@@ -48,7 +48,7 @@ If yours isn't listed yet, you can still try it. Installing Binnacle doesn't rem
 
 - **Battery %.** On some cars the original dash's battery figure is stuck (at 77 % on the owner's car), so Binnacle works the % out from another figure instead. On other cars the battery figure works properly. From the release after 0.9.1, Binnacle notices when the figure changes and then uses it. On those cars, the first drive or charge after installing is what shows it the figure works.
 - **Power and regen.** See the \* note under the table.
-- **Newer dash software (2024).** Binnacle itself runs on it. The optional changes in [UNIT-CHANGES.md](UNIT-CHANGES.md) were only tested on the February 2023 software, so don't try those on a 2024 dash yet. You don't need them for Binnacle to work.
+- **Newer dash software (2024).** Binnacle itself runs on it. The unit changes in [UNIT-CHANGES.md](UNIT-CHANGES.md) were tested on the February 2023 software. On other software, Binnacle's setup only makes the plain Android ones, and leaves Android Bluetooth, the stock camera and CarPlay calls as switches marked "not tested yet". You don't need any of them for Binnacle to work.
 
 ## How to find your dash's details
 
@@ -57,6 +57,8 @@ You don't need a computer for this. Take a photo of each of these screens on the
 1. **CarSetUp → Device information.** This shows Model, Hardware version, Bluetooth version, Android version, System version, App version, MCU0 and MCU1.
 2. **App Store → Online Upgrade.** This shows the Current version, a long name starting with `A007_`.
 3. Optional: **the original dash's data screen**, the one that shows lines like `code 10: carspeed=…`. This helps with problems like the battery % or power figures.
+
+Already have Binnacle installed? **Apps → Settings → Unit** shows your System version and Binnacle versions on one page, and a photo of that page helps too.
 
 You can get back to the original dash at any time from **Apps → Advanced → Remove Binnacle**, and reinstall Binnacle afterwards.
 
