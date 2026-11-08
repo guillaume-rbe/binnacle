@@ -102,6 +102,9 @@
 > - Wireless CarPlay's port 7000 only answers on the CarPlay hotspot: a connection from any other
 >   network (home Wi-Fi, a media server probing the port) is closed at once, and nothing but
 >   pairing and `/info` is served until the phone has completed pair-verify
+> - Wireless CarPlay doesn't start when the hotspot's interface can't be found (it would otherwise
+>   answer on every network), the hotspot passphrase is never written to the logs, and the
+>   decrypted control-traffic trace goes to the session log only with "Debug logs" on
 
 ## Features
 

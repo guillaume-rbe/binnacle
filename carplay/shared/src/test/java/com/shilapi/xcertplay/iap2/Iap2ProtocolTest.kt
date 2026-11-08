@@ -174,6 +174,23 @@ class Iap2ProtocolTest {
     }
 
     @Test
+    fun formatterRedactsTheHotspotPassphrase() {
+        val frame = Iap2WirelessMessages.accessoryWiFiConfiguration(
+            ssid = "LIVI",
+            passphrase = "secret-pass",
+            channel = 36,
+            securityType = 3,
+        )
+
+        val formatted = Iap2FrameFormatter.format(Iap2TraceDirection.TX, "wireless", frame)
+
+        assertTrue("passphrase: <redacted" in formatted)
+        assertTrue("raw-body=<redacted>" in formatted)
+        assertFalse("secret-pass" in formatted)
+        assertFalse("73 65 63 72" in formatted)   // "secr" in the hex preview
+    }
+
+    @Test
     fun formatterFallsBackForMalformedBodies() {
         val formatted = Iap2FrameFormatter.format(
             Iap2TraceDirection.RX,
