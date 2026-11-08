@@ -4,6 +4,19 @@ Binnacle itself installs as a normal app. Getting the most out of the unit took 
 
 **No stock apps were removed.** The stock dash (`com.xbs.launcher1`), the CAN app, the camera app and ZLink all stay installed. The only things uninstalled were this project's own test builds and, on the owner's unit, Apple Music (a user app; see below).
 
+## What needs the unit's ADB
+
+Some Binnacle features run a fixed command on the unit through its own ADB (on the unit itself, 127.0.0.1:5555). A fresh unit has ADB off until it is switched on once (see [ADB-GUIDE.md](ADB-GUIDE.md)), and this firmware turns it off again at every restart unless it is kept on. Until then, these don't work:
+
+- **Wireless CarPlay after a restart or a CarPlay update:** Binnacle can't give xcertplay its location permission back, and CarPlay then fails to connect.
+- **End CarPlay:** the button opens Android's Wi-Fi screen instead, to turn Wi-Fi off and on by hand.
+- **Pausing Wi-Fi scans during CarPlay:** music and calls can stutter away from home.
+- **The Wi-Fi icon rejoining home Wi-Fi.**
+- **Bluetooth auto-connect** (Display tab): shows "Needs network ADB".
+- **Screenshots from the power bar.**
+
+Everything else works without it: the dash, the car data, the camera in the dash, CarPlay drawn in the dash, updates and setup's other steps.
+
 Commands assume `adb connect <unit-ip>:5555` first. `su 0` gives root on this unit (`su -c` doesn't work).
 
 > **⚠️ Network ADB is root for anyone on the same network.** This firmware's adb asks for no key or password, and `su 0` works from it. While port 5555 is open, any device on the same Wi-Fi can take full control of the unit: that includes a shared or public network, and the unit's own hotspot if you share it. Keep it on only on networks you trust, or switch it off when you're done (`adb shell su 0 setprop persist.adb.tcp.port ""`, then reboot). Details: [ADB-GUIDE.md](ADB-GUIDE.md#️-security-warning-read-this-before-making-it-persistent).
