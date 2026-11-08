@@ -731,19 +731,33 @@ public class HubActivity extends Activity {
         remove.setOnClickListener(new View.OnClickListener() {
             @Override public void onClick(View v) {
                 BinnacleDialog.show(HubActivity.this, "Remove Binnacle?",
-                        "The unit goes back to the stock dash, which is still installed.\nBinnacle's settings and downloaded car images are deleted with it."
+                        "The unit goes back to the stock dash, which is still installed.\nBinnacle's settings and downloaded car images are deleted with it.\n\n"
+                                + "Binnacle turns the stock camera screen and the stock dash's pop-ups back on first. "
+                                + "The unit's ADB stays on after restarts and is then open to the Wi-Fi: turn it off in Unit setup first if you don't want that."
                                 + (stockCameraDisabled()
-                                ? "\n\nThe stock camera screen is still switched off, so it won't open by itself in Drive. "
-                                + "Turn it back on first (docs/UNIT-CHANGES.md: pm enable com.xbs.frontcam/com.xbs.frontcam.CameraActivity)."
+                                ? "\n\nIf that fails, turn the stock camera screen back on by hand (docs/UNIT-CHANGES.md: "
+                                + "pm enable com.xbs.frontcam/com.xbs.frontcam.CameraActivity), or it won't open by itself in Drive."
                                 : ""),
                         new String[]{"Cancel", "Remove"}, true, new BinnacleDialog.Choice() {
                             @Override public void chosen(int index) {
                                 if (index != 1) return;
-                                try {
-                                    startActivity(new Intent(Intent.ACTION_DELETE, android.net.Uri.parse("package:" + getPackageName())));
-                                } catch (RuntimeException e) {
-                                    Toast.makeText(HubActivity.this, "Couldn't open the uninstaller", Toast.LENGTH_SHORT).show();
-                                }
+                                // undo what only Binnacle replaces (camera, pop-ups), then Android's uninstaller
+                                final boolean camera = stockCameraDisabled();
+                                new Thread(new Runnable() {
+                                    @Override public void run() {
+                                        try { if (camera) UnitSetup.set(UnitSetup.Change.STOCK_CAMERA, false); } catch (Exception ignored) { }
+                                        try { UnitSetup.set(UnitSetup.Change.STOCK_TOASTS, false); } catch (Exception ignored) { }
+                                        runOnUiThread(new Runnable() {
+                                            @Override public void run() {
+                                                try {
+                                                    startActivity(new Intent(Intent.ACTION_DELETE, android.net.Uri.parse("package:" + getPackageName())));
+                                                } catch (RuntimeException e) {
+                                                    Toast.makeText(HubActivity.this, "Couldn't open the uninstaller", Toast.LENGTH_SHORT).show();
+                                                }
+                                            }
+                                        });
+                                    }
+                                }, "unit-undo").start();
                             }
                         });
             }

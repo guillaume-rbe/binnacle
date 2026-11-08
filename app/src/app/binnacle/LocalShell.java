@@ -68,7 +68,7 @@ final class LocalShell {
          * Unit setup (owner OK 8 Nov: a new user should get the owner's setup without adb, root
          * allowed). The only root (su 0) commands the dash has; each is opt-in in setup or
          * Advanced → Unit setup, with its undo beside it, and listed in docs/UNIT-CHANGES.md.
-         * None touches the car, the MCU or CAN. UnitSetup is the only caller.
+         * None touches the car, the MCU or CAN. Only UnitSetup and AdbFirewall run them.
          */
         /** What is in place now, one line of name=value pairs, then the stock dash's toast app-op. */
         UNIT_STATUS("echo adb=$(getprop persist.adb.tcp.port) dumps=$(getprop persist.vendor.sys.core.enabled) bt=$(getprop persist.car.use_system_bt) absvol=$(getprop persist.bluetooth.disableabsvol) && appops get com.xbs.launcher1 TOAST_WINDOW && echo BINNACLE_OK"),
