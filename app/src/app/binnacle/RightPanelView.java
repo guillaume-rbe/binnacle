@@ -527,6 +527,9 @@ public class RightPanelView extends View {
     };
 
     void netNote(String text, boolean busy) {
+        // the join can finish before the shell command reports back: already on Wi-Fi, so say so
+        // (a tap while on Wi-Fi never starts a join, so a busy note here is always a late one)
+        if (busy && net == NET_WIFI) { text = "On home Wi-Fi"; busy = false; }
         netNote = text;
         netBusy = busy;
         removeCallbacks(clearNetNote);
