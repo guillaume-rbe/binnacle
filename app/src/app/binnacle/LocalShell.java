@@ -119,6 +119,10 @@ final class LocalShell {
             A_CLSE = 0x45534c43, A_WRTE = 0x45545257, A_AUTH = 0x48545541;
     private static final int VERSION = 0x01000000, MAX_DATA = 4096, LOCAL_ID = 1;
     private static final int PORT = 5555, TIMEOUT_MS = 15000;
+    // A whole command gets at most a minute and 64 KB of output: something else listening on
+    // 127.0.0.1:5555 while adbd is down can't stall or flood the dash.
+    private static final long DEADLINE_MS = 60000;
+    private static final int MAX_OUTPUT = 64 * 1024;
 
     private LocalShell() {}
 
@@ -144,10 +148,15 @@ final class LocalShell {
             send(out, A_OPEN, LOCAL_ID, 0, ("shell:" + cmd.shell + "\0").getBytes(StandardCharsets.UTF_8));
             ByteArrayOutputStream result = new ByteArrayOutputStream();
             int remote = 0;
+            long deadline = android.os.SystemClock.elapsedRealtime() + DEADLINE_MS;
             while (true) {
+                long left = deadline - android.os.SystemClock.elapsedRealtime();
+                if (left <= 0) throw new IOException("the shell took too long");
+                s.setSoTimeout((int) Math.min(TIMEOUT_MS, left));
                 m = read(in);
                 if (m.cmd == A_OKAY) { remote = m.arg0; continue; }
                 if (m.cmd == A_WRTE) {
+                    if (result.size() + m.data.length > MAX_OUTPUT) throw new IOException("too much output from the shell");
                     result.write(m.data);
                     send(out, A_OKAY, LOCAL_ID, m.arg0, new byte[0]);
                     continue;
