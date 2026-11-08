@@ -70,8 +70,8 @@ final class LocalShell {
          * Advanced → Unit setup, with its undo beside it, and listed in docs/UNIT-CHANGES.md.
          * None touches the car, the MCU or CAN. Only UnitSetup and AdbFirewall run them.
          */
-        /** What is in place now, one line of name=value pairs, then the stock dash's toast app-op. */
-        UNIT_STATUS("echo adb=$(getprop persist.adb.tcp.port) dumps=$(getprop persist.vendor.sys.core.enabled) bt=$(getprop persist.car.use_system_bt) absvol=$(getprop persist.bluetooth.disableabsvol) && appops get com.xbs.launcher1 TOAST_WINDOW && echo BINNACLE_OK"),
+        /** What is in place now: one line of name=value pairs, then the stock dash's toast app-op (no error if it is missing). */
+        UNIT_STATUS("echo adb=$(getprop persist.adb.tcp.port) dumps=$(getprop persist.vendor.sys.core.enabled) bt=$(getprop persist.car.use_system_bt) absvol=$(getprop persist.bluetooth.disableabsvol) && appops get com.xbs.launcher1 TOAST_WINDOW; echo BINNACLE_OK"),
         /** Network ADB on again after every restart (it is off by default on this firmware). */
         ADB_KEEP_ON("su 0 setprop persist.adb.tcp.port 5555 && echo BINNACLE_OK"),
         ADB_KEEP_OFF("su 0 setprop persist.adb.tcp.port '' && echo BINNACLE_OK"),
