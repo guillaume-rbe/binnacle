@@ -164,9 +164,9 @@ final class Updater {
      */
     static void install(Context c, Release r, boolean carplay, Progress progress) throws IOException {
         Release part = carplay ? r.carplay : r;
-        if (part == null) throw new IOException("this release has no CarPlay app");
+        if (part == null) throw new IOException("this release has no CarPlay support");
         int installed = installedCode(c, carplay);
-        if (carplay && installed == 0) throw new IOException("the CarPlay app isn't installed");
+        if (carplay && installed == 0) throw new IOException("CarPlay support isn't installed");
         if (part.versionCode <= installed) throw new IOException("already up to date");
         if (!begin()) throw new IOException("already updating");
         try {
@@ -265,6 +265,9 @@ final class Updater {
      * opens; then a failure (shown as a toast), or nothing at all on success because installing
      * replaces this app and restarts it.
      */
+    /** Runs once on the main thread when CarPlay support has installed (set by HubActivity: the dash next). */
+    static Runnable afterCarPlay;
+
     public static final class Status extends BroadcastReceiver {
         private static final String PREFS = "updater";
         private static final String PENDING = "pending_session";
@@ -317,7 +320,9 @@ final class Updater {
             if (status == PackageInstaller.STATUS_SUCCESS) {
                 // a dash update restarts the dash, so only the CarPlay app's success is seen here
                 if (CARPLAY_PACKAGE.equals(intent.getStringExtra(PackageInstaller.EXTRA_PACKAGE_NAME))) {
-                    Toast.makeText(c, "CarPlay app updated", Toast.LENGTH_LONG).show();
+                    Runnable next = afterCarPlay;   // the dash's part next, if the release has one (HubActivity)
+                    afterCarPlay = null;
+                    if (next != null) next.run();
                 }
                 return;
             }
