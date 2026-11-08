@@ -129,6 +129,7 @@ public class DashApp extends Application implements Feed.Sink, SharedPreferences
         startCompass();
         StartupVolume.start(this, prefs);
         AdbFirewall.apply(prefs);   // the unit's ADB off the Wi-Fi unless Network ADB is on
+        AdbFirewall.watchScreen(this, prefs);
         watchLogger();
         new Thread(new Runnable() {
             @Override public void run() { CarPacks.removeLegacy(DashApp.this); }

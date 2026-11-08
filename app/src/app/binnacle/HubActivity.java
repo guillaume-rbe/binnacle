@@ -747,7 +747,7 @@ public class HubActivity extends Activity {
             @Override public void onClick(View v) {
                 BinnacleDialog.show(HubActivity.this, "Remove Binnacle?",
                         "The unit goes back to the stock dash, with its camera screen and pop-ups.\n"
-                                + "Turn off \"Keep the unit unlocked\" on the Unit page first, or it stays open to the Wi-Fi.",
+                                + "The unit locks again after a restart.",
                         new String[]{"Cancel", "Remove"}, true, new BinnacleDialog.Choice() {
                             @Override public void chosen(int index) {
                                 if (index != 1) return;
@@ -758,6 +758,8 @@ public class HubActivity extends Activity {
                                         boolean failed = false;
                                         try { if (camera) UnitSetup.set(UnitSetup.Change.STOCK_CAMERA, false); } catch (Exception e) { failed = true; }
                                         try { UnitSetup.set(UnitSetup.Change.STOCK_TOASTS, false); } catch (Exception ignored) { }
+                                        // without Binnacle nothing keeps ADB off the Wi-Fi: lock it at the next restart (audit #1)
+                                        try { UnitSetup.set(UnitSetup.Change.ADB_KEEP, false); } catch (Exception ignored) { }
                                         final boolean cameraOff = failed;
                                         runOnUiThread(new Runnable() {
                                             @Override public void run() {
@@ -1131,6 +1133,10 @@ public class HubActivity extends Activity {
         } else if (st.openToWifi) {
             // the unit answers, but the rule keeping ADB off the Wi-Fi didn't go in (no root?)
             state.setText("Unlocked, but open to the Wi-Fi. Turn off \"Keep the unit unlocked\" and restart");
+            state.setTextColor(Style.WARN);
+        } else if (st.isOn(UnitSetup.Change.ADB_KEEP) && !Launch.isDefaultHome(this)) {
+            // the rule goes in when the dash starts; without Binnacle as Home it may not start at boot
+            state.setText("Unlocked, but open to the Wi-Fi after a restart: make Binnacle the Home app");
             state.setTextColor(Style.WARN);
         } else {
             state.setText("✓  Unlocked");

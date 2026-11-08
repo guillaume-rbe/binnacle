@@ -322,8 +322,8 @@ String:su 0 setprop persist.vendor.sys.core.enabled 0 && su 0 sh -c \'rm -rf /da
 String:su 0 setprop persist.vendor.sys.core.enabled 1 && echo BINNACLE_OK
 String:svc wifi disable && sleep 2 && svc wifi enable && echo BINNACLE_OK
 String:unexpected ADB reply
-String:while su 0 iptables -D INPUT -p tcp --dport 5555 ! -i lo -j DROP 2>/dev/null; do :; done; while su 0 ip6tables -D INPUT -p tcp --dport 5555 ! -i lo -j DROP 2>/dev/null; do :; done; echo BINNACLE_OK
-String:{ su 0 iptables -C INPUT -p tcp --dport 5555 ! -i lo -j DROP 2>/dev/null || su 0 iptables -I INPUT -p tcp --dport 5555 ! -i lo -j DROP; } && { su 0 ip6tables -C INPUT -p tcp --dport 5555 ! -i lo -j DROP 2>/dev/null || su 0 ip6tables -I INPUT -p tcp --dport 5555 ! -i lo -j DROP; } && echo BINNACLE_OK
+String:su 0 sh -c \'for T in iptables ip6tables; do while $T -w -D INPUT -p tcp --dport 5555 ! -i lo -j DROP 2>/dev/null; do :; done; while $T -w -D OUTPUT -o lo -p tcp --dport 5555 -j binnacle_adb 2>/dev/null; do :; done; $T -w -F binnacle_adb 2>/dev/null; $T -w -X binnacle_adb 2>/dev/null; done; true\' && echo BINNACLE_OK
+String:su 0 sh -c \'U=$(stat -c %u /data/data/com.xbs.launcher) && [ $U -ge 10000 ] && for T in iptables ip6tables; do $T -w -C INPUT -p tcp --dport 5555 ! -i lo -j DROP 2>/dev/null || $T -w -I INPUT -p tcp --dport 5555 ! -i lo -j DROP || exit 1; $T -w -N binnacle_adb 2>/dev/null; $T -w -F binnacle_adb && $T -w -A binnacle_adb -m owner --uid-owner 0 -j RETURN && $T -w -A binnacle_adb -m owner --uid-owner 2000 -j RETURN && $T -w -A binnacle_adb -m owner --uid-owner $U -j RETURN && $T -w -A binnacle_adb -p tcp -j REJECT --reject-with tcp-reset || exit 1; $T -w -C OUTPUT -o lo -p tcp --dport 5555 -j binnacle_adb 2>/dev/null || $T -w -I OUTPUT -o lo -p tcp --dport 5555 -j binnacle_adb || exit 1; done\' && echo BINNACLE_OK
 EOF
 )
 [ "$got" = "$expected" ] || { diff <(printf '%s\n' "$expected") <(printf '%s\n' "$got") >&2; bad "LocalShell strings changed: review, then update this guard"; }
@@ -342,7 +342,7 @@ if [ -n "$SHELL_CLASSES" ]; then
     elif command -v shasum >/dev/null 2>&1; then hash_cmd='shasum -a 256'
     else bad "no sha256sum or shasum found: cannot check LocalShell's code"; hash_cmd='false'; fi
     sum=$(printf '%s\n' "$shell_code" | $hash_cmd | cut -c1-64)
-    [ "$sum" = 'cd5d80e8f196da2737556a79f4e92a857082e1f766619c1be0ffff45995ffcc3' ] || { printf '%s\n' "$shell_code" >&2; bad "LocalShell's code changed (hash $sum): review the listing above, then update this guard"; }
+    [ "$sum" = '5a3a840630ac4e8ada98eb054aa33ad952495ecf75f257d1172d7d5c0b59adf3' ] || { printf '%s\n' "$shell_code" >&2; bad "LocalShell's code changed (hash $sum): review the listing above, then update this guard"; }
     # and, readably: send() only from run(), four times (connect, open the one shell stream, ack, close)
     [ "$(refs '^app/binnacle/LocalShell\.send$' | awk -F'\t' '$1 == "app/binnacle/LocalShell" && $2 == "run"' | wc -l | tr -d ' ')" = 4 ] \
         && [ "$(refs '^app/binnacle/LocalShell\.send$' | wc -l | tr -d ' ')" = 4 ] || bad "LocalShell.run must send exactly its four ADB messages"
