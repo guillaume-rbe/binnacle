@@ -143,6 +143,12 @@ class CarPlayVpnService : VpnService() {
             Log.i(TAG, "replacing stale local-only Wi-Fi attachment")
             releaseLocked()
         }
+        // fail closed: without the hotspot's interface the listener can't be limited to it, and
+        // would answer on every network the unit is on
+        if (hotspotInterface.isNullOrBlank()) {
+            Log.w(TAG, "hotspot interface unknown: wireless CarPlay not started")
+            return AttachResult.Failed("CarPlay hotspot interface unknown")
+        }
         active.set(true)
         val generation = ++attachGeneration
         return try {
@@ -160,9 +166,6 @@ class CarPlayVpnService : VpnService() {
                     requirePairVerify = true,
                 ),
             )
-            if (hotspotInterface == null) {
-                Log.w(TAG, "hotspot interface unknown: AirPlay connections are not limited to it")
-            }
             AttachResult.Started
         } catch (error: Exception) {
             releaseLocked()

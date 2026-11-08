@@ -27,6 +27,9 @@ object Iap2FrameFormatter {
     private const val MAX_HEX_BYTES = 24
     private const val HEX_DIGITS = "0123456789abcdef"
 
+    /** Never written out: the CarPlay hotspot's passphrase (Wi-Fi configuration messages). */
+    private val SECRET_FIELDS = setOf("passphrase")
+
     fun format(
         direction: Iap2TraceDirection,
         context: String,
@@ -50,7 +53,9 @@ object Iap2FrameFormatter {
                 lines = lines,
             )
         }
-        lines += "  raw-body=${hexPreview(frame.payload)}"
+        // the first bytes of the body can hold a secret field too
+        val secret = endpoint?.fields.orEmpty().let(::hasSecret)
+        lines += if (secret) "  raw-body=<redacted>" else "  raw-body=${hexPreview(frame.payload)}"
 
         val endpointText = endpoint?.let { " ${it.name}" }.orEmpty()
         return buildString {
@@ -92,6 +97,9 @@ object Iap2FrameFormatter {
         append(failure.message ?: failure.javaClass.simpleName)
     }
 
+    private fun hasSecret(specs: List<Iap2FieldSpec>): Boolean =
+        specs.any { it.name in SECRET_FIELDS || hasSecret(it.children) }
+
     private fun appendParameters(
         parameters: Iap2ParameterList,
         specs: List<Iap2FieldSpec>,
@@ -119,7 +127,7 @@ object Iap2FrameFormatter {
         spec: Iap2FieldSpec,
         depth: Int,
     ): String = try {
-        when (spec.type) {
+        if (spec.name in SECRET_FIELDS) "<redacted, ${payload.size} bytes>" else when (spec.type) {
             Iap2WireType.VOID -> if (payload.isEmpty()) "void" else "void? ${hexPreview(payload)}"
             Iap2WireType.U8 -> scalar("u8", payload, 1, Iap2WireCodec.readU8(payload))
             Iap2WireType.I8 -> scalar("i8", payload, 1, Iap2WireCodec.readI8(payload))
