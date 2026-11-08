@@ -32,11 +32,13 @@ If yours isn't listed yet, you can still try it. Installing Binnacle doesn't rem
 | **Binnacle installs and runs** | ✅ | ✅ | ✅ |
 | **Speed, gear, lights, doors, tyres** | ✅ | 🟡 Not reported yet | 🟡 Not reported yet |
 | **Battery %** | ✅ | 🟡 Should work in the release after 0.9.1 (see below) | ❓ |
-| **Power / regen** | 🟡 Estimated (see below) | 🟡 Estimated (see below) | ❓ |
+| **Power / regen** | ✅\* | ❓\* | ❓\* |
 | **Forward camera** | ✅ | ❓ | ❓ |
 | **Wireless CarPlay** | ✅ | ❓ | 🟡 Picture and touch were off on 0.8; 0.9.1 should fix it |
 | **Bluetooth calls and music** | ✅ | ❓ | ❓ |
 | **Reported in** | The owner's own car, in daily use | [Issue #91](https://github.com/lotech/binnacle/issues/91) | [Issue #90](https://github.com/lotech/binnacle/issues/90) |
+
+\* **Power / regen and the November 2026 Tesla update:** Tesla software 2026.38.6.1 changed the power and regen data the dash receives, on every car we know of (other add-ons such as S3XY Commander are affected too). Until the new data is worked out, Binnacle shows an estimate based on how the car speeds up and slows down. Cars still on older Tesla software get the exact figures.
 
 **Model Y:** ❓ not tried yet. The dash is sold for the Model Y too, so it is likely to work, but nobody has reported it yet.
 
@@ -45,7 +47,7 @@ If yours isn't listed yet, you can still try it. Installing Binnacle doesn't rem
 ## Known differences between dashes
 
 - **Battery %.** On some cars the original dash's battery figure is stuck (at 77 % on the owner's car), so Binnacle works the % out from another figure instead. On other cars the battery figure works properly. From the release after 0.9.1, Binnacle notices when the figure changes and then uses it. On those cars, the first drive or charge after installing is what shows it the figure works.
-- **Power and regen.** A Tesla software update in late 2026 (2026.38.6.1) changed the data the dash receives, so the exact power and regen figures stopped working on the cars we know of, and other products are affected too. Until the new data is worked out, Binnacle shows an estimate based on how the car speeds up and slows down. Cars still on older Tesla software get the exact figures.
+- **Power and regen.** See the \* note under the table.
 - **Newer dash software (2024).** Binnacle itself runs on it. The optional changes in [UNIT-CHANGES.md](UNIT-CHANGES.md) were only tested on the February 2023 software, so don't try those on a 2024 dash yet. You don't need them for Binnacle to work.
 
 ## How to find your dash's details
