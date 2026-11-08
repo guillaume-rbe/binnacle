@@ -46,17 +46,23 @@ final class CarPlayAuto {
     private final CarPlayLink link;
     private final Host host;
     private final Handler handler = new Handler(Looper.getMainLooper());
+    // Static (per process), so a theme recreation of the dash keeps an attempt in flight: the new
+    // screen's CarPlayAuto picks up its wait or its deadline instead of losing them.
     /** A start or wake is waiting for the link or the car's Bluetooth. */
-    private boolean pending;
-    private long waitingSince;
-    /** start() was sent by us and the outcome isn't known yet. */
-    private boolean attempt;
+    private static boolean pending;
+    private static long waitingSince;
+    /** start() was sent by us and the outcome isn't known yet; given up at attemptUntil (uptime). */
+    private static boolean attempt;
+    private static long attemptUntil;
 
     CarPlayAuto(Context c, SharedPreferences prefs, CarPlayLink link, Host host) {
         this.context = c;
         this.prefs = prefs;
         this.link = link;
         this.host = host;
+        // carried over from the screen this one replaces (theme change): keep waiting / keep the deadline
+        if (attempt) handler.postDelayed(giveUp, Math.max(0, attemptUntil - SystemClock.uptimeMillis()));
+        if (pending) arm(FIRST_LOOK_MS);
     }
 
     static String mode(SharedPreferences prefs) {
@@ -94,6 +100,7 @@ final class CarPlayAuto {
         handler.removeCallbacks(giveUp);
     }
 
+    /** This screen is going (closed or recreated): its timers stop; an attempt's state stays for the next one. */
     void release() {
         handler.removeCallbacksAndMessages(null);
     }
@@ -128,6 +135,7 @@ final class CarPlayAuto {
             pending = false;
             attempt = true;
             handler.removeCallbacks(giveUp);
+            attemptUntil = SystemClock.uptimeMillis() + WINDOW_MS;
             handler.postDelayed(giveUp, WINDOW_MS);
             Log.i(TAG, "CarPlay auto-connect: asking for CarPlay in the background");
             link.start();
