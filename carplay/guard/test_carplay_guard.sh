@@ -83,6 +83,14 @@ expect fail "raw transact" "append $OTHER 'internal fun t(b: android.os.IBinder)
 expect fail "Messenger send in another file" "append $OTHER 'internal fun m(x: android.os.Messenger) = x.send(Message.obtain())'"
 expect fail "ContentResolver write" "append $OTHER 'internal fun w(c: android.content.Context, u: android.net.Uri) = c.contentResolver.delete(u, null, null)'"
 expect fail "ContentResolver in a new file" "append $NEWF 'internal fun q(c: android.content.Context) = c.contentResolver'"
+MEDIA=shared/src/main/java/com/shilapi/xcertplay/media/CarPlayMediaSessionService.kt
+expect fail "VPN binding retargeted on its constructor" "edit $OTHER 'Intent(appContext, CarPlayVpnService::class.java)' 'Intent(appContext, CarPlayVpnService::class.java).setClassName(\"com.example\", \"com.example.S\")'"
+expect fail "VPN binding retargeted on a line in between" "edit $OTHER '            if (!appContext.bindService(intent,' '            intent.setPackage(\"com.example\")
+            if (!appContext.bindService(intent,'"
+expect fail "media binding retargeted" "edit $MEDIA '.setAction(MediaSessionService.SERVICE_INTERFACE)' '.setAction(MediaSessionService.SERVICE_INTERFACE).setPackage(\"com.example\")'"
+expect fail "Messenger send with a variable message" "append $NEWF 'internal fun s(t: android.os.Messenger, m: android.os.Message) = t.send(m)'"
+expect fail "ContentResolver write through a scoped receiver" "append $OTHER 'internal fun d(c: android.content.Context, u: android.net.Uri) = c.contentResolver.let { it.delete(u, null, null) }'"
+expect fail "ContentResolver write through a renamed variable" "edit $OTHER '                    resolver.openInputStream(privateKeyUri)' '                    resolver.also { r -> r.delete(privateKeyUri, null, null) }.openInputStream(privateKeyUri)'"
 expect fail "code in src/release" "mkdir -p shared/src/release/java && printf 'fun x() = Runtime.getRuntime()\n' > shared/src/release/java/X.kt"
 
 echo "$((n - fails))/$n cases as expected"
