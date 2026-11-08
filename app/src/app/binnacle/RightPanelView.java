@@ -118,9 +118,10 @@ public class RightPanelView extends View {
 
     private void drawBattery(Canvas c) {
         drawTile(c, 112, 248);
-        // the car's % field (batterylevel) is stuck on this car (77 % all day); the % is decoded from
-        // the code 11 jhmail field instead (BatteryDecoder, table recorded at a Supercharger)
-        int soc = BatteryDecoder.percent(car.jhmail);
+        // the car's % field (batterylevel) is stuck on some cars (77 % all day on the owner's); there
+        // the % is decoded from the code 11 jhmail field (BatteryDecoder, table recorded at a
+        // Supercharger). Once batterylevel has been seen to change it is used instead.
+        int soc = BatteryDecoder.pick(BatteryDecoder.percent(car.jhmail), car.soc, levelMoves());
         // no live % yet (just woke, or a value off the table): show the last one, marked estimated
         boolean estimated = soc < 0;
         if (estimated) soc = lastSoc();
@@ -193,6 +194,23 @@ public class RightPanelView extends View {
     private float sweepWidth;
 
     private static final String LAST_SOC = "last_soc", LAST_SOC_TIME = "last_soc_time";
+    private static final String SOC_FIELD_MOVES = "soc_field_moves";
+
+    /** Watches the car's own % field; once it has changed, it is trusted from then on (saved). */
+    private final BatteryDecoder.LevelWatch levelWatch = new BatteryDecoder.LevelWatch();
+    private boolean levelChecked;
+
+    private boolean levelMoves() {
+        if (!levelChecked) {
+            levelWatch.moved = app.prefs().getBoolean(SOC_FIELD_MOVES, false);
+            levelChecked = true;
+        }
+        if (levelWatch.moved || app.isDemo()) return levelWatch.moved;
+        if (levelWatch.see(car.soc, android.os.SystemClock.elapsedRealtime())) {
+            app.prefs().edit().putBoolean(SOC_FIELD_MOVES, true).apply();
+        }
+        return levelWatch.moved;
+    }
 
     /** Keeps the last live % (and when) for after a sleep; saved when it changes, else once a minute. */
     private void rememberSoc(int soc) {

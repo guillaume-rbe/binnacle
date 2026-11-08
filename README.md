@@ -33,7 +33,7 @@ On a ship, the binnacle is the stand in front of the helm that holds the compass
 ## What it fixes compared with the stock dash
 - **Model Y Support:** the stock dash only showed a Model 3 - now the Model Y is supported as a graphic option.
 - **Android Settings Access:** the stock dash went out of its way to hide the normal Android Settings app, Binnacle restores this.
-- **Battery %:** on some cars (mine included) had the stock "battery level" field stuck at 77%, and the stock dash shows another field as "km" when it isn't range at all. Binnacle decodes the real % from that second field, checked against a full 13 % to 100 % charge.
+- **Battery %:** on some cars (mine included) had the stock "battery level" field stuck at 77%, and the stock dash shows another field as "km" when it isn't range at all. Binnacle decodes the real % from that second field, checked against a full 13 % to 100 % charge. On cars where the battery level field does work, Binnacle switches to it once it sees it change.
 - **Camera that works:** the stock camera could fail with "camera error 4" after a reboot and judders on the 56 Hz panel. Binnacle sets up the camera input itself, paces frames evenly, and hides the start-up roll.
 - **CarPlay that doesn't hijack your phone:** with the stock setup, CarPlay grabbed the phone and the unit's Wi-Fi whenever it could. Now it only connects when asked.
 - **Media/Call Information on Tesla:** Stock dash’s info showed only the Bluetooth device name and had no real media controls and no true phone controls. Artwork is not supported by Android 10 so is not shown unfortunately.
