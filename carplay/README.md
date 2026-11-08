@@ -89,6 +89,8 @@
 >   within 2 s, the view area switches away and back so the phone redraws; a static CarPlay screen
 >   otherwise stayed black, since the phone ignores keyframe requests. If there is still no picture
 >   8 s later, the phone has stopped drawing for that session and it is rebuilt
+> - Embedding: `start()` called before any surface (the head unit's auto-connect in the background)
+>   starts the session at the first size the client declared, instead of waiting for a window
 > - Embedding: a finger is lifted on the phone when the head unit lets go of the surface or a gesture
 >   ends after it, and attaching a surface no longer makes the head unit wait for xcertplay's main thread
 > - Call clean-ups: an answer or hang-up from the car is held back when the key (which has no call
