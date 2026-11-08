@@ -45,6 +45,12 @@ grep -rnE --include='*.kt' --include='*.java' '^\s*import\s+(android\.provider\.
 grep -rnE --include='*.kt' --include='*.java' '^\s*import\s+(static\s+)?(android\.provider\.Settings\.(System|Global|Secure)\.|java\.lang\.Runtime|java\.lang\.ProcessBuilder|dalvik\.system\.)' $SRC \
     && bad "member import of a settings, process or class-loader API (above)"
 grep -rnE "${CODE[@]}" 'DelegateLastClassLoader|BaseDexClassLoader|URLClassLoader|defineClass\(' $SRC && bad "class loaders (above)"
+# Any member import from a platform class (Java static imports, Kotlin Class.member or Class.*),
+# not just the ones named above: none are used today, and each would hide a call from the patterns
+# (import static java.lang.System.load, then load(path)).
+grep -rnE --include='*.kt' --include='*.java' '^\s*import\s+static\s' $SRC && bad "static imports (above)"
+grep -rnE --include='*.kt' --include='*.java' '^\s*import\s+(java|javax|android|androidx|dalvik|kotlin\.system)\.([a-z0-9_]+\.)*[A-Z][A-Za-z0-9_]*(\.[A-Z][A-Za-z0-9_]*)*\.([a-z_][A-Za-z0-9_]*|\*)\s*(;|$|\sas\s)' $SRC \
+    && bad "member import from a platform class (above)"
 
 # 1c. Talking to other processes by binder: only the reviewed places, all of them this app's own
 #     services or its signature-protected embed client. A new one needs review (audit #8b).

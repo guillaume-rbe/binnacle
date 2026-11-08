@@ -94,6 +94,9 @@ expect fail "ContentResolver write through a renamed variable" "edit $OTHER '   
 expect fail "service start by callable reference" "append $NEWF 'internal fun s(c: android.content.Context, i: android.content.Intent) { val start = c::startService; start(i) }'"
 expect fail "bindService by callable reference" "append $NEWF 'internal fun b(c: android.content.Context) = c::bindService'"
 expect fail "resolver write by callable reference" "append $OTHER 'internal fun d(r: android.content.ContentResolver) = r::delete'"
+expect fail "native load by static import" "printf 'package x;\nimport static java.lang.System.load;\nclass L { static void l(String p) { load(p); } }\n' > shared/src/main/java/com/shilapi/xcertplay/media/L.java"
+expect fail "member import from a platform class" "append $OTHER 'import java.lang.System.loadLibrary'"
+expect fail "star import of a platform class's members" "append $OTHER 'import java.lang.System.*'"
 expect fail "code in src/release" "mkdir -p shared/src/release/java && printf 'fun x() = Runtime.getRuntime()\n' > shared/src/release/java/X.kt"
 
 echo "$((n - fails))/$n cases as expected"
