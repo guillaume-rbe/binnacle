@@ -282,6 +282,8 @@ got=$(refs '^String:' | awk -F'\t' '$1 ~ /^app\/binnacle\/LocalShell(\$|$)/ { pr
 expected=$(sort -u <<'EOF'
 String:127.0.0.1
 String:ADB on the unit asks for a key
+String:the shell took too long
+String:too much output from the shell
 String:ADB_KEEP_OFF
 String:ADB_KEEP_ON
 String:ADB_LOCAL_ONLY
@@ -360,7 +362,7 @@ if [ -n "$SHELL_CLASSES" ]; then
     elif command -v shasum >/dev/null 2>&1; then hash_cmd='shasum -a 256'
     else bad "no sha256sum or shasum found: cannot check LocalShell's code"; hash_cmd='false'; fi
     sum=$(printf '%s\n' "$shell_code" | $hash_cmd | cut -c1-64)
-    [ "$sum" = '5178ce82ba1b782c0fe30219eb5c29aceb9139799c035886dae8d3b592525934' ] || { printf '%s\n' "$shell_code" >&2; bad "LocalShell's code changed (hash $sum): review the listing above, then update this guard"; }
+    [ "$sum" = 'ff65d87975a781ac6015029c8eb3a248d22b64eaad30085d87ccb04456050518' ] || { printf '%s\n' "$shell_code" >&2; bad "LocalShell's code changed (hash $sum): review the listing above, then update this guard"; }
     # and, readably: send() only from run(), four times (connect, open the one shell stream, ack, close)
     [ "$(refs '^app/binnacle/LocalShell\.send$' | awk -F'\t' '$1 == "app/binnacle/LocalShell" && $2 == "run"' | wc -l | tr -d ' ')" = 4 ] \
         && [ "$(refs '^app/binnacle/LocalShell\.send$' | wc -l | tr -d ' ')" = 4 ] || bad "LocalShell.run must send exactly its four ADB messages"
