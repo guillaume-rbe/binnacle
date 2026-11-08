@@ -41,22 +41,24 @@ final class BatteryDecoder {
     }
 
     /**
-     * Notices batterylevel changing: a second value (0..100) has to hold for HOLD_MS, so a single
-     * odd reading at wake-up doesn't count. The caller saves {@link #moved} so it is kept for good.
+     * Notices batterylevel changing. A value counts only once it has held for HOLD_MS, so an odd
+     * reading at wake-up (before or after the real one) doesn't count: the first value that holds
+     * is the baseline, and a second, different value that holds means the field moves. The caller
+     * saves {@link #moved} so it is kept for good.
      */
     static final class LevelWatch {
         static final long HOLD_MS = 10_000;
-        private int first = -1, other = -1;
-        private long otherSince;
+        private int baseline = -1, current = -1;
+        private long currentSince;
         boolean moved;
 
         /** Feed every reading (with the time); returns true once the field has been seen to move. */
         boolean see(int level, long nowMs) {
             if (moved || level < 0 || level > 100) return moved;
-            if (first < 0) { first = level; return false; }
-            if (level == first) { other = -1; return false; }
-            if (level != other) { other = level; otherSince = nowMs; return false; }
-            if (nowMs - otherSince >= HOLD_MS) moved = true;
+            if (level != current) { current = level; currentSince = nowMs; return false; }
+            if (nowMs - currentSince < HOLD_MS) return false;
+            if (baseline < 0) baseline = level;
+            else if (level != baseline) moved = true;
             return moved;
         }
     }

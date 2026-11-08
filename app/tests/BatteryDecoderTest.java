@@ -36,12 +36,19 @@ public class BatteryDecoderTest {
         w.see(0, 600_000); w.see(0, 605_000); w.see(77, 606_000); w.see(-1, 620_000); w.see(77, 630_000);
         if (w.moved) { System.out.println("FAIL stuck/odd readings counted as moving"); fails++; }
         else System.out.println("ok   stuck at 77 with a blip is not moving");
+        // a blip as the very first reading must not become the baseline (Codex review on #110)
+        BatteryDecoder.LevelWatch b = new BatteryDecoder.LevelWatch();
+        b.see(0, 0);
+        for (long t = 1000; t <= 60_000; t += 1000) b.see(77, t);
+        if (b.moved) { System.out.println("FAIL first-reading blip then stuck at 77 counted as moving"); fails++; }
+        else System.out.println("ok   first-reading blip then stuck at 77 is not moving");
         BatteryDecoder.LevelWatch m = new BatteryDecoder.LevelWatch();
-        m.see(62, 0); m.see(63, 1000); m.see(63, 5000);
+        for (long t = 0; t <= 12_000; t += 1000) m.see(62, t);
+        m.see(63, 13_000); m.see(63, 18_000);
         boolean early = m.moved;
-        m.see(63, 11_000);
-        if (early || !m.moved) { System.out.println("FAIL 62 -> 63 held 10 s should count as moving"); fails++; }
-        else System.out.println("ok   62 -> 63 held 10 s is moving");
+        m.see(63, 23_000);
+        if (early || !m.moved) { System.out.println("FAIL 62 held, then 63 held 10 s should count as moving"); fails++; }
+        else System.out.println("ok   62 held, then 63 held 10 s is moving");
         if (fails > 0) { System.out.println(fails + " failed"); System.exit(1); }
         System.out.println("all battery checks passed");
     }
