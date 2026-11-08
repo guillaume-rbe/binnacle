@@ -1,5 +1,21 @@
 # Changes made to the unit outside the app
 
+## What needs ADB
+
+Binnacle installs and runs without ADB: the dash, car data, CarPlay, the camera in the dash, updates and the compass all work. These need ADB on the unit (network ADB on port 5555, see [ADB-GUIDE.md](ADB-GUIDE.md)):
+
+**Binnacle runs these itself through the unit's own ADB, so they don't work while it's off:**
+- End CarPlay button, and the Wi-Fi icon rejoining home Wi-Fi
+- Pause Wi-Fi scans during CarPlay (without it, music and calls stutter away from home)
+- Wireless CarPlay after a reboot or a CarPlay update (Binnacle re-allows its location each time)
+- Bluetooth auto-connect switch
+- Screenshot on power bar tap
+
+**These still need an ADB command by hand (see the table below):**
+- Stopping the stock full-screen camera on Drive
+- Blocking the stock dash's pop-ups (for example the white pill on Autopilot)
+- Turning off the GPS crash dumps that fill the storage
+
 Binnacle itself installs as a normal app. Getting the most out of the unit took a few changes to the stock system as well. None of them touch the system partitions, and none send anything to the car or the MCU (an MCU write would be listed here with its undo, and only after the owner approved that exact message). Each one can be undone with the command shown.
 
 **No stock apps were removed.** The stock dash (`com.xbs.launcher1`), the CAN app, the camera app and ZLink all stay installed. The only things uninstalled were this project's own test builds and, on the owner's unit, Apple Music (a user app; see below).
