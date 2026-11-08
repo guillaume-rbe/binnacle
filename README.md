@@ -6,9 +6,10 @@
 
 Aimed at fixing some of the jank in the shipped software. We were promised over the air updates which never came. After trying to patch the app, I ended up fixing the app by just replacing it with the help of Claude. This whole new dash uses the same real car data (speed, battery %, gear, odometer, TPMS, lights, parking sensors, doors) and also supports correctly handing off to CarPlay / Android Auto and the forward camera. The install is fully reversible.
 
-![Binnacle in the light theme: speed and gear on the left, the 3D car on a road with parking-sensor arcs and a STOP sign in the centre, battery, sensors and app buttons on the right](docs/images/dash-light.png)
+![Binnacle in the light theme](docs/images/20261106-120619.png)
+![Binnacle in the light theme](docs/images/20261106-120639.png)
 
-![The same screen in the dark theme](docs/images/dash-dark.png)
+![Dark mode](docs/images/dash-dark.png)
 
 *Parked, light and dark themes. The red "● REC" badge and eye show because the optional logger is installed and running.*
 
