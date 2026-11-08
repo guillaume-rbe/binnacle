@@ -1,7 +1,7 @@
 package app.binnacle;
 
 import java.io.ByteArrayOutputStream;
-import java.io.DataInputStream;
+import java.io.InputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
@@ -134,26 +134,23 @@ final class LocalShell {
      * command didn't reach its success marker (a failed step stops the && chain).
      */
     static String run(Command cmd) throws IOException {
+        long deadline = android.os.SystemClock.elapsedRealtime() + DEADLINE_MS;
         try (Socket s = new Socket()) {
             s.connect(new InetSocketAddress("127.0.0.1", PORT), 3000);
             s.setSoTimeout(TIMEOUT_MS);
             OutputStream out = s.getOutputStream();
-            DataInputStream in = new DataInputStream(s.getInputStream());
+            InputStream in = s.getInputStream();
 
             send(out, A_CNXN, VERSION, MAX_DATA, "host::\0".getBytes(StandardCharsets.US_ASCII));
-            Msg m = read(in);
+            Msg m = read(s, in, deadline);
             if (m.cmd == A_AUTH) throw new IOException("ADB on the unit asks for a key");
             if (m.cmd != A_CNXN) throw new IOException("unexpected ADB reply");
 
             send(out, A_OPEN, LOCAL_ID, 0, ("shell:" + cmd.shell + "\0").getBytes(StandardCharsets.UTF_8));
             ByteArrayOutputStream result = new ByteArrayOutputStream();
             int remote = 0;
-            long deadline = android.os.SystemClock.elapsedRealtime() + DEADLINE_MS;
             while (true) {
-                long left = deadline - android.os.SystemClock.elapsedRealtime();
-                if (left <= 0) throw new IOException("the shell took too long");
-                s.setSoTimeout((int) Math.min(TIMEOUT_MS, left));
-                m = read(in);
+                m = read(s, in, deadline);
                 if (m.cmd == A_OKAY) { remote = m.arg0; continue; }
                 if (m.cmd == A_WRTE) {
                     if (result.size() + m.data.length > MAX_OUTPUT) throw new IOException("too much output from the shell");
@@ -184,18 +181,31 @@ final class LocalShell {
         out.flush();
     }
 
-    private static Msg read(DataInputStream in) throws IOException {
+    private static Msg read(Socket s, InputStream in, long deadline) throws IOException {
         byte[] head = new byte[24];
-        in.readFully(head);
+        readFully(s, in, head, deadline);
         ByteBuffer h = ByteBuffer.wrap(head).order(ByteOrder.LITTLE_ENDIAN);
         Msg m = new Msg();
         m.cmd = h.getInt();
         m.arg0 = h.getInt();
         m.arg1 = h.getInt();
         int len = h.getInt();
-        if (len < 0 || len > 1024 * 1024) throw new IOException("bad ADB message");
+        if (len < 0 || len > MAX_OUTPUT) throw new IOException("bad ADB message");
         m.data = new byte[len];
-        in.readFully(m.data);
+        readFully(s, in, m.data, deadline);
         return m;
+    }
+
+    /** Fills b, checking the whole command's deadline before every read (a trickle can't outlast it). */
+    private static void readFully(Socket s, InputStream in, byte[] b, long deadline) throws IOException {
+        int off = 0;
+        while (off < b.length) {
+            long left = deadline - android.os.SystemClock.elapsedRealtime();
+            if (left <= 0) throw new IOException("the shell took too long");
+            s.setSoTimeout((int) Math.min(TIMEOUT_MS, left));
+            int n = in.read(b, off, b.length - off);
+            if (n < 0) throw new java.io.EOFException();
+            off += n;
+        }
     }
 }
