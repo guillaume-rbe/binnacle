@@ -29,6 +29,9 @@ COMMIT=""; [ -n "$(git status --porcelain)" ] || COMMIT=$(git rev-parse HEAD)
 
 # Unsigned release builds; the guards, tests and iCloud-copy check run inside Gradle and stop it
 # on any failure.
+# The source guards also run here directly, so a Gradle run with -x checkReadonly can't skip them.
+app/tools/check_readonly.sh
+capture/tools/check_readonly.sh
 ./gradlew -Pbinnacle.unsigned=true :app:assembleRelease :logger:assembleRelease
 # The CarPlay app is its own Gradle build (carplay/, GPL-3.0). Its guard runs before every build of
 # it (carplay/guard/check_carplay.sh); here its bypass tests and unit tests run too.
