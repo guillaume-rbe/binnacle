@@ -40,8 +40,18 @@ final class Launch {
         start(c, new Intent().setComponent(CAMERA), true);
     }
 
-    /** Extra on the dash's own intent: the car shifted into Drive, open the in-dash camera. */
-    static final String EXTRA_DRIVE_CAMERA = "app.binnacle.extra.DRIVE_CAMERA";
+    /**
+     * The Drive-camera request, kept in this process rather than as an intent extra: the dash is the
+     * exported Home activity, so any app could otherwise send the extra and open the camera.
+     * Taken once, and only within 10 s, so a launch that never arrived can't open it later.
+     */
+    private static volatile long driveCameraAt;
+
+    static boolean takeDriveCamera() {
+        long at = driveCameraAt;
+        driveCameraAt = 0;
+        return at != 0 && android.os.SystemClock.elapsedRealtime() - at < 10000;
+    }
 
     /**
      * Brings the dash (singleTask Home) to the front, closing our own screens above it, and asks it
@@ -49,8 +59,9 @@ final class Launch {
      * stock camera launch does (AndroidManifest.xml).
      */
     static void dashCamera(Context c) {
+        driveCameraAt = android.os.SystemClock.elapsedRealtime();
         // The registered activity is the subclass com.xbs.launcher.MainActivity, not DashActivity itself.
-        start(c, new Intent(c, com.xbs.launcher.MainActivity.class).putExtra(EXTRA_DRIVE_CAMERA, true), false);
+        start(c, new Intent(c, com.xbs.launcher.MainActivity.class), false);
     }
 
     /** Same broadcast the stock launcher sends when frontcamstate drops. */
