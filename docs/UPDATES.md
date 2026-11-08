@@ -13,7 +13,7 @@ Binnacle can update itself from this project's GitHub releases: **Apps → Advan
    ```
    If `versionCode` isn't higher than the installed one, the button says **Up to date**.
 2. **Ask**: a Binnacle pop-up shows the version and download size. **Update** goes on; **Not now** stops.
-3. **Checks before it starts**: the car must be in Park, because installing restarts the dash. The first time, Android has to allow Binnacle to install apps: Binnacle explains this and opens Android's **Install unknown apps** screen for Binnacle ("Allow from this source"). Come back and tap Update again.
+3. **Checks before it starts**: the car must be in Park, because installing restarts the dash. The first time, Android has to allow Binnacle to install apps: Binnacle opens Android's **Install unknown apps** screen for Binnacle straight away ("Allow from this source"), and when you go back the update carries on by itself.
 4. **Download**: `Binnacle.apk` from the same release is streamed straight into an Android `PackageInstaller` session, so Binnacle writes no file of its own. The size and SHA-256 must match the info file, or the session is thrown away.
 5. **Install**: Android shows its own **Do you want to install an update to this app?** screen. Only after you tap **Install** does Android replace the app, and only if:
    - it is the same app (the session is locked to Binnacle's own package name, so the download can't install anything else);
