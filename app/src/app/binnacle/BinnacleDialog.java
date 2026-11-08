@@ -25,9 +25,12 @@ final class BinnacleDialog {
 
     /**
      * Shows title + message with one button per label (left to right); choice gets the index.
-     * Cancelable by BACK or tapping outside only if cancelable.
+     * Cancelable by BACK or tapping outside only if cancelable. Returns null (and shows nothing) once
+     * the activity is finishing: a late reply (update check, unit undo) after DriveWatch closed the
+     * screen would otherwise throw BadTokenException and take the dash's process with it (audit #6).
      */
     static Dialog show(Activity a, String title, String message, String[] labels, boolean cancelable, final Choice choice) {
+        if (a.isFinishing() || (android.os.Build.VERSION.SDK_INT >= 17 && a.isDestroyed())) return null;
         final Dialog d = new Dialog(a);
         d.requestWindowFeature(Window.FEATURE_NO_TITLE);
         d.setCancelable(cancelable);
