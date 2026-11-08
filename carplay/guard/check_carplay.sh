@@ -97,6 +97,13 @@ BODY
 grep -rnE --include='*.kt' --include='*.java' '(contentResolver|resolver)\s*\.\s*(insert|update|delete|bulkInsert|applyBatch|call|openOutputStream|openFileDescriptor|openAssetFileDescriptor|notifyChange)\s*\(' $SRC \
     && bad "ContentResolver writes (above)"
 
+# 1d. Callable references (c::startService) would get past every "name(" pattern above, so none
+#     may name a sensitive method or property; a new use needs review. (send is left out: the
+#     iAP2 session and media bridge use ::send, and a Messenger is confined to one file above.)
+SENSITIVE='start(Foreground)?Service|bind(Isolated)?Service|send[A-Za-z]*Broadcast[A-Za-z]*|sendBroadcast[A-Za-z]*|transact|dump(Async)?|shellCommand|exec|put(Int|Long|Float|String)|set[A-Za-z]*Property|forName|get(Declared)?(Method|Field|Constructor)s?|invoke|newInstance|load(Library)?|insert|update|delete|bulkInsert|applyBatch|call|open(Output|Input)Stream|open(Asset)?FileDescriptor|contentResolver|getContentResolver|exit|halt|getRuntime'
+grep -rnE --include='*.kt' --include='*.java' "::\s*($SENSITIVE)\b" $SRC \
+    && bad "callable reference to a sensitive method (above)"
+
 # 2. The head unit's own apps (com.xbs.*, the CAN app, ZLink's action) are named in one file only,
 #    HeadUnitCallState, once each. Case-insensitive, so a split or re-cased name elsewhere is
 #    caught too.

@@ -91,6 +91,9 @@ expect fail "media binding retargeted" "edit $MEDIA '.setAction(MediaSessionServ
 expect fail "Messenger send with a variable message" "append $NEWF 'internal fun s(t: android.os.Messenger, m: android.os.Message) = t.send(m)'"
 expect fail "ContentResolver write through a scoped receiver" "append $OTHER 'internal fun d(c: android.content.Context, u: android.net.Uri) = c.contentResolver.let { it.delete(u, null, null) }'"
 expect fail "ContentResolver write through a renamed variable" "edit $OTHER '                    resolver.openInputStream(privateKeyUri)' '                    resolver.also { r -> r.delete(privateKeyUri, null, null) }.openInputStream(privateKeyUri)'"
+expect fail "service start by callable reference" "append $NEWF 'internal fun s(c: android.content.Context, i: android.content.Intent) { val start = c::startService; start(i) }'"
+expect fail "bindService by callable reference" "append $NEWF 'internal fun b(c: android.content.Context) = c::bindService'"
+expect fail "resolver write by callable reference" "append $OTHER 'internal fun d(r: android.content.ContentResolver) = r::delete'"
 expect fail "code in src/release" "mkdir -p shared/src/release/java && printf 'fun x() = Runtime.getRuntime()\n' > shared/src/release/java/X.kt"
 
 echo "$((n - fails))/$n cases as expected"
