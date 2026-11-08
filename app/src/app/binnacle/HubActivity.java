@@ -1161,11 +1161,9 @@ public class HubActivity extends Activity {
     /** Asks, then downloads the dash (or with carplay its CarPlay app) into Android's installer (b shows progress). */
     private void offerUpdate(final Updater.Release r, final TextView b, final boolean carplay) {
         final Updater.Release part = carplay ? r.carplay : r;
-        long mb = Math.max(1, (part.size + (1 << 19)) >> 20);
+        // just the question (owner, 8 Nov): what changed is on the GitHub release page
         BinnacleDialog.show(this, carplay ? "Update the CarPlay app to " + part.versionName + "?" : "Update to Binnacle " + part.versionName + "?",
-                "Downloads " + mb + " MB from GitHub, then Android asks you to confirm the install.\n"
-                        + (carplay ? "CarPlay stops while it installs; tap CarPlay again afterwards. Its settings are kept."
-                                   : "The dash closes and comes back while it installs. Settings and car images are kept."),
+                "See the release page for update details.",
                 new String[]{"Not now", "Update"}, true, new BinnacleDialog.Choice() {
                     @Override public void chosen(int index) {
                         if (index != 1) return;
