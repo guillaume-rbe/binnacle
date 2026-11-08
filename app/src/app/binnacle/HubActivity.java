@@ -747,7 +747,7 @@ public class HubActivity extends Activity {
             @Override public void onClick(View v) {
                 BinnacleDialog.show(HubActivity.this, "Remove Binnacle?",
                         "The unit goes back to the stock dash, with its camera screen and pop-ups.\n"
-                                + "Turn off \"Keep the unit unlocked\" on the Unit page first, or it stays open to the Wi-Fi.",
+                                + "The unit locks again after a restart.",
                         new String[]{"Cancel", "Remove"}, true, new BinnacleDialog.Choice() {
                             @Override public void chosen(int index) {
                                 if (index != 1) return;
@@ -755,16 +755,26 @@ public class HubActivity extends Activity {
                                 final boolean camera = stockCameraDisabled();
                                 new Thread(new Runnable() {
                                     @Override public void run() {
-                                        boolean failed = false;
+                                        boolean failed = false, adbOn = false;
                                         try { if (camera) UnitSetup.set(UnitSetup.Change.STOCK_CAMERA, false); } catch (Exception e) { failed = true; }
                                         try { UnitSetup.set(UnitSetup.Change.STOCK_TOASTS, false); } catch (Exception ignored) { }
-                                        final boolean cameraOff = failed;
+                                        // without Binnacle nothing keeps ADB off the Wi-Fi: lock it at the next restart (audit #1).
+                                        // No answer at all means ADB isn't on, so nothing is kept on either.
+                                        try { UnitSetup.set(UnitSetup.Change.ADB_KEEP, false); }
+                                        catch (java.net.ConnectException e) { /* ADB off already */ }
+                                        catch (Exception e) { adbOn = true; }
+                                        final boolean cameraOff = failed, adbStaysOn = adbOn;
                                         runOnUiThread(new Runnable() {
                                             @Override public void run() {
-                                                if (!cameraOff) { uninstall(); return; }
-                                                // without Binnacle the camera wouldn't open on Drive at all (Codex)
-                                                BinnacleDialog.show(HubActivity.this, "Stock camera still off",
-                                                        "It won't open on Drive without Binnacle. Fix: docs/UNIT-CHANGES.md.",
+                                                if (!cameraOff && !adbStaysOn) { uninstall(); return; }
+                                                // without Binnacle the camera wouldn't open on Drive at all (Codex), and
+                                                // ADB kept on would be open to the Wi-Fi after every restart (Codex)
+                                                String what = cameraOff && adbStaysOn ? "Stock camera still off, ADB still on"
+                                                        : cameraOff ? "Stock camera still off" : "ADB still on after a restart";
+                                                String why = cameraOff && adbStaysOn ? "The camera won't open on Drive, and the unit stays open to the Wi-Fi."
+                                                        : cameraOff ? "It won't open on Drive without Binnacle." : "The unit stays open to the Wi-Fi without Binnacle.";
+                                                BinnacleDialog.show(HubActivity.this, what,
+                                                        why + " Fix: docs/UNIT-CHANGES.md.",
                                                         new String[]{"Cancel", "Remove anyway"}, true, new BinnacleDialog.Choice() {
                                                             @Override public void chosen(int i) { if (i == 1) uninstall(); }
                                                         });
@@ -1143,6 +1153,10 @@ public class HubActivity extends Activity {
         } else if (st.openToWifi) {
             // the unit answers, but the rule keeping ADB off the Wi-Fi didn't go in (no root?)
             state.setText("Unlocked, but open to the Wi-Fi. Turn off \"Keep the unit unlocked\" and restart");
+            state.setTextColor(Style.WARN);
+        } else if (st.isOn(UnitSetup.Change.ADB_KEEP) && !Launch.isDefaultHome(this)) {
+            // the rule goes in when the dash starts; without Binnacle as Home it may not start at boot
+            state.setText("Unlocked, but open to the Wi-Fi after a restart: make Binnacle the Home app");
             state.setTextColor(Style.WARN);
         } else {
             state.setText("✓  Unlocked");

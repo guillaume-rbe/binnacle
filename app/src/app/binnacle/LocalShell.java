@@ -77,12 +77,18 @@ final class LocalShell {
         ADB_KEEP_OFF("su 0 setprop persist.adb.tcp.port '' && echo BINNACLE_OK"),
         /**
          * The unit's ADB reachable only from the unit itself (owner, 8 Nov: never from the Wi-Fi):
-         * drop port 5555 on every interface but loopback, IPv4 and IPv6, once (-C first). The rules
-         * go at a restart; AdbFirewall puts them back each time the dash starts.
+         * drop port 5555 on every interface but loopback, IPv4 and IPv6, once (-C first). And on
+         * loopback (which also carries the unit's own Wi-Fi address) only root, the shell user and
+         * Binnacle may connect (owner OK 8 Nov, audit #1): any other app could otherwise reach the
+         * unauthenticated ADB and its root. Binnacle's uid is read from its own data folder inside
+         * the command, never passed in. -w waits for the xtables lock netd holds at boot (audit #5).
+         * The chain is built only when it is new (before the jump to it exists) and is never flushed
+         * while in use; later runs only check it (Codex).
+         * The rules go at a restart; AdbFirewall puts them back each time the dash starts.
          */
-        ADB_LOCAL_ONLY("{ su 0 iptables -C INPUT -p tcp --dport 5555 ! -i lo -j DROP 2>/dev/null || su 0 iptables -I INPUT -p tcp --dport 5555 ! -i lo -j DROP; } && { su 0 ip6tables -C INPUT -p tcp --dport 5555 ! -i lo -j DROP 2>/dev/null || su 0 ip6tables -I INPUT -p tcp --dport 5555 ! -i lo -j DROP; } && echo BINNACLE_OK"),
-        /** Settings → Unit → Network ADB on: the same rules removed, so a computer on the Wi-Fi can connect. */
-        ADB_NETWORK("while su 0 iptables -D INPUT -p tcp --dport 5555 ! -i lo -j DROP 2>/dev/null; do :; done; while su 0 ip6tables -D INPUT -p tcp --dport 5555 ! -i lo -j DROP 2>/dev/null; do :; done; echo BINNACLE_OK"),
+        ADB_LOCAL_ONLY("su 0 sh -c 'U=$(stat -c %u /data/data/com.xbs.launcher) && [ $U -ge 10000 ] && for T in iptables ip6tables; do $T -w -C INPUT -p tcp --dport 5555 ! -i lo -j DROP 2>/dev/null || $T -w -I INPUT -p tcp --dport 5555 ! -i lo -j DROP || exit 1; if $T -w -N binnacle_adb 2>/dev/null; then $T -w -A binnacle_adb -m owner --uid-owner 0 -j RETURN && $T -w -A binnacle_adb -m owner --uid-owner 2000 -j RETURN && $T -w -A binnacle_adb -m owner --uid-owner $U -j RETURN && $T -w -A binnacle_adb -p tcp -j REJECT --reject-with tcp-reset || { $T -w -F binnacle_adb; $T -w -X binnacle_adb; exit 1; }; fi; $T -w -C binnacle_adb -m owner --uid-owner $U -j RETURN && $T -w -C binnacle_adb -p tcp -j REJECT --reject-with tcp-reset || exit 1; $T -w -C OUTPUT -o lo -p tcp --dport 5555 -j binnacle_adb 2>/dev/null || $T -w -I OUTPUT -o lo -p tcp --dport 5555 -j binnacle_adb || exit 1; done' && echo BINNACLE_OK"),
+        /** Settings → Unit → Network ADB on: both rules removed, so a computer on the Wi-Fi can connect. */
+        ADB_NETWORK("su 0 sh -c 'for T in iptables ip6tables; do while $T -w -D INPUT -p tcp --dport 5555 ! -i lo -j DROP 2>/dev/null; do :; done; while $T -w -D OUTPUT -o lo -p tcp --dport 5555 -j binnacle_adb 2>/dev/null; do :; done; $T -w -F binnacle_adb 2>/dev/null; $T -w -X binnacle_adb 2>/dev/null; done; true' && echo BINNACLE_OK"),
         /** The GPS daemon's crash dumps (up to ~470 MB each, filling the storage) off, and the folder cleared. */
         GPS_DUMPS_OFF("su 0 setprop persist.vendor.sys.core.enabled 0 && su 0 sh -c 'rm -rf /data/corefile/*' && echo BINNACLE_OK"),
         GPS_DUMPS_ON("su 0 setprop persist.vendor.sys.core.enabled 1 && echo BINNACLE_OK"),
