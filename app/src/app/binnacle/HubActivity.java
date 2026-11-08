@@ -236,7 +236,9 @@ public class HubActivity extends Activity {
         if (lightBuilt != Style.light) { recreate(); return; }           // theme changed meanwhile (Auto)
         if (tab == 1 || tab == CAR_TAB) showTab(tab);                      // CarPlay layout / Home app may have changed meanwhile
         else if (resumePendingUpdate()) { /* back from the install switch: keep the page, the download shows on its button */ }
-        else if (tab >= 4) showTab(tab);                                   // back from the uninstaller: logger state
+        // back from the uninstaller: logger state. Not while an update downloads (e.g. the dash's
+        // part, started as Android's installer closed): that would swap out its button and bar
+        else if (tab >= 4 && !Updater.installing()) showTab(tab);
     }
 
     /** The Car tab: car model, driving side, car images, tyres, range. */
