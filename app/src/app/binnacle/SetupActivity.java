@@ -93,6 +93,7 @@ public final class SetupActivity extends Activity {
     @Override protected void onResume() {
         super.onResume();
         if (step == 2) show(2);     // back from Android's Home picker: show whether it took
+        if (step == 4) show(4);     // back from Android's over-other-apps switch
     }
 
     /**
@@ -282,11 +283,16 @@ public final class SetupActivity extends Activity {
                         + "window, smoothed for this screen, instead of the stock full-screen camera.");
         if (on) s.addView(tick("Already on"));
         if (!Launch.canOpenOverApps(this)) {
-            // audit D6: otherwise Android silently blocks the Drive camera while another app is in front
-            TextView t = text("With CarPlay or another app in front, Android won't let the camera open on Drive "
-                    + "until it is allowed once over ADB: " + Launch.OVERLAY_GRANT, 15, Style.WARN);
+            // audit D6: otherwise Android silently blocks the Drive camera while another app is in front.
+            // The button opens Android's own switch for Binnacle (owner, 8 Nov: no adb needed); this
+            // step redraws on return, so the note goes once it is on.
+            TextView t = text("Allow Binnacle over other apps, so the camera can open on Drive over CarPlay "
+                    + "and the dash can reopen after an update.", 15, Style.WARN);
             t.setPadding(0, 0, 0, dp(4));
             s.addView(t);
+            s.addView(buttons(new String[]{"Allow over other apps"}, new Runnable[]{new Runnable() {
+                @Override public void run() { Launch.overAppsSetting(SetupActivity.this); }
+            }}));
         }
         s.addView(buttons(on ? new String[]{"Next"} : new String[]{"Not now", "Use the dash camera"},
                 on ? new Runnable[]{new Runnable() { @Override public void run() { next(); } }}
