@@ -54,7 +54,9 @@ final class BatteryDecoder {
 
         /** Feed every reading (with the time); returns true once the field has been seen to move. */
         boolean see(int level, long nowMs) {
-            if (moved || level < 0 || level > 100) return moved;
+            if (moved) return true;
+            // no valid reading (feed lost, car.reset()): the next value has to hold afresh
+            if (level < 0 || level > 100) { current = -1; return false; }
             if (level != current) { current = level; currentSince = nowMs; return false; }
             if (nowMs - currentSince < HOLD_MS) return false;
             if (baseline < 0) baseline = level;

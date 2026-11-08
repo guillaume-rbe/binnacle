@@ -42,6 +42,11 @@ public class BatteryDecoderTest {
         for (long t = 1000; t <= 60_000; t += 1000) b.see(77, t);
         if (b.moved) { System.out.println("FAIL first-reading blip then stuck at 77 counted as moving"); fails++; }
         else System.out.println("ok   first-reading blip then stuck at 77 is not moving");
+        // time with no valid reading doesn't count towards the hold (Codex review on #110)
+        BatteryDecoder.LevelWatch g = new BatteryDecoder.LevelWatch();
+        g.see(77, 0); g.see(77, 10_000); g.see(0, 11_000); g.see(-1, 12_000); g.see(0, 22_000);
+        if (g.moved) { System.out.println("FAIL a gap in the feed counted towards the hold"); fails++; }
+        else System.out.println("ok   a gap in the feed restarts the hold");
         BatteryDecoder.LevelWatch m = new BatteryDecoder.LevelWatch();
         for (long t = 0; t <= 12_000; t += 1000) m.see(62, t);
         m.see(63, 13_000); m.see(63, 18_000);
