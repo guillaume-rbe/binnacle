@@ -167,6 +167,11 @@ final class Updater {
         if (part == null) throw new IOException("this release has no CarPlay support");
         int installed = installedCode(c, carplay);
         if (carplay && installed == 0) throw new IOException("CarPlay support isn't installed");
+        // Android would refuse the install anyway; checking first saves a download of up to 256 MB
+        if (carplay && c.getPackageManager().checkSignatures(c.getPackageName(), target(c, true))
+                != android.content.pm.PackageManager.SIGNATURE_MATCH) {
+            throw new IOException("installed CarPlay support isn't signed with Binnacle's key");
+        }
         if (part.versionCode <= installed) throw new IOException("already up to date");
         if (!begin()) throw new IOException("already updating");
         try {
