@@ -41,15 +41,18 @@ It is never installed fresh from here, only updated: Android then insists on the
 
 ## Publishing a release (maintainer)
 
+`./deploy.sh` does the chores. Run it with no arguments for a menu: it first shows where things stand (branch, versions, the last release, what changed since it, which versionCode still needs a bump), then offers each step below by number, so no flags to remember. The commands below do the same from the command line.
+
 1. Bump `android:versionCode` (and `versionName`) in `app/AndroidManifest.xml`. The dash only offers a higher versionCode.
-2. If the CarPlay app changed, bump its `versionCode` (and `versionName`) in `carplay/mobile/build.gradle.kts`.
-3. `./release.sh` (signs with the release key, as before). Besides `build/release/Binnacle-<version>.apk` it writes `build/release/BinnacleCarPlay-<version>.apk` and, for the release, `build/release/github/Binnacle.apk`, `build/release/github/BinnacleCarPlay.apk` and `build/release/github/binnacle-update.txt` (which also lists the CarPlay app's `carplayVersionCode`, `carplayVersionName`, `carplaySize` and `carplaySha256`), and prints the `gh release create` command.
-4. Publish those files (and the logger APK if you like) as the **latest** release, for example:
+2. If the CarPlay app changed, bump its `versionCode` (and `versionName`) in `carplay/mobile/build.gradle.kts`. `deploy.sh` and `release.sh` stop if `carplay/` changed since the last `v*` tag (Markdown aside) without a higher CarPlay versionCode, because the dash's updater would skip it. `ALLOW_SAME_CARPLAY_VERSION=1` builds anyway.
+3. `./deploy.sh release`: switches to `main`, fast-forwards it from GitHub (it stops on local changes or local-only commits), runs the version checks, runs `./release.sh` (which asks for the keystore password and signs everything with the release key), shows what it is about to publish and asks, then runs `gh release create v<versionName> … --latest --generate-notes` with `Binnacle.apk`, `BinnacleCarPlay.apk`, `binnacle-update.txt` and the logger APK, and checks that the latest release now serves the new `binnacle-update.txt`. `--draft` publishes a draft instead; `./deploy.sh build` then `./deploy.sh release --no-build` splits building from publishing.
+
+   By hand it is the same as before: `./release.sh` writes `build/release/github/{Binnacle.apk,BinnacleCarPlay.apk,binnacle-update.txt}` (the info file also lists `carplayVersionCode`, `carplayVersionName`, `carplaySize` and `carplaySha256`) and prints the `gh release create` command, for example:
    ```
    gh release create v0.9 build/release/github/Binnacle.apk build/release/github/BinnacleCarPlay.apk \
        build/release/github/binnacle-update.txt build/release/BinnacleLogger-0.9.apk --title "Binnacle 0.9" --latest
    ```
-5. Car-image releases (`cars-v…`) must **not** become the latest release: publish them with `--latest=false`, or the dash would look for an update there and say "no update published yet".
+4. Car-image releases (`cars-v…`) must **not** become the latest release, or the dash would look for an update there and say "no update published yet". `./deploy.sh cars cars-vN FILE...` always publishes them with `--latest=false` (or adds the files to that release if it exists).
 
 Undo a bad release: mark the previous release as latest again (or delete the new one). Dashes that already installed it stay on it until a higher versionCode is published; Android doesn't allow going back through the updater, only `adb install -r -d` or uninstall + install.
 
