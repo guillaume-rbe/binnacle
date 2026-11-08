@@ -315,7 +315,7 @@ public final class SetupActivity extends Activity {
      * install Binnacle. A fresh unit has its ADB off, and only EngineerMode can switch it on the
      * first time, so this step shows how (three lines typed there) and checks again on return.
      * Once ADB answers, one button makes every recommended change (UnitSetup, pinned commands, each
-     * undone in Advanced → Unit setup). Nothing here reaches the car.
+     * undone on the Unit page). Nothing here reaches the car.
      */
     private View unit() {
         final LinearLayout s = stepLayout("Set up the unit", null);
@@ -368,7 +368,7 @@ public final class SetupActivity extends Activity {
             focusLast();
             return;
         }
-        status.setText("Binnacle will make these changes (undo in Advanced → Unit setup):");
+        status.setText("Binnacle will make these changes (undo in Settings → Unit):");
         for (UnitSetup.Change ch : todo) {
             TextView t = text("•  " + ch.title, 17, Style.FG);
             t.setPadding(0, dp(2), 0, 0);

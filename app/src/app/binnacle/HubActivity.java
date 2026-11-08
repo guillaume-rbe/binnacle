@@ -44,9 +44,11 @@ public class HubActivity extends Activity {
 
     /** Tag on every settings card (scroller() scrolls a focused card fully into view). */
     private static final Object CARD_TAG = new Object();
-    private static final String[] TABS = {"Apps", "Display", "Camera", "Car", "Advanced"};
+    private static final String[] TABS = {"Apps", "Display", "Camera", "Car", "Unit", "Advanced"};
     private static final int[] TAB_ICONS = {R.drawable.ic_tab_apps, R.drawable.ic_tab_display,
-            R.drawable.ic_tab_camera, R.drawable.ic_tab_car, R.drawable.ic_tab_advanced};
+            R.drawable.ic_tab_camera, R.drawable.ic_tab_car, R.drawable.ic_tab_unit, R.drawable.ic_tab_advanced};
+    /** The Unit tab: the unit changes setup makes, their state, and this unit's versions. */
+    private static final int UNIT_TAB = 4;
 
     private SharedPreferences prefs;
     private FrameLayout content;
@@ -104,7 +106,7 @@ public class HubActivity extends Activity {
             tabViews.add(t);
             rail.addView(t, tabParams());
         }
-        ScrollView railScroll = new ScrollView(this);     // six 48 dp rows fit 360 dp; scrolls on a shorter screen
+        ScrollView railScroll = new ScrollView(this);     // seven 47 dp rows fit 360 dp; scrolls on a shorter screen or larger text
         railScroll.setBackgroundColor(Style.PANEL);
         railScroll.addView(rail);
         content = new FrameLayout(this);
@@ -300,12 +302,16 @@ public class HubActivity extends Activity {
                             new String[]{"psi", "bar"}, new String[]{"psi", "bar"}),
                     stepperCard("Range at 100%", "For the km estimate under the battery %", "full_range_km", 410, 150, 700, 5, "km"),
                     pairCard("Autopilot indication", "autopilot_rainbow", "Normal", "Rainbow road"))); break;
+            // its own page (owner, 8 Nov: Advanced was getting crowded), so a support screenshot of
+            // this one tab shows everything setup changed and which unit and software it is
+            case UNIT_TAB: content.addView(cards(
+                    stack(unitSetupCard()),
+                    stack(thisUnitCard(), networkAdbCard()))); break;
             // two independent columns: in a two-column grid each row is as tall as its taller cell,
             // which left a gap under the short cards (owner, 8 Nov); developer switches at the bottom
             default: content.addView(cards(
-                    stack(updateCard(), setupCard(), unitSetupCard(), resetCard(), aboutCard()),
-                    stack(networkAdbCard(),
-                            switchCard("Screenshot on power bar tap", "Saved in Binnacle/screenshots", Screenshot.KEY, false),
+                    stack(updateCard(), setupCard(), resetCard(), aboutCard()),
+                    stack(switchCard("Screenshot on power bar tap", "Saved in Binnacle/screenshots", Screenshot.KEY, false),
                             loggerCards(),
                             switchCard("Show raw CAN values", "Latest raw fields over the centre view, for in-car checks", "raw_overlay", false),
                             switchCard("Demo data", "Simulated drive instead of the car feed", "demo", false)))); break;
@@ -738,7 +744,7 @@ public class HubActivity extends Activity {
             @Override public void onClick(View v) {
                 BinnacleDialog.show(HubActivity.this, "Remove Binnacle?",
                         "The unit goes back to the stock dash, with its camera screen and pop-ups.\n"
-                                + "Turn off \"Keep the unit unlocked\" in Unit setup first, or it stays open to the Wi-Fi.",
+                                + "Turn off \"Keep the unit unlocked\" on the Unit page first, or it stays open to the Wi-Fi.",
                         new String[]{"Cancel", "Remove"}, true, new BinnacleDialog.Choice() {
                             @Override public void chosen(int index) {
                                 if (index != 1) return;
@@ -855,7 +861,7 @@ public class HubActivity extends Activity {
                 runOnUiThread(new Runnable() {
                     @Override public void run() {
                         if (problem != null) Toast.makeText(HubActivity.this,
-                                "Stock camera is off: turn it on in Advanced → Unit setup", Toast.LENGTH_LONG).show();
+                                "Stock camera is off: turn it on in Settings → Unit", Toast.LENGTH_LONG).show();
                     }
                 });
             }
@@ -1119,6 +1125,10 @@ public class HubActivity extends Activity {
         if (!st.reachable) {
             state.setText(st.problem != null ? "Couldn't read: " + st.problem : "Locked. Run setup to unlock");
             state.setTextColor(Style.WARN);
+        } else if (st.openToWifi) {
+            // the unit answers, but the rule keeping ADB off the Wi-Fi didn't go in (no root?)
+            state.setText("Unlocked, but open to the Wi-Fi. Turn off \"Keep the unit unlocked\" and restart");
+            state.setTextColor(Style.WARN);
         } else {
             state.setText("✓  Unlocked");
             state.setTextColor(Style.GOOD);
@@ -1129,8 +1139,11 @@ public class HubActivity extends Activity {
             row.setGravity(Gravity.CENTER_VERTICAL);
             row.setPadding(0, dp(6), 0, 0);
             boolean on = st.isOn(ch);
-            TextView name = text((on ? "✓  " : "•  ") + ch.title, 14, on ? Style.FG : Style.MUTED);
-            row.addView(name, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+            LinearLayout label = new LinearLayout(this);
+            label.setOrientation(LinearLayout.VERTICAL);
+            label.addView(text((on ? "✓  " : "•  ") + ch.title, 14, on ? Style.FG : Style.MUTED));
+            if (ch.untested()) label.addView(text("    Not tested on this unit's software yet", 12, Style.MUTED));
+            row.addView(label, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
             final TextView b = chip(on ? "On" : "Off");
             b.setSelected(on);
             b.setEnabled(st.reachable);
@@ -1165,6 +1178,26 @@ public class HubActivity extends Activity {
     }
 
     /**
+     * This unit (owner, 8 Nov): the versions a user is asked for in docs/COMPATIBILITY.md, read
+     * from Android only (no serial numbers). Software = the stock CarSetUp screen's System version.
+     */
+    private View thisUnitCard() {
+        String carplay = UnitSetup.installed(this, UnitSetup.XCERTPLAY) ? versionOf(UnitSetup.XCERTPLAY) : "not installed";
+        return infoCard("This unit",
+                "Software " + UnitSetup.software() + (UnitSetup.testedSoftware() ? " (tested)" : " (not tested yet)") + "\n"
+                        + androidVersion() + "\n"
+                        + "Binnacle " + versionName() + " · CarPlay " + carplay);
+    }
+
+    private String versionOf(String pkg) {
+        try {
+            return getPackageManager().getPackageInfo(pkg, 0).versionName;
+        } catch (PackageManager.NameNotFoundException e) {
+            return "";
+        }
+    }
+
+    /**
      * Network ADB (owner, 8 Nov): off by default, so the unit's ADB is reachable only from the unit
      * itself (AdbFirewall); on lets a computer on the same Wi-Fi connect, for working on the unit.
      */
@@ -1176,7 +1209,16 @@ public class HubActivity extends Activity {
             @Override public void onClick(View v) {
                 boolean now = !b.isSelected();
                 prefs.edit().putBoolean(AdbFirewall.KEY, now).apply();
-                AdbFirewall.apply(prefs);
+                final java.util.concurrent.Future<?> done = AdbFirewall.apply(prefs);
+                // once it has run, show the Unit page again so a failed rule is warned about (Codex)
+                new Thread(new Runnable() {
+                    @Override public void run() {
+                        try { done.get(15, java.util.concurrent.TimeUnit.SECONDS); } catch (Exception ignored) { }
+                        runOnUiThread(new Runnable() {
+                            @Override public void run() { if (tab == UNIT_TAB && !isFinishing()) showTab(UNIT_TAB); }
+                        });
+                    }
+                }, "adb-firewall-wait").start();
                 b.setSelected(now);
                 b.setText(now ? "On" : "Off");
             }
@@ -1652,8 +1694,9 @@ public class HubActivity extends Activity {
     }
 
     private LinearLayout.LayoutParams tabParams() {
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(48));
-        lp.setMargins(0, 0, 0, dp(4));
+        // seven rows (Back + six tabs) at 44 + 3 dp fit the unit's 360 dp height with the rail padding
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(44));
+        lp.setMargins(0, 0, 0, dp(3));
         return lp;
     }
 
