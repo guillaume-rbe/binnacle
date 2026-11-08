@@ -622,8 +622,17 @@ public class DashApp extends Application implements Feed.Sink, SharedPreferences
         if (demo || !prefs.getBoolean("dash_camera", false) || cameraAllowed() || !UnitSetup.stockCameraOff(this)) return;
         new Thread(new Runnable() {
             @Override public void run() {
-                if (!UnitSetup.restoreStockCamera(DashApp.this))
+                if (!UnitSetup.restoreStockCamera(DashApp.this)) {
                     android.util.Log.w("binnacle", "camera permission refused and the stock camera is still off");
+                    return;
+                }
+                // a Drive flag that came while the stock camera was still off opened nothing: open it now (Codex)
+                main.post(new Runnable() {
+                    @Override public void run() {
+                        if (lastFrontCam && !demo && Launch.isDefaultHome(DashApp.this)
+                                && prefs.getBoolean("dash_camera", false) && !cameraAllowed()) Launch.camera(DashApp.this);
+                    }
+                });
             }
         }, "stock-camera").start();
     }
