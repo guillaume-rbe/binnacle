@@ -14,7 +14,8 @@ fails=0; n=0
 copy() {
   rm -rf "$WORK/c"; mkdir -p "$WORK/c/guard"
   cp "$ROOT/guard/check_carplay.sh" "$WORK/c/guard/"
-  for m in "$ROOT"/*/src/main; do
+  for m in "$ROOT"/*/src/*; do
+    case "$m" in */src/test*|*/src/androidTest*) continue;; esac
     rel=${m#"$ROOT"/}; mkdir -p "$WORK/c/$(dirname "$rel")"; cp -R "$m" "$WORK/c/$rel"
   done
 }
@@ -67,6 +68,38 @@ expect fail "native code by path" "append $OTHER 'fun l() = System.load(\"/data/
 expect fail "I2C path check loosened" "edit $I2C 'Regex(\"/dev/i2c-[0-9]+\")' 'Regex(\"/dev/.+\")'"
 expect fail "native source changed" "append shared/src/main/jni/linux_i2c_jni.c '/* changed */'"
 expect fail "new native source" "printf 'int x;\n' > shared/src/main/jni/extra.c"
+
+NEWF=shared/src/main/java/com/shilapi/xcertplay/media/CarAudioGate.kt
+expect fail "settings write by import alias" "append $OTHER 'import android.provider.Settings.System as S'"
+expect fail "settings write by member import" "append $OTHER 'import android.provider.Settings.System.putInt'"
+expect fail "process by member import" "append $OTHER 'import java.lang.Runtime.getRuntime'"
+expect fail "another class loader" "append $OTHER 'fun cl(p: String) = dalvik.system.DelegateLastClassLoader(p, null)'"
+expect fail "reflection by constructor in a new file" "append $NEWF 'internal fun r(c: Class<*>) = c.getConstructor().newInstance()'"
+expect fail "reflection by method handle in a new file" "append $NEWF 'internal fun r() = java.lang.invoke.MethodHandles.lookup()'"
+expect fail "bindService in another file" "append $NEWF 'internal fun b(c: android.content.Context, s: android.content.ServiceConnection) = c.bindService(android.content.Intent(), s, 1)'"
+expect fail "a third bindService in a reviewed file" "append $OTHER 'internal fun b(c: android.content.Context, s: android.content.ServiceConnection) = c.bindService(android.content.Intent(), s, 1)'"
+expect fail "service start" "append $OTHER 'internal fun s(c: android.content.Context) = c.startService(android.content.Intent())'"
+expect fail "raw transact" "append $OTHER 'internal fun t(b: android.os.IBinder) = b.transact(1, android.os.Parcel.obtain(), null, 0)'"
+expect fail "Messenger send in another file" "append $OTHER 'internal fun m(x: android.os.Messenger) = x.send(Message.obtain())'"
+expect fail "ContentResolver write" "append $OTHER 'internal fun w(c: android.content.Context, u: android.net.Uri) = c.contentResolver.delete(u, null, null)'"
+expect fail "ContentResolver in a new file" "append $NEWF 'internal fun q(c: android.content.Context) = c.contentResolver'"
+MEDIA=shared/src/main/java/com/shilapi/xcertplay/media/CarPlayMediaSessionService.kt
+expect fail "VPN binding retargeted on its constructor" "edit $OTHER 'Intent(appContext, CarPlayVpnService::class.java)' 'Intent(appContext, CarPlayVpnService::class.java).setClassName(\"com.example\", \"com.example.S\")'"
+expect fail "VPN binding retargeted on a line in between" "edit $OTHER '            if (!appContext.bindService(intent,' '            intent.setPackage(\"com.example\")
+            if (!appContext.bindService(intent,'"
+expect fail "media binding retargeted" "edit $MEDIA '.setAction(MediaSessionService.SERVICE_INTERFACE)' '.setAction(MediaSessionService.SERVICE_INTERFACE).setPackage(\"com.example\")'"
+expect fail "Messenger send with a variable message" "append $NEWF 'internal fun s(t: android.os.Messenger, m: android.os.Message) = t.send(m)'"
+expect fail "ContentResolver write through a scoped receiver" "append $OTHER 'internal fun d(c: android.content.Context, u: android.net.Uri) = c.contentResolver.let { it.delete(u, null, null) }'"
+expect fail "ContentResolver write through a renamed variable" "edit $OTHER '                    resolver.openInputStream(privateKeyUri)' '                    resolver.also { r -> r.delete(privateKeyUri, null, null) }.openInputStream(privateKeyUri)'"
+expect fail "service start by callable reference" "append $NEWF 'internal fun s(c: android.content.Context, i: android.content.Intent) { val start = c::startService; start(i) }'"
+expect fail "bindService by callable reference" "append $NEWF 'internal fun b(c: android.content.Context) = c::bindService'"
+expect fail "resolver write by callable reference" "append $OTHER 'internal fun d(r: android.content.ContentResolver) = r::delete'"
+expect fail "native load by static import" "printf 'package x;\nimport static java.lang.System.load;\nclass L { static void l(String p) { load(p); } }\n' > shared/src/main/java/com/shilapi/xcertplay/media/L.java"
+expect fail "member import from a platform class" "append $OTHER 'import java.lang.System.loadLibrary'"
+expect fail "star import of a platform class's members" "append $OTHER 'import java.lang.System.*'"
+expect fail "raw transact with an implicit receiver" "append $NEWF 'internal fun raw(b: android.os.IBinder, p: android.os.Parcel) = b.run { transact(1, p, null, 0) }'"
+expect fail "service start with an implicit receiver" "append $NEWF 'internal fun s(c: android.content.Context, i: android.content.Intent) = with(c) { startService(i) }'"
+expect fail "code in src/release" "mkdir -p shared/src/release/java && printf 'fun x() = Runtime.getRuntime()\n' > shared/src/release/java/X.kt"
 
 echo "$((n - fails))/$n cases as expected"
 [ $fails = 0 ]
