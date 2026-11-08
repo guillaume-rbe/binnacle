@@ -6,7 +6,6 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
-import android.widget.Toast;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -88,16 +87,22 @@ final class WifiScans {
         return supported() && prefs.getBoolean(KEY, DEFAULT);
     }
 
-    static void rejoin(Context context, SharedPreferences prefs, final boolean carplayRunning) {
-        final Context app = context.getApplicationContext();
+    /** Where the rejoin says what it is doing: the Wi-Fi icon's note on the dash (toasts were easy to miss). */
+    interface Note {
+        /** busy: still working, the note stays until home Wi-Fi joins (or a timeout). */
+        void show(String text, boolean busy);
+    }
+
+    static void rejoin(Context context, SharedPreferences prefs, final boolean carplayRunning, final Note note) {
         if (!supported()) {
-            Toast.makeText(app, "Join Wi-Fi in Android's settings", Toast.LENGTH_SHORT).show();
+            note.show("Join Wi-Fi in Android's settings", false);
             return;
         }
         if (carplayRunning && prefs.getBoolean(KEY, DEFAULT)) {
-            Toast.makeText(app, "Wi-Fi scanning is paused while CarPlay runs", Toast.LENGTH_SHORT).show();
+            note.show("Wi-Fi scanning is paused while CarPlay runs", false);
             return;
         }
+        note.show("Joining home Wi-Fi…", true);   // straight away: the commands below take a few seconds
         wanted = true;
         SHELL.execute(new Runnable() {
             @Override public void run() {
@@ -119,16 +124,16 @@ final class WifiScans {
                         LocalShell.run(cmd);
                     }
                     ok = true;
-                    msg = "Looking for home Wi-Fi…";
+                    msg = "Joining home Wi-Fi…";
                 } catch (Exception e) {
-                    msg = "Couldn't turn Wi-Fi scanning on: " + e.getMessage();
+                    msg = "Couldn't turn Wi-Fi on: " + e.getMessage();
                 }
                 final String shown = msg;
                 final boolean done = ok;
                 MAIN.post(new Runnable() {
                     @Override public void run() {
                         if (done) scansOn = true; else wanted = scansOn;
-                        Toast.makeText(app, shown, Toast.LENGTH_SHORT).show();
+                        note.show(shown, done);   // done: stays until the dash is on Wi-Fi
                     }
                 });
             }

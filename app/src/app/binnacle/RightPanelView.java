@@ -101,6 +101,7 @@ public class RightPanelView extends View {
         netIconX = X1 - 30; // right edge lines up with the battery % below (icon is ~15 px either side)
         drawNetIcon(c, netIconX, 86);
         drawLoggerEye(c, netIconX - 42, 86);
+        drawNetNote(c);
 
         drawBattery(c);
         drawMiddleCard(c);
@@ -509,7 +510,45 @@ public class RightPanelView extends View {
     void setNet(int mode) {
         if (mode == net) return;
         net = mode;
+        if (mode == NET_WIFI && netBusy) netNote("On home Wi-Fi", false);
         invalidate();
+    }
+
+    /**
+     * What a tap on the Wi-Fi icon is doing, shown in a pill beside it (owner, 8 Nov: with only a
+     * toast there was no sign the tap had done anything). A busy note (joining) lights the icon and
+     * stays until home Wi-Fi joins or NOTE_BUSY_MS passes; any other note shows for NOTE_MS.
+     */
+    private static final long NOTE_MS = 4000, NOTE_BUSY_MS = 20_000;
+    private String netNote;
+    private boolean netBusy, netPressed;
+    private final Runnable clearNetNote = new Runnable() {
+        @Override public void run() { netNote = null; netBusy = false; invalidate(); }
+    };
+
+    void netNote(String text, boolean busy) {
+        // the join can finish before the shell command reports back: already on Wi-Fi, so say so
+        // (a tap while on Wi-Fi never starts a join, so a busy note here is always a late one)
+        if (busy && net == NET_WIFI) { text = "On home Wi-Fi"; busy = false; }
+        netNote = text;
+        netBusy = busy;
+        removeCallbacks(clearNetNote);
+        postDelayed(clearNetNote, busy ? NOTE_BUSY_MS : NOTE_MS);
+        invalidate();
+    }
+
+    private void drawNetNote(Canvas c) {
+        if (netNote == null) return;
+        // over the outside temperature for a few seconds: the row has no other free space
+        r.set(X0, 64, netIconX - 24, 108);
+        c.drawRoundRect(r, 12, 12, tile);
+        c.drawRoundRect(r, 12, 12, netBusy ? focusEdge : tileEdge);
+        Style.size(lbl, Style.T_LABEL);
+        lbl.setTextAlign(Paint.Align.LEFT);
+        lbl.setColor(netBusy ? Style.ACCENT : Style.FG);
+        Style.fit(lbl, netNote, r.width() - 28);
+        c.drawText(netNote, X0 + 14, 92, lbl);
+        lbl.setColor(Style.MUTED);
     }
 
     /** Wi-Fi fan, or a hotspot (dot with rings), or a dim fan when neither; tap for the switch prompt. */
@@ -536,7 +575,11 @@ public class RightPanelView extends View {
     }
 
     private void drawNetIcon(Canvas c, float cx, float cy) {
-        int col = net == NET_NONE ? Style.DIM : Style.MUTED;
+        if (netPressed) {   // the finger is on it
+            netDot.setColor(Style.LINE);
+            c.drawCircle(cx, cy, 24, netDot);
+        }
+        int col = netBusy ? Style.ACCENT : net == NET_NONE ? Style.DIM : Style.MUTED;
         netPaint.setColor(col);
         netDot.setColor(col);
         if (net == NET_HOTSPOT) {
@@ -713,12 +756,25 @@ public class RightPanelView extends View {
 
     @Override public boolean onTouchEvent(MotionEvent e) {
         if (swipe(e)) return true;
-        if (e.getActionMasked() == MotionEvent.ACTION_UP && hitNetIcon(e.getX(), e.getY()) && dockListener != null) {
-            playSoundEffect(android.view.SoundEffectConstants.CLICK);
-            dockListener.onNetIcon();
+        if (netPressed) {
+            boolean on = hitNetIcon(e.getX(), e.getY());
+            int a = e.getActionMasked();
+            if (a == MotionEvent.ACTION_UP || a == MotionEvent.ACTION_CANCEL || !on) {
+                netPressed = false;
+                invalidate();
+                if (a == MotionEvent.ACTION_UP && on && dockListener != null) {
+                    playSoundEffect(android.view.SoundEffectConstants.CLICK);
+                    performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY);
+                    dockListener.onNetIcon();
+                }
+            }
             return true;
         }
-        if (e.getActionMasked() == MotionEvent.ACTION_DOWN && hitNetIcon(e.getX(), e.getY())) return true;
+        if (e.getActionMasked() == MotionEvent.ACTION_DOWN && hitNetIcon(e.getX(), e.getY())) {
+            netPressed = true;
+            invalidate();
+            return true;
+        }
         int hit = hitDock(e.getX(), e.getY());
         switch (e.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:

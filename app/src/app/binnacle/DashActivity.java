@@ -514,12 +514,17 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
         } else onDock(index);
     }
 
+    /** The Wi-Fi icon's messages show beside it on the dash (owner, 8 Nov: a tap gave no sign it did anything). */
+    private final WifiScans.Note netNote = new WifiScans.Note() {
+        @Override public void show(String text, boolean busy) { right.netNote(text, busy); }
+    };
+
     @Override public void onNetIcon() {
         final boolean hotspot = apOn;
         if (!hotspot && Launch.hasXcertplay(this)) {
             // xcertplay keeps the dash on home Wi-Fi; off it (scanning paused, out of range), the
             // icon rejoins the saved network (WifiScans)
-            if (netMode == RightPanelView.NET_WIFI) { Toast.makeText(this, "On home Wi-Fi", Toast.LENGTH_SHORT).show(); return; }
+            if (netMode == RightPanelView.NET_WIFI) { right.netNote("On home Wi-Fi", false); return; }
             boolean running = carplayLink.connected() && CarPlayLink.running(carplayLink.state());
             if (running && WifiScans.pausedForCarPlay(app.prefs())) {
                 // scanning is paused for CarPlay: offer to end it, then rejoin (owner, 5 Nov: there
@@ -530,12 +535,12 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
                                 if (index != 1) return;
                                 carplayLink.disconnect();                  // xcertplay stops and stays stopped
                                 showCarPlay(CARPLAY_OFF);
-                                WifiScans.rejoin(DashActivity.this, app.prefs(), false);
+                                WifiScans.rejoin(DashActivity.this, app.prefs(), false, netNote);
                             }
                         });
                 return;
             }
-            WifiScans.rejoin(this, app.prefs(), running);
+            WifiScans.rejoin(this, app.prefs(), running, netNote);
             return;
         }
         BinnacleDialog.show(this, hotspot ? "On CarPlay's hotspot" : "On home Wi-Fi",
@@ -547,11 +552,13 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
                         new Thread(new Runnable() {
                             @Override public void run() {
                                 String msg;
-                                try { LocalShell.Command cmd = LocalShell.Command.END_CARPLAY; LocalShell.run(cmd); msg = "Back on home Wi-Fi"; }
+                                boolean ok = false;
+                                try { LocalShell.Command cmd = LocalShell.Command.END_CARPLAY; LocalShell.run(cmd); msg = "Joining home Wi-Fi…"; ok = true; }
                                 catch (Exception e) { msg = "Couldn't switch: " + e.getMessage(); }
                                 final String shown = msg;
+                                final boolean busy = ok;
                                 runOnUiThread(new Runnable() {
-                                    @Override public void run() { Toast.makeText(DashActivity.this, shown, Toast.LENGTH_SHORT).show(); }
+                                    @Override public void run() { right.netNote(shown, busy); }
                                 });
                             }
                         }, "local-shell").start();
