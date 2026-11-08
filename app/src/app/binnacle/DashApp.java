@@ -129,6 +129,7 @@ public class DashApp extends Application implements Feed.Sink, SharedPreferences
         startCompass();
         StartupVolume.start(this, prefs);
         AdbFirewall.apply(prefs);   // the unit's ADB off the Wi-Fi unless Network ADB is on
+        stockCameraFallback();      // revoking the camera permission restarts the app, so this catches it
         watchLogger();
         new Thread(new Runnable() {
             @Override public void run() { CarPacks.removeLegacy(DashApp.this); }
@@ -593,16 +594,38 @@ public class DashApp extends Application implements Feed.Sink, SharedPreferences
         // (Settings, setup, CarPlay's or Android Auto's own screen) the dash can't see the flag, and
         // it drops again after a few seconds: bring the dash forward to open its camera (audit D1).
         if (prefs.getBoolean("dash_camera", false)) {
-            if (want && !dashResumed) Launch.dashCamera(this);
-            return;
-        }
-        if (!prefs.getBoolean("auto_camera", false)) return;
+            if (cameraAllowed()) {
+                if (want && !dashResumed) Launch.dashCamera(this);
+                return;
+            }
+            // camera permission refused: the dash can't show it, so the stock camera screen opens (audit #2b)
+        } else if (!prefs.getBoolean("auto_camera", false)) return;
         long since = SystemClock.elapsedRealtime() - lastCameraActionMs;
         long delay = since >= CAMERA_DEBOUNCE_MS ? 0 : CAMERA_DEBOUNCE_MS - since;
         cameraWanted = want;
         main.removeCallbacks(cameraAction);     // only the pending camera action, nothing else on main
         main.postDelayed(cameraAction, delay);
         cameraPending = true;
+    }
+
+    /** Android lets Binnacle use the camera (the in-dash camera needs it). */
+    boolean cameraAllowed() {
+        return android.os.Build.VERSION.SDK_INT < 23
+                || checkSelfPermission(android.Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED;
+    }
+
+    /**
+     * The in-dash camera is on but Android refuses Binnacle the camera: if unit setup switched the
+     * stock camera screen off, it comes back, so Drive still shows a camera (audit #2b).
+     */
+    void stockCameraFallback() {
+        if (demo || !prefs.getBoolean("dash_camera", false) || cameraAllowed() || !UnitSetup.stockCameraOff(this)) return;
+        new Thread(new Runnable() {
+            @Override public void run() {
+                if (!UnitSetup.restoreStockCamera(DashApp.this))
+                    android.util.Log.w("binnacle", "camera permission refused and the stock camera is still off");
+            }
+        }, "stock-camera").start();
     }
 
     private boolean cameraWanted, cameraPending;

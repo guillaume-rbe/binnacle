@@ -353,6 +353,11 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
             boolean manual = manualCameraPending;
             manualCameraPending = false;
             if (granted && (manual || app.car.frontCamRequest)) { startDashCamera(); cameraAuto = !manual; }
+            if (!granted && dashCamera()) {
+                // no camera in the dash: Drive opens the stock camera screen instead (audit #2b)
+                Toast.makeText(this, "Camera not allowed: the stock camera opens on Drive", Toast.LENGTH_LONG).show();
+                app.stockCameraFallback();
+            }
             return;
         }
     }
