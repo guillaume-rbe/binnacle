@@ -28,9 +28,12 @@ final class AdbFirewall {
     /** One at a time, in order: a quick On then Off must end with the rule in place (Codex). */
     private static final java.util.concurrent.ExecutorService ONE = java.util.concurrent.Executors.newSingleThreadExecutor();
 
-    /** Puts the rule in place, or takes it away if Network ADB is on. Off the main thread. */
-    static void apply(final SharedPreferences prefs) {
-        ONE.execute(new Runnable() {
+    /**
+     * Puts the rule in place, or takes it away if Network ADB is on. Off the main thread; the
+     * Future is done once {@link #failed} holds this attempt's result (the Unit page waits on it).
+     */
+    static java.util.concurrent.Future<?> apply(final SharedPreferences prefs) {
+        return ONE.submit(new Runnable() {
             @Override public void run() {
                 boolean network = prefs.getBoolean(KEY, DEFAULT);   // the latest switch position, read here
                 try {

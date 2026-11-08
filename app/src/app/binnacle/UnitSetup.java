@@ -114,6 +114,8 @@ final class UnitSetup {
         boolean reachable;
         /** Why it couldn't be read, if reachable is false for another reason than a refused connection. */
         String problem;
+        /** ADB answers but the rule keeping it off the Wi-Fi didn't go in (AdbFirewall.failed after this read's attempt). */
+        boolean openToWifi;
         final EnumMap<Change, Boolean> on = new EnumMap<>(Change.class);
 
         boolean isOn(Change ch) { return Boolean.TRUE.equals(on.get(ch)); }
@@ -133,7 +135,13 @@ final class UnitSetup {
             s.reachable = true;
             // the unlock may be new (setup's EngineerMode step after the dash started, when the start-up
             // firewall found nothing to block): put the rule in place now, not at the next start
-            AdbFirewall.apply(DashApp.get(c).prefs());
+            // and wait for it, so the status below shows whether it worked (AdbFirewall.failed) (Codex)
+            try {
+                AdbFirewall.apply(DashApp.get(c).prefs()).get(15, java.util.concurrent.TimeUnit.SECONDS);
+            } catch (Exception ignored) {
+                // timed out or interrupted: the warning shows on the next read
+            }
+            s.openToWifi = AdbFirewall.failed;
             s.on.put(Change.ADB_KEEP, out.contains("adb=5555"));
             s.on.put(Change.GPS_DUMPS, out.contains("dumps=0"));
             s.on.put(Change.ANDROID_BT, out.contains("bt=2"));

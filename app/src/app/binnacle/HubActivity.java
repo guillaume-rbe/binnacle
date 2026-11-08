@@ -1125,7 +1125,7 @@ public class HubActivity extends Activity {
         if (!st.reachable) {
             state.setText(st.problem != null ? "Couldn't read: " + st.problem : "Locked. Run setup to unlock");
             state.setTextColor(Style.WARN);
-        } else if (AdbFirewall.failed) {
+        } else if (st.openToWifi) {
             // the unit answers, but the rule keeping ADB off the Wi-Fi didn't go in (no root?)
             state.setText("Unlocked, but open to the Wi-Fi. Turn off \"Keep the unit unlocked\" and restart");
             state.setTextColor(Style.WARN);
@@ -1209,7 +1209,16 @@ public class HubActivity extends Activity {
             @Override public void onClick(View v) {
                 boolean now = !b.isSelected();
                 prefs.edit().putBoolean(AdbFirewall.KEY, now).apply();
-                AdbFirewall.apply(prefs);
+                final java.util.concurrent.Future<?> done = AdbFirewall.apply(prefs);
+                // once it has run, show the Unit page again so a failed rule is warned about (Codex)
+                new Thread(new Runnable() {
+                    @Override public void run() {
+                        try { done.get(15, java.util.concurrent.TimeUnit.SECONDS); } catch (Exception ignored) { }
+                        runOnUiThread(new Runnable() {
+                            @Override public void run() { if (tab == UNIT_TAB && !isFinishing()) showTab(UNIT_TAB); }
+                        });
+                    }
+                }, "adb-firewall-wait").start();
                 b.setSelected(now);
                 b.setText(now ? "On" : "Off");
             }
