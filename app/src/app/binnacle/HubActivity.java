@@ -233,6 +233,7 @@ public class HubActivity extends Activity {
         if (textScaleBuilt != Style.textScale) { recreate(); return; }   // text size changed: rebuild at the new size
         if (lightBuilt != Style.light) { recreate(); return; }           // theme changed meanwhile (Auto)
         if (tab == 1 || tab == CAR_TAB) showTab(tab);                      // CarPlay layout / Home app may have changed meanwhile
+        else if (resumePendingUpdate()) { /* back from the install switch: keep the page, the download shows on its button */ }
         else if (tab >= 4) showTab(tab);                                   // back from the uninstaller: logger state
     }
 
@@ -1104,6 +1105,8 @@ public class HubActivity extends Activity {
         b.setEnabled(!Updater.installing());
         final TextView cp = chip("Update CarPlay");
         cp.setVisibility(View.GONE);
+        updateButton = b;
+        carplayButton = cp;
         b.setOnClickListener(new View.OnClickListener() {
             @Override public void onClick(View v) {
                 b.setEnabled(false);
@@ -1163,11 +1166,9 @@ public class HubActivity extends Activity {
     /** Asks, then downloads the dash (or with carplay its CarPlay app) into Android's installer (b shows progress). */
     private void offerUpdate(final Updater.Release r, final TextView b, final boolean carplay) {
         final Updater.Release part = carplay ? r.carplay : r;
-        long mb = Math.max(1, (part.size + (1 << 19)) >> 20);
+        // just the question (owner, 8 Nov): what changed is on the GitHub release page
         BinnacleDialog.show(this, carplay ? "Update the CarPlay app to " + part.versionName + "?" : "Update to Binnacle " + part.versionName + "?",
-                "Downloads " + mb + " MB from GitHub, then Android asks you to confirm the install.\n"
-                        + (carplay ? "CarPlay stops while it installs; tap CarPlay again afterwards. Its settings are kept."
-                                   : "The dash closes and comes back while it installs. Settings and car images are kept."),
+                "See the release page for update details.",
                 new String[]{"Not now", "Update"}, true, new BinnacleDialog.Choice() {
                     @Override public void chosen(int index) {
                         if (index != 1) return;
@@ -1179,6 +1180,33 @@ public class HubActivity extends Activity {
                 });
     }
 
+    /**
+     * An update waiting on Android's "Install unknown apps" switch; it resumes on return (onResume).
+     * Static so it outlives this screen being rebuilt meanwhile (theme or text size changed); the
+     * rebuilt Updates card's buttons show the download.
+     */
+    private static Updater.Release pendingUpdate;
+    private static boolean pendingCarplay;
+    /** The Updates card's buttons on screen now (dash, CarPlay app); set by updateCard(). */
+    private TextView updateButton, carplayButton;
+
+    /** Back from Android's install switch: carry on with the update if it is now on. True if one was waiting. */
+    private boolean resumePendingUpdate() {
+        final Updater.Release r = pendingUpdate;
+        final TextView b = pendingCarplay ? carplayButton : updateButton;
+        final boolean carplay = pendingCarplay;
+        if (r == null || b == null) return false;
+        pendingUpdate = null;
+        if (!Updater.allowedToInstall(this)) return true;
+        b.setVisibility(View.VISIBLE);
+        // a rebuilt card's button has no update listener yet: the retry after a failed download needs one
+        b.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) { offerUpdate(r, b, carplay); }
+        });
+        startUpdate(r, b, carplay);
+        return true;
+    }
+
     private void startUpdate(final Updater.Release r, final TextView b, final boolean carplay) {
         final Updater.Release part = carplay ? r.carplay : r;
         final String again = carplay ? "Update CarPlay to " + part.versionName : "Update to " + part.versionName;
@@ -1188,20 +1216,19 @@ public class HubActivity extends Activity {
             return;
         }
         if (!Updater.allowedToInstall(this)) {
-            BinnacleDialog.show(this, "Allow Binnacle to install updates",
-                    "Android asks once. On the next screen, turn on \"Allow from this source\", come back, and tap Update again.",
-                    new String[]{"Cancel", "Open setting"}, true, new BinnacleDialog.Choice() {
-                        @Override public void chosen(int index) {
-                            if (index != 1) return;
-                            try {
-                                startActivity(new Intent("android.settings.MANAGE_UNKNOWN_APP_SOURCES",
-                                        android.net.Uri.parse("package:" + getPackageName())));
-                            } catch (RuntimeException e) {
-                                Toast.makeText(HubActivity.this, "Couldn't open the setting: Android settings → Apps → Binnacle → Install unknown apps",
-                                        Toast.LENGTH_LONG).show();
-                            }
-                        }
-                    });
+            // straight to Android's switch (owner, 8 Nov: fewer stops); the update carries on by
+            // itself on return (onResume), so no second tap and the page keeps its place
+            pendingUpdate = r;
+            pendingCarplay = carplay;
+            Toast.makeText(this, "Turn on \"Allow from this source\", then go back", Toast.LENGTH_LONG).show();
+            try {
+                startActivity(new Intent("android.settings.MANAGE_UNKNOWN_APP_SOURCES",
+                        android.net.Uri.parse("package:" + getPackageName())));
+            } catch (RuntimeException e) {
+                pendingUpdate = null;
+                Toast.makeText(HubActivity.this, "Couldn't open the setting: Android settings → Apps → Binnacle → Install unknown apps",
+                        Toast.LENGTH_LONG).show();
+            }
             return;
         }
         b.setEnabled(false);
