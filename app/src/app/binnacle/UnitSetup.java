@@ -162,6 +162,35 @@ final class UnitSetup {
         LocalShell.run(cmd);
     }
 
+    /**
+     * The stock camera screen is switched off (STOCK_CAMERA is on). Only reads the component's state.
+     * Nothing else opens a camera on Drive while it is off, so it must come back whenever the dash
+     * stops showing the camera itself (audit #2).
+     */
+    static boolean stockCameraOff(Context c) {
+        try {
+            int s = c.getPackageManager().getComponentEnabledSetting(STOCK_CAMERA);
+            return s == PackageManager.COMPONENT_ENABLED_STATE_DISABLED
+                    || s == PackageManager.COMPONENT_ENABLED_STATE_DISABLED_USER;
+        } catch (RuntimeException e) {
+            return false;                              // not on this unit
+        }
+    }
+
+    /**
+     * Switches the stock camera screen back on if it is off. Blocking: run it off the main thread.
+     * True if it is on afterwards (or was never off), false if it stayed off.
+     */
+    static boolean restoreStockCamera(Context c) {
+        if (!stockCameraOff(c)) return true;
+        try {
+            set(Change.STOCK_CAMERA, false);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     /** EngineerMode is on this unit (the one way to switch the unit's ADB on the first time). */
     static boolean hasEngineerMode(Context c) {
         Intent i = new Intent().setComponent(ENGINEER_MODE);
