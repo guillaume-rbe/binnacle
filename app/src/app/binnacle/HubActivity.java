@@ -271,7 +271,9 @@ public class HubActivity extends Activity {
                             new String[]{"100", "115", "130"}, new String[]{"100%", "115%", "130%"}),
                     choiceCard("Menu side", null, "menu_side", "right",
                             new String[]{"left", "right"}, new String[]{"Left", "Right"}),
-                    infoCard("CarPlay layout", carplayLayoutText())), stack(
+                    // the stock CarPlay layout only matters for ZLink: Binnacle's CarPlay draws in the
+                    // dash's own window (owner, 8 Nov: the card was out of date with it installed)
+                    UnitSetup.installed(this, UnitSetup.XCERTPLAY) ? null : infoCard("CarPlay layout", carplayLayoutText())), stack(
                     choiceCard("Start-up volume", "Media volume when the dash starts. The car sets the loudness",
                             StartupVolume.KEY, StartupVolume.DEFAULT,
                             new String[]{"100", "75", "50", "off"}, new String[]{"100%", "75%", "50%", "As is"}),
@@ -310,8 +312,9 @@ public class HubActivity extends Activity {
             // two independent columns: in a two-column grid each row is as tall as its taller cell,
             // which left a gap under the short cards (owner, 8 Nov); developer switches at the bottom
             default: content.addView(cards(
-                    stack(updateCard(), setupCard(), resetCard(), aboutCard()),
-                    stack(switchCard("Screenshot on power bar tap", "Saved in Binnacle/screenshots", Screenshot.KEY, false),
+                    // About top left, Updates top right (owner, 8 Nov)
+                    stack(aboutCard(), setupCard(), resetCard()),
+                    stack(updateCard(), switchCard("Screenshot on power bar tap", "Saved in Binnacle/screenshots", Screenshot.KEY, false),
                             loggerCards(),
                             switchCard("Show raw CAN values", "Latest raw fields over the centre view, for in-car checks", "raw_overlay", false),
                             switchCard("Demo data", "Simulated drive instead of the car feed", "demo", false)))); break;
@@ -1666,10 +1669,11 @@ public class HubActivity extends Activity {
     private View stack(View... cards) {
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
-        for (int i = 0; i < cards.length; i++) {
+        for (View card : cards) {
+            if (card == null) continue;   // a card that doesn't apply here (e.g. CarPlay layout with Binnacle's CarPlay)
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-            lp.setMargins(0, i == 0 ? 0 : dp(12), 0, 0);
-            box.addView(cards[i], lp);
+            lp.setMargins(0, box.getChildCount() == 0 ? 0 : dp(12), 0, 0);
+            box.addView(card, lp);
         }
         return box;
     }
