@@ -33,7 +33,7 @@ On a ship, the binnacle is the stand in front of the helm that holds the compass
 ## What it fixes compared with the stock dash
 - **Model Y Support:** the stock dash only showed a Model 3 - now the Model Y is supported as a graphic option.
 - **Android Settings Access:** the stock dash went out of its way to hide the normal Android Settings app, Binnacle restores this.
-- **Battery %:** on some cars (mine included) had the stock "battery level" field stuck at 77%, and the stock dash shows another field as "km" when it isn't range at all. Binnacle decodes the real % from that second field, checked against a full 13 % to 100 % charge.
+- **Battery %:** on some cars (mine included) had the stock "battery level" field stuck at 77%, and the stock dash shows another field as "km" when it isn't range at all. Binnacle decodes the real % from that second field, checked against a full 13 % to 100 % charge. On cars where the battery level field does work, Binnacle switches to it once it sees it change.
 - **Camera that works:** the stock camera could fail with "camera error 4" after a reboot and judders on the 56 Hz panel. Binnacle sets up the camera input itself, paces frames evenly, and hides the start-up roll.
 - **CarPlay that doesn't hijack your phone:** with the stock setup, CarPlay grabbed the phone and the unit's Wi-Fi whenever it could. Now it only connects when asked.
 - **Media/Call Information on Tesla:** Stock dash’s info showed only the Bluetooth device name and had no real media controls and no true phone controls. Artwork is not supported by Android 10 so is not shown unfortunately.
@@ -48,6 +48,8 @@ On a ship, the binnacle is the stand in front of the helm that holds the compass
 - Improved design with more options, particularly for centre screen.
 
 ## Install
+**Will it work on my dash?** See [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md) for the dashes and software versions tried so far, and how to check yours.
+
 No computer or adb needed for the basics.
 1. Download the latest `Binnacle.apk` (or `Binnacle-<version>.apk` on older releases) from this project's [Releases](https://github.com/lotech/binnacle/releases).
 2. Copy it to a USB stick, plug the stick into the unit, open it in the unit's file manager and tap the APK. Android asks once to allow installing apps from the file manager.
@@ -101,7 +103,7 @@ In daily use on my 2023 Model 3 since 27 Oct 2026, as the unit's Home app (it re
 | `carplay/` | Binnacle's CarPlay app (`com.shilapi.xcertplay`), a fork of [xcertplay](https://github.com/shilapi/xcertplay) by shilapi, with its full history; a separate APK and its own Gradle build, held to its own guard (`carplay/guard/`). See `carplay/README.md` |
 | `capture/` | Optional developer tool: Binnacle logger, a separate read-only app that records the car data feed (no location) to its private storage; used to derive the field map |
 | `mockups/` | HTML mockups of the dash layout — **own artwork only**, no vendor assets |
-| `docs/` | `FIELD_MAP.md` (decoded CAN fields), the ADB access guide, and `UNIT-CHANGES.md` (changes made to the unit outside the app) |
+| `docs/` | `COMPATIBILITY.md` (dashes tried so far), `FIELD_MAP.md` (decoded CAN fields), the ADB access guide, and `UNIT-CHANGES.md` (changes made to the unit outside the app) |
 | `app/tests/` | Plain-Java tests (tyre pressure, battery decoding), run by every build |
 | `buildSrc/`, `gradle/`, `*.gradle.kts` | The Gradle build (see Build below); `app/build.sh` and `capture/build.sh` still work as before |
 | `app/assets/cars/` | The dash's car renders, made from a CC BY 4.0 model (see Credits) |

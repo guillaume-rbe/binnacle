@@ -22,6 +22,38 @@ public class BatteryDecoderTest {
             System.out.println((ok ? "ok   " : "FAIL ") + c[0] + " -> " + got + (ok ? "" : " (expected " + c[1] + ")"));
             if (!ok) fails++;
         }
+        // pick(): batterylevel only once it has moved, else the jhmail table (issue #91)
+        int[][] picks = {{58, 77, 0, 58}, {-1, 77, 0, -1}, {58, 81, 1, 81}, {-1, 81, 1, 81}, {58, -1, 1, 58}, {58, 200, 1, 58}};
+        for (int[] p : picks) {
+            int got = BatteryDecoder.pick(p[0], p[1], p[2] == 1);
+            boolean ok = got == p[3];
+            System.out.println((ok ? "ok   " : "FAIL ") + "pick(" + p[0] + ", " + p[1] + ", " + (p[2] == 1) + ") -> " + got);
+            if (!ok) fails++;
+        }
+        // LevelWatch: stuck at 77 never moves; a one-off odd reading doesn't count; a held change does
+        BatteryDecoder.LevelWatch w = new BatteryDecoder.LevelWatch();
+        for (long t = 0; t < 600_000; t += 1000) w.see(77, t);
+        w.see(0, 600_000); w.see(0, 605_000); w.see(77, 606_000); w.see(-1, 620_000); w.see(77, 630_000);
+        if (w.moved) { System.out.println("FAIL stuck/odd readings counted as moving"); fails++; }
+        else System.out.println("ok   stuck at 77 with a blip is not moving");
+        // a blip as the very first reading must not become the baseline (Codex review on #110)
+        BatteryDecoder.LevelWatch b = new BatteryDecoder.LevelWatch();
+        b.see(0, 0);
+        for (long t = 1000; t <= 60_000; t += 1000) b.see(77, t);
+        if (b.moved) { System.out.println("FAIL first-reading blip then stuck at 77 counted as moving"); fails++; }
+        else System.out.println("ok   first-reading blip then stuck at 77 is not moving");
+        // time with no valid reading doesn't count towards the hold (Codex review on #110)
+        BatteryDecoder.LevelWatch g = new BatteryDecoder.LevelWatch();
+        g.see(77, 0); g.see(77, 10_000); g.see(0, 11_000); g.see(-1, 12_000); g.see(0, 22_000);
+        if (g.moved) { System.out.println("FAIL a gap in the feed counted towards the hold"); fails++; }
+        else System.out.println("ok   a gap in the feed restarts the hold");
+        BatteryDecoder.LevelWatch m = new BatteryDecoder.LevelWatch();
+        for (long t = 0; t <= 12_000; t += 1000) m.see(62, t);
+        m.see(63, 13_000); m.see(63, 18_000);
+        boolean early = m.moved;
+        m.see(63, 23_000);
+        if (early || !m.moved) { System.out.println("FAIL 62 held, then 63 held 10 s should count as moving"); fails++; }
+        else System.out.println("ok   62 held, then 63 held 10 s is moving");
         if (fails > 0) { System.out.println(fails + " failed"); System.exit(1); }
         System.out.println("all battery checks passed");
     }

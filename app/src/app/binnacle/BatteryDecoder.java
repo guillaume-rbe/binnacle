@@ -29,6 +29,42 @@ final class BatteryDecoder {
 
     private BatteryDecoder() {}
 
+    /**
+     * The % to show. The car's own batterylevel field works on most cars (it moved 62 -> 81 on a
+     * 2020 Model 3 on newer firmware, issue #91) but is stuck at 77 on the owner's car, so it is
+     * used only once it has been seen to change ({@link LevelWatch}); until then the jhmail table.
+     * -1 = unknown (the caller shows the last saved %).
+     */
+    static int pick(int fromJhmail, int batterylevel, boolean levelMoves) {
+        if (levelMoves && batterylevel >= 0 && batterylevel <= 100) return batterylevel;
+        return fromJhmail;
+    }
+
+    /**
+     * Notices batterylevel changing. A value counts only once it has held for HOLD_MS, so an odd
+     * reading at wake-up (before or after the real one) doesn't count: the first value that holds
+     * is the baseline, and a second, different value that holds means the field moves. The caller
+     * saves {@link #moved} so it is kept for good.
+     */
+    static final class LevelWatch {
+        static final long HOLD_MS = 10_000;
+        private int baseline = -1, current = -1;
+        private long currentSince;
+        boolean moved;
+
+        /** Feed every reading (with the time); returns true once the field has been seen to move. */
+        boolean see(int level, long nowMs) {
+            if (moved) return true;
+            // no valid reading (feed lost, car.reset()): the next value has to hold afresh
+            if (level < 0 || level > 100) { current = -1; return false; }
+            if (level != current) { current = level; currentSince = nowMs; return false; }
+            if (nowMs - currentSince < HOLD_MS) return false;
+            if (baseline < 0) baseline = level;
+            else if (level != baseline) moved = true;
+            return moved;
+        }
+    }
+
     /** The battery % for a jhmail value, or -1 if it matches none (or, defensively, more than one). */
     static int percent(int jhmail) {
         if (jhmail < 0) return -1;
