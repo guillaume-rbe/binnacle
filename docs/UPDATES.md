@@ -20,7 +20,7 @@ Binnacle can update itself from this project's GitHub releases: **Apps → Advan
    - it is signed with the same key as the installed copy (Android's own rule for updates);
    - its version is higher (Android refuses a downgrade).
 
-   The dash closes while it installs and comes back as the Home app. Settings and downloaded car images are kept.
+   The dash closes while it installs and reopens by itself (`Relaunch`, on Android's `MY_PACKAGE_REPLACED`; this needs Binnacle's open-over-other-apps permission, which the camera also uses. Without it, press Home). Settings and downloaded car images are kept. Google Play Protect may ask to scan the app first; that's Google's prompt, not Binnacle's.
 
 If something goes wrong the button goes back to **Update to …** and a message says why: no Wi-Fi (the dash is on CarPlay's hotspot, for example), no release published yet, a damaged download, cancelled, or "isn't signed with the same key" (a copy you built yourself with a different key can't be updated from the project's releases; uninstall it first).
 
