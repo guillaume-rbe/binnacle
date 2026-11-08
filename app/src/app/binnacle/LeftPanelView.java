@@ -178,6 +178,17 @@ public class LeftPanelView extends View {
         }
     }
 
+    /**
+     * The power bar's text sits on the Autopilot cue, where its dim grey was hard to read (car,
+     * 7 Nov). While the cue shows, the text brightens toward the foreground colour and gets a soft
+     * halo in the panel colour, both scaled by the cue's fade.
+     */
+    private void legibleOverCue(Paint p, int base) {
+        p.setColor(CentreView.lerpColor(base, Style.FG, cue));
+        if (cue > 0) p.setShadowLayer(6, 0, 0, (Style.PANEL & 0x00ffffff) | (Math.round(0xe6 * cue) << 24));
+        else p.clearShadowLayer();
+    }
+
     /** Telltales that only show while on, in priority order (warnings first). */
     private static final int T_SEATBELT = 0, T_HOLD = 1, T_FRONT_FOG = 2, T_REAR_FOG = 3;
     private final int[] extras = new int[4];
@@ -271,6 +282,8 @@ public class LeftPanelView extends View {
 
     private void drawPower(Canvas c, float w) {
         float x0 = 24, x1 = w - 24, top = 648, bottom = 676;   // 28 tall, same as the battery bar (the owner)
+        legibleOverCue(powerLbl, Style.MUTED);
+        legibleOverCue(scaleP, Style.DIM);
         Style.size(powerLbl, Style.T_LABEL);
         // "EST." while the car's power reading is unusable and the bar is worked out from speed
         c.drawText(car.powerEstimated() ? "POWER · EST." : "POWER", x0, 638, powerLbl);
