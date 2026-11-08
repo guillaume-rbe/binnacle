@@ -44,10 +44,13 @@ final class StartupVolume {
         final AudioManager audio = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
         if (audio == null) return;
         final Handler main = new Handler(Looper.getMainLooper());
+        final android.os.PowerManager power = (android.os.PowerManager) context.getSystemService(Context.POWER_SERVICE);
         final long[] watchUntil = {0};
         final Runnable watch = new Runnable() {
             @Override public void run() {
                 if (android.os.SystemClock.uptimeMillis() >= watchUntil[0]) return;
+                // the car went to sleep: its mute then is deliberate (screen-off also stops this)
+                if (power != null && !power.isInteractive()) return;
                 if (silent(audio)) apply(audio, prefs);
                 main.postDelayed(this, WATCH_STEP_MS);
             }
@@ -73,12 +76,18 @@ final class StartupVolume {
                 }
             }
         }, main);
+        android.content.IntentFilter screen = new android.content.IntentFilter(android.content.Intent.ACTION_SCREEN_ON);
+        screen.addAction(android.content.Intent.ACTION_SCREEN_OFF);
         context.getApplicationContext().registerReceiver(new android.content.BroadcastReceiver() {
             @Override public void onReceive(Context c, android.content.Intent i) {
                 main.removeCallbacks(apply);
+                main.removeCallbacks(watch);
+                watchUntil[0] = 0;
+                // the car sleeping: the CAN app mutes music on purpose, so leave it until the next wake
+                if (android.content.Intent.ACTION_SCREEN_OFF.equals(i.getAction())) return;
                 main.postDelayed(apply, SETTLE_MS);       // after the CAN app's own wake-up changes
             }
-        }, new android.content.IntentFilter(android.content.Intent.ACTION_SCREEN_ON));
+        }, screen);
     }
 
     /** Percent of full for a setting value; -1 = leave as is. */
