@@ -1,6 +1,6 @@
 # In-app updates
 
-Binnacle can update itself from this project's GitHub releases: **Apps → Advanced → Updates → Check for updates**. It is there from 0.8 on; 0.7 and earlier have to be updated once by hand (USB stick or `adb install -r`). From 0.9 on it also updates Binnacle's CarPlay app (`BinnacleCarPlay.apk`, from `carplay/`) when that is installed: see "The CarPlay app" below.
+Binnacle can update itself from this project's GitHub releases: **Apps → Advanced → Updates → Check for updates**. It is there from 0.8 on; 0.7 and earlier have to be updated once by hand (USB stick or `adb install -r`). From 0.9 on it also updates Binnacle's CarPlay support (`BinnacleCarPlay.apk`, from `carplay/`) when that is installed: see "CarPlay support" below.
 
 ## What happens on the dash
 
@@ -20,13 +20,13 @@ Binnacle can update itself from this project's GitHub releases: **Apps → Advan
    - it is signed with the same key as the installed copy (Android's own rule for updates);
    - its version is higher (Android refuses a downgrade).
 
-   The dash closes while it installs and reopens by itself (`Relaunch`, on Android's `MY_PACKAGE_REPLACED`; this needs Binnacle's open-over-other-apps permission, which the camera also uses. Without it, press Home). Settings and downloaded car images are kept. Google Play Protect may ask to scan the app first; that's Google's prompt, not Binnacle's.
+   The dash closes while it installs and reopens by itself (`Relaunch`, on Android's `MY_PACKAGE_REPLACED`; this needs Binnacle's open-over-other-apps permission, which the camera also uses. Without it, press Home). Settings and downloaded car images are kept. Google Play Protect may ask to scan the app or warn about it first: that's Google's prompt for any app from outside the Play Store, not Binnacle's. Tap **Install anyway** or **Install without scanning**. On the dash's short screen its buttons can sit below the bottom edge: scroll the box up to reach them. The Updates card mentions it too.
 
 If something goes wrong the button goes back to **Update to …** and a message says why: no Wi-Fi (the dash is on CarPlay's hotspot, for example), no release published yet, a damaged download, cancelled, or "isn't signed with the same key" (a copy you built yourself with a different key can't be updated from the project's releases; uninstall it first).
 
-## The CarPlay app
+## CarPlay support
 
-Each release from 0.9 on also carries `BinnacleCarPlay.apk` (package `com.shilapi.xcertplay`), and `binnacle-update.txt` has four more lines for it: `carplayVersionCode`, `carplayVersionName`, `carplaySize`, `carplaySha256` (all four, or none). When the CarPlay app is installed and the release's is newer, the Updates card shows **Update CarPlay to …** under the dash's button and offers it first (a dash update restarts the dash). The steps are the same: Park only, a Binnacle pop-up, a download streamed into Android's installer with the size and SHA-256 checked, and Android's own confirm screen. CarPlay stops while it installs; tap CarPlay again afterwards. Its settings and pairing are kept.
+Each release from 0.9 on also carries `BinnacleCarPlay.apk` (package `com.shilapi.xcertplay`), and `binnacle-update.txt` has four more lines for it: `carplayVersionCode`, `carplayVersionName`, `carplaySize`, `carplaySha256` (all four, or none). It is part of Binnacle, shipped as a second package. When it is installed and the release's is newer, the one **Update to …** button and its one question cover it: it downloads and installs first (a dash update restarts the dash), then the dash's part follows by itself, with "1 of 2" / "2 of 2" on the button and a progress bar under it. Each part is checked the same way (Park only, a download streamed into Android's installer with the size and SHA-256 checked), and Android shows its own confirm screen once per package; that can't be merged. CarPlay stops while it installs; tap CarPlay again afterwards. Its settings and pairing are kept.
 
 It is never installed fresh from here, only updated: Android then insists on the installed copy's signing key, as for the dash. To install it the first time, use a USB stick or `adb install`.
 
