@@ -305,8 +305,9 @@ public class HubActivity extends Activity {
             // two independent columns: in a two-column grid each row is as tall as its taller cell,
             // which left a gap under the short cards (owner, 8 Nov); developer switches at the bottom
             default: content.addView(cards(
-                    stack(updateCard(), setupCard(), resetCard(), aboutCard()),
-                    stack(switchCard("Screenshot on power bar tap", "Tap the power bar to save a screenshot on the dash (Binnacle/screenshots), CarPlay and camera included", Screenshot.KEY, false),
+                    stack(updateCard(), setupCard(), unitSetupCard(), resetCard(), aboutCard()),
+                    stack(networkAdbCard(),
+                            switchCard("Screenshot on power bar tap", "Tap the power bar to save a screenshot on the dash (Binnacle/screenshots), CarPlay and camera included", Screenshot.KEY, false),
                             loggerCards(),
                             switchCard("Show raw CAN values", "Latest raw fields over the centre view, for in-car checks", "raw_overlay", false),
                             switchCard("Demo data", "Simulated drive instead of the car feed", "demo", false)))); break;
@@ -1043,6 +1044,109 @@ public class HubActivity extends Activity {
                 });
             }
         }, "local-shell").start();
+    }
+
+    /**
+     * Unit setup (owner, 8 Nov): what setup's "Set up the unit" step changes, each with its state
+     * and an On / Off chip (Off is its undo), so a user's unit can be compared with the owner's
+     * from a screenshot of this card. UnitSetup holds the pinned commands; this only shows them.
+     */
+    private View unitSetupCard() {
+        final LinearLayout card = card("Unit setup",
+                "Changes to the unit that make Binnacle work fully. Setup can do them all at once; each can be undone here");
+        final TextView state = text("Checking…", 13, Style.MUTED);
+        card.addView(state);
+        final LinearLayout rows = new LinearLayout(this);
+        rows.setOrientation(LinearLayout.VERTICAL);
+        card.addView(rows);
+        refreshUnitSetup(state, rows);
+        return card;
+    }
+
+    private void refreshUnitSetup(final TextView state, final LinearLayout rows) {
+        new Thread(new Runnable() {
+            @Override public void run() {
+                final UnitSetup.Status st = UnitSetup.read(HubActivity.this);
+                state.post(new Runnable() {
+                    @Override public void run() { showUnitSetup(st, state, rows); }
+                });
+            }
+        }, "unit-status").start();
+    }
+
+    private void showUnitSetup(UnitSetup.Status st, final TextView state, final LinearLayout rows) {
+        rows.removeAllViews();
+        if (!st.reachable) {
+            state.setText(st.problem != null ? "The unit's ADB answered with an error: " + st.problem
+                    : "The unit's ADB is off, so these can't be read or changed. Advanced → Run setup shows how to switch it on.");
+            state.setTextColor(Style.WARN);
+        } else {
+            state.setText("✓  The unit's ADB is on (reachable from the unit itself"
+                    + (prefs.getBoolean(AdbFirewall.KEY, AdbFirewall.DEFAULT) ? " and the Wi-Fi)" : " only)"));
+            state.setTextColor(Style.GOOD);
+        }
+        for (final UnitSetup.Change ch : UnitSetup.Change.values()) {
+            if (!ch.applies(this)) continue;
+            LinearLayout row = new LinearLayout(this);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            row.setPadding(0, dp(6), 0, 0);
+            boolean on = st.isOn(ch);
+            TextView name = text((on ? "✓  " : "•  ") + ch.title, 14, on ? Style.FG : Style.MUTED);
+            row.addView(name, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+            final TextView b = chip(on ? "On" : "Off");
+            b.setSelected(on);
+            b.setEnabled(st.reachable);
+            b.setOnClickListener(new View.OnClickListener() {
+                @Override public void onClick(View v) {
+                    final boolean want = !b.isSelected();
+                    b.setEnabled(false);
+                    b.setText("Working…");
+                    new Thread(new Runnable() {
+                        @Override public void run() {
+                            String err = null;
+                            try {
+                                UnitSetup.set(ch, want);
+                            } catch (Exception e) {
+                                err = e.getMessage();
+                            }
+                            final String problem = err;
+                            b.post(new Runnable() {
+                                @Override public void run() {
+                                    if (problem != null) Toast.makeText(HubActivity.this, "Couldn't change: " + problem, Toast.LENGTH_LONG).show();
+                                    else if (ch.needsRestart) Toast.makeText(HubActivity.this, "Restart the unit to finish", Toast.LENGTH_LONG).show();
+                                    refreshUnitSetup(state, rows);
+                                }
+                            });
+                        }
+                    }, "unit-setup").start();
+                }
+            });
+            row.addView(b, new LinearLayout.LayoutParams(dp(110), dp(40)));
+            rows.addView(row);
+        }
+    }
+
+    /**
+     * Network ADB (owner, 8 Nov): off by default, so the unit's ADB is reachable only from the unit
+     * itself (AdbFirewall); on lets a computer on the same Wi-Fi connect, for working on the unit.
+     */
+    private View networkAdbCard() {
+        LinearLayout card = card("Network ADB (for a computer)",
+                "Lets a computer on the same Wi-Fi connect to the unit with adb, with full control and no password. "
+                        + "Leave off unless you're working on the unit");
+        final TextView b = chip(prefs.getBoolean(AdbFirewall.KEY, AdbFirewall.DEFAULT) ? "On" : "Off");
+        b.setSelected(prefs.getBoolean(AdbFirewall.KEY, AdbFirewall.DEFAULT));
+        b.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                boolean now = !b.isSelected();
+                prefs.edit().putBoolean(AdbFirewall.KEY, now).apply();
+                AdbFirewall.apply(prefs);
+                b.setSelected(now);
+                b.setText(now ? "On" : "Off");
+            }
+        });
+        card.addView(b, new LinearLayout.LayoutParams(dp(150), dp(BUTTON_DP)));
+        return card;
     }
 
     /** A card with one button that runs a fixed LocalShell command off the main thread. */

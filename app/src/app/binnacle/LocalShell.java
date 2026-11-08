@@ -14,12 +14,13 @@ import java.nio.charset.StandardCharsets;
  * Runs one of a FIXED set of shell commands on the unit itself, through the unit's own ADB daemon
  * on 127.0.0.1:5555 (network ADB is enabled and unauthenticated on this unit: persist.adb.tcp.port
  * = 5555, no ro.adb.secure). This is how the dash does what a normal app may not, such as closing
- * CarPlay completely: the same as `adb shell ...` from the Mac, as the shell user (not root).
+ * CarPlay completely: the same as `adb shell ...` from the Mac, as the shell user (root only
+ * through the pinned su 0 unit-setup commands).
  *
  * Only the commands in {@link Command} can run; callers can't pass their own text, and
- * tools/check_readonly.sh checks the command strings. None of them touches the car, the MCU, CAN or
- * root; the one setting they change (Bluetooth auto-connect, on the dash only) is owner-approved
- * under CLAUDE.md's dash-local write rule. Blocking: call off the main thread.
+ * tools/check_readonly.sh checks the command strings. None of them touches the car, the MCU or CAN.
+ * Each dash-local change is owner-approved under CLAUDE.md's dash-local write rule; the unit-setup
+ * ones (owner OK 8 Nov) are the only ones that use root (su 0). Blocking: call off the main thread.
  */
 final class LocalShell {
 
@@ -62,7 +63,47 @@ final class LocalShell {
         SCREENSHOT("mkdir -p /sdcard/Binnacle/screenshots && screencap -p /sdcard/Binnacle/screenshots/$(date +%Y%m%d-%H%M%S).png && echo BINNACLE_OK"),
         XCERTPLAY_LOCATION("appops set --uid com.shilapi.xcertplay COARSE_LOCATION allow && echo BINNACLE_OK"),
         /** The Wi-Fi icon only: scanning on and Wi-Fi itself on, so the saved home network is joined. */
-        WIFI_REJOIN("service call wifi 58 i32 1 && svc wifi enable && echo BINNACLE_OK");
+        WIFI_REJOIN("service call wifi 58 i32 1 && svc wifi enable && echo BINNACLE_OK"),
+        /**
+         * Unit setup (owner OK 8 Nov: a new user should get the owner's setup without adb, root
+         * allowed). The only root (su 0) commands the dash has; each is opt-in in setup or
+         * Advanced → Unit setup, with its undo beside it, and listed in docs/UNIT-CHANGES.md.
+         * None touches the car, the MCU or CAN. UnitSetup is the only caller.
+         */
+        /** What is in place now, one line of name=value pairs, then the stock dash's toast app-op. */
+        UNIT_STATUS("echo adb=$(getprop persist.adb.tcp.port) dumps=$(getprop persist.vendor.sys.core.enabled) bt=$(getprop persist.car.use_system_bt) absvol=$(getprop persist.bluetooth.disableabsvol) && appops get com.xbs.launcher1 TOAST_WINDOW && echo BINNACLE_OK"),
+        /** Network ADB on again after every restart (it is off by default on this firmware). */
+        ADB_KEEP_ON("su 0 setprop persist.adb.tcp.port 5555 && echo BINNACLE_OK"),
+        ADB_KEEP_OFF("su 0 setprop persist.adb.tcp.port '' && echo BINNACLE_OK"),
+        /**
+         * The unit's ADB reachable only from the unit itself (owner, 8 Nov: never from the Wi-Fi):
+         * drop port 5555 on every interface but loopback, IPv4 and IPv6, once (-C first). The rules
+         * go at a restart; AdbFirewall puts them back each time the dash starts.
+         */
+        ADB_LOCAL_ONLY("{ su 0 iptables -C INPUT -p tcp --dport 5555 ! -i lo -j DROP 2>/dev/null || su 0 iptables -I INPUT -p tcp --dport 5555 ! -i lo -j DROP; } && { su 0 ip6tables -C INPUT -p tcp --dport 5555 ! -i lo -j DROP 2>/dev/null || su 0 ip6tables -I INPUT -p tcp --dport 5555 ! -i lo -j DROP; } && echo BINNACLE_OK"),
+        /** Advanced → Network ADB on: the same rules removed, so a computer on the Wi-Fi can connect. */
+        ADB_NETWORK("while su 0 iptables -D INPUT -p tcp --dport 5555 ! -i lo -j DROP 2>/dev/null; do :; done; while su 0 ip6tables -D INPUT -p tcp --dport 5555 ! -i lo -j DROP 2>/dev/null; do :; done; echo BINNACLE_OK"),
+        /** The GPS daemon's crash dumps (up to ~470 MB each, filling the storage) off, and the folder cleared. */
+        GPS_DUMPS_OFF("su 0 setprop persist.vendor.sys.core.enabled 0 && su 0 sh -c 'rm -rf /data/corefile/*' && echo BINNACLE_OK"),
+        GPS_DUMPS_ON("su 0 setprop persist.vendor.sys.core.enabled 1 && echo BINNACLE_OK"),
+        /** The stock full-screen camera on Drive off (the dash shows the camera itself). */
+        STOCK_CAMERA_OFF("su 0 pm disable com.xbs.frontcam/com.xbs.frontcam.CameraActivity && echo BINNACLE_OK"),
+        STOCK_CAMERA_ON("su 0 pm enable com.xbs.frontcam/com.xbs.frontcam.CameraActivity && echo BINNACLE_OK"),
+        /** The stock dash, still running behind, may not show toasts over everything. Shell user. */
+        STOCK_TOASTS_OFF("appops set com.xbs.launcher1 TOAST_WINDOW ignore && echo BINNACLE_OK"),
+        STOCK_TOASTS_ON("appops set com.xbs.launcher1 TOAST_WINDOW allow && echo BINNACLE_OK"),
+        /** Android's own Bluetooth on beside the stock module, for wireless CarPlay. After a restart. */
+        ANDROID_BT_ON("su 0 setprop persist.car.use_system_bt 2 && echo BINNACLE_OK"),
+        ANDROID_BT_OFF("su 0 setprop persist.car.use_system_bt '' && echo BINNACLE_OK"),
+        /** Bluetooth absolute volume off: the car's stuck at 0 and audio was silent. After a restart. */
+        BT_VOLUME_FIX_ON("su 0 setprop persist.bluetooth.disableabsvol true && echo BINNACLE_OK"),
+        BT_VOLUME_FIX_OFF("su 0 setprop persist.bluetooth.disableabsvol '' && echo BINNACLE_OK"),
+        /**
+         * CarPlay calls: xcertplay may place calls, its calling account on and the default, and
+         * Android's own in-call screen off (it covered the dash). Undo: all four back.
+         */
+        CARPLAY_CALLS_ON("pm grant com.shilapi.xcertplay android.permission.CALL_PHONE && telecom set-phone-account-enabled com.shilapi.xcertplay/com.shilapi.xcertplay.telecom.CarPlayConnectionService carplay 0 && telecom set-user-selected-outgoing-phone-account com.shilapi.xcertplay/com.shilapi.xcertplay.telecom.CarPlayConnectionService carplay 0 && su 0 pm disable com.android.dialer/com.android.incallui.InCallServiceImpl && echo BINNACLE_OK"),
+        CARPLAY_CALLS_OFF("su 0 pm enable com.android.dialer/com.android.incallui.InCallServiceImpl && telecom set-phone-account-disabled com.shilapi.xcertplay/com.shilapi.xcertplay.telecom.CarPlayConnectionService carplay 0 && pm revoke com.shilapi.xcertplay android.permission.CALL_PHONE && echo BINNACLE_OK");
 
         final String shell;
         Command(String shell) { this.shell = shell; }
