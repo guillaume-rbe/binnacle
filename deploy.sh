@@ -220,8 +220,10 @@ cmd_release() {
         [ -f "$STAMP" ] && [ "$(cat "$STAMP")" = "$(git rev-parse HEAD)" ] ||
             die "build/release isn't from this commit (or was built with local changes); run without --no-build"
     else
-        build
+        build || die "the build failed"
     fi
+    # Whichever way, publish only a build release.sh finished and stamped with this commit.
+    [ -f "$STAMP" ] && [ "$(cat "$STAMP")" = "$(git rev-parse HEAD)" ] || die "build/release isn't a finished build of this commit"
 
     local logger f
     logger="$OUT/BinnacleLogger-$(logger_name).apk"
@@ -304,14 +306,15 @@ cmd_menu() {
         say "  q) Quit"
         read -rp "Choose: " choice || exit 0
         say
-        # Each runs in a subshell, so a stop goes back to the menu instead of quitting.
+        # Each runs as its own ./deploy.sh, so it keeps `set -e` (a failed step stops that step) and
+        # a stop goes back to the menu instead of quitting.
         case "$choice" in
-            1) ( cmd_pull ) || true ;;
-            2) ( cmd_check release ) || true ;;
-            3) ( cmd_build ) || true ;;
-            4) ( cmd_release ) || true ;;
-            5) ( cmd_release --draft ) || true ;;
-            6) ( cmd_release --no-build ) || true ;;
+            1) "$0" pull || true ;;
+            2) "$0" check release || true ;;
+            3) "$0" build || true ;;
+            4) "$0" release || true ;;
+            5) "$0" release --draft || true ;;
+            6) "$0" release --no-build || true ;;
             7)
                 last=$(git tag -l 'cars-v[0-9]*' --sort=-v:refname | head -1)
                 say "Last car-image release: ${last:-none}"
@@ -320,7 +323,7 @@ cmd_menu() {
                 say "Drag the pack files here (or type their paths), then press Return:"
                 # shellcheck disable=SC2162
                 read -a files
-                if [ -n "$tag" ] && [ "${#files[@]}" -gt 0 ]; then ( cmd_cars "$tag" "${files[@]}" ) || true
+                if [ -n "$tag" ] && [ "${#files[@]}" -gt 0 ]; then "$0" cars "$tag" "${files[@]}" || true
                 else say "nothing to publish"; fi ;;
             8) cmd_status ;;
             q|Q|"") exit 0 ;;
