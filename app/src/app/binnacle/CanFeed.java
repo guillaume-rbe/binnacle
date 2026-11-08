@@ -39,6 +39,11 @@ final class CanFeed implements Feed {
     /** Codes we decode (see docs/FIELD_MAP.md). */
     private static final int[] CODES = {2, 3, 4, 6, 9, 10, 11, 12, 15, 16, 18};
     private static final long RETRY_MS = 5000;
+    /**
+     * A bind can be accepted but never connect (the Unisoc BackgroundCleanHelper refuses binds at
+     * boot, as CarPlayLink found): after this long without a connection, bind again (audit #9).
+     */
+    private static final long CONNECT_WAIT_MS = 10000;
 
     private final Context ctx;
     private final Sink sink;
@@ -51,7 +56,7 @@ final class CanFeed implements Feed {
     private boolean bound;
     private volatile boolean running;
     // worker thread
-    private IBinder binder;
+    private volatile IBinder binder;   // set on the worker thread, read by connectCheck on main
     private boolean registered;
 
     CanFeed(Context ctx, Sink sink) {
@@ -143,6 +148,7 @@ final class CanFeed implements Feed {
     @Override public void stop() {
         running = false;
         main.removeCallbacks(retry);
+        main.removeCallbacks(connectCheck);
         worker.post(new Runnable() {
             @Override public void run() {
                 unregister();
@@ -164,8 +170,21 @@ final class CanFeed implements Feed {
         if (!bound) {
             status("CAN service not found");
             scheduleRetry();
+        } else {
+            main.removeCallbacks(connectCheck);
+            main.postDelayed(connectCheck, CONNECT_WAIT_MS);
         }
     }
+
+    /** Main thread: bound but still no connection after CONNECT_WAIT_MS, so unbind and bind again. */
+    private final Runnable connectCheck = new Runnable() {
+        @Override public void run() {
+            if (!running || !bound || binder != null) return;
+            status("CAN service not answering, reconnecting");
+            unbind();
+            bind();
+        }
+    };
 
     private void unbind() {
         if (!bound) return;
