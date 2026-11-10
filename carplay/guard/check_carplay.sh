@@ -64,17 +64,17 @@ done
 [ "$(grep -rhE --include='*.kt' --include='*.java' '(^|[^A-Za-z])bindService\s*\(' $SRC | wc -l | tr -d ' ')" = 2 ] || bad "exactly two bindService calls (its own VPN and media services)"
 # Each binding is pinned with the lines that build its intent, so the intent can't be retargeted
 # (a setClassName or setPackage on the constructor, or a mutation on a line in between).
-VPN_BIND=$(cat <<'BODY'
+IFS= read -r -d '' VPN_BIND <<'BODY' || true
             val intent = Intent(appContext, CarPlayVpnService::class.java)
             if (!appContext.bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)) {
 BODY
-)
-MEDIA_BIND=$(cat <<'BODY'
+VPN_BIND=${VPN_BIND%$'\n'}
+IFS= read -r -d '' MEDIA_BIND <<'BODY' || true
         val intent = Intent(application, CarPlayMediaSessionService::class.java)
             .setAction(MediaSessionService.SERVICE_INTERFACE)
         check(application.bindService(intent, connection, Context.BIND_AUTO_CREATE)) {
 BODY
-)
+MEDIA_BIND=${MEDIA_BIND%$'\n'}
 [ "$(grep -B1 -E '(^|[^A-Za-z])bindService\(' shared/src/main/java/com/shilapi/xcertplay/orchestration/CarPlayController.kt)" = "$VPN_BIND" ] \
     && [ "$(grep -B2 -E '(^|[^A-Za-z])bindService\(' shared/src/main/java/com/shilapi/xcertplay/media/CarPlayMediaSessionService.kt)" = "$MEDIA_BIND" ] \
     || bad "bindService may only target the app's own services (the intent lines changed: review, then update this guard)"
@@ -87,7 +87,7 @@ for f in $(grep -rlE --include='*.kt' --include='*.java' '\bI?Messenger\b|androi
 done
 # Every line that names a resolver is pinned (file and text), so a write through a scoped receiver
 # (resolver.let { it.delete(...) }) or a renamed variable needs a new line and fails here.
-RESOLVER_LINES=$(cat <<'BODY'
+IFS= read -r -d '' RESOLVER_LINES <<'BODY' || true
 common/src/main/java/com/shilapi/xcertplay/CarPlayHostActivity.kt:            contentResolver.query(
 common/src/main/java/com/shilapi/xcertplay/CarPlayHostActivity.kt:        contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
 common/src/main/java/com/shilapi/xcertplay/ImageCropActivity.kt:        contentResolver.openInputStream(uri)?.use {
@@ -97,8 +97,8 @@ shared/src/main/java/com/shilapi/xcertplay/orchestration/CarPlayController.kt:  
 shared/src/main/java/com/shilapi/xcertplay/orchestration/CarPlayController.kt:                val client = resolver.openInputStream(certificateUri)?.use { certificateInput ->
 shared/src/main/java/com/shilapi/xcertplay/orchestration/CarPlayController.kt:                    resolver.openInputStream(privateKeyUri)?.use { privateKeyInput ->
 BODY
-)
-[ "$(grep -rhiE --include='*.kt' --include='*.java' -H 'resolver|ContentProvider' $SRC | LC_ALL=C sort)" = "$(printf '%s\n' "$RESOLVER_LINES" | LC_ALL=C sort)" ] \
+RESOLVER_LINES=${RESOLVER_LINES%$'\n'}
+[ "$(grep -riE -H --include='*.kt' --include='*.java' 'resolver|ContentProvider' $SRC | LC_ALL=C sort)" = "$(printf '%s\n' "$RESOLVER_LINES" | LC_ALL=C sort)" ] \
     || bad "ContentResolver use changed (only the reviewed reads): review, then update this guard"
 grep -rnE --include='*.kt' --include='*.java' '(contentResolver|resolver)\s*\.\s*(insert|update|delete|bulkInsert|applyBatch|call|openOutputStream|openFileDescriptor|openAssetFileDescriptor|notifyChange)\s*\(' $SRC \
     && bad "ContentResolver writes (above)"
