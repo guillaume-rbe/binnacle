@@ -37,7 +37,7 @@ guards() {
     local by=""
     bash "$d/tools/check_readonly.sh" >/dev/null 2>&1 || by="source"
     mkdir -p "$d/classes"
-    if javac -nowarn -source 8 -target 8 -encoding UTF-8 -bootclasspath "$JAR" -d "$d/classes" $(find "$@" -name '*.java') >/dev/null 2>&1; then
+    if javac -J-XX:+UseSerialGC -J-XX:TieredStopAtLevel=1 -nowarn -source 8 -target 8 -encoding UTF-8 -bootclasspath "$JAR" -d "$d/classes" $(find "$@" -name '*.java') >/dev/null 2>&1; then
         bash "$d/tools/check_bytecode.sh" "$d/classes" >/dev/null 2>&1 || by="$by bytecode"
     else
         by="$by (did not compile)"

@@ -37,8 +37,11 @@ files=$(find "$CLASSES" -name '*.class' | sort)
 
 # One line per instruction: class <TAB> method <TAB> opcode <TAB> reference (Class.member, class
 # name or String constant; empty if none). Members of the class itself get its name prefixed.
+# javap with a JVM tuned for short runs (serial GC, quick JIT): the same output for about half the
+# CPU, which counts in test_guards.sh's ~80 runs of this script.
+jp() { javap -J-XX:+UseSerialGC -J-XX:TieredStopAtLevel=1 "$@"; }
 # The javap run must succeed: a class it can't read must not pass unchecked.
-dump=$(javap -c -p $files 2>/dev/null) || { bad "javap failed"; exit 1; }
+dump=$(jp -c -p $files 2>/dev/null) || { bad "javap failed"; exit 1; }
 TABLE=$(printf '%s\n' "$dump" | awk '
     /^[a-z ]*(class|interface|enum) [^ ]+/ {
         for (i = 1; i <= NF; i++) if ($i == "class" || $i == "interface" || $i == "enum") { cls = $(i+1); break }
@@ -99,7 +102,7 @@ only '\.transact$' 'app/binnacle/(CanFeed|CarPlayLink)'
 never '^android/os/(ServiceManager|HwBinder|HwParcel|SystemProperties)'
 never '^android/os/Messenger\.send$'               # we only ever receive on our Messenger
 never '\.(queryLocalInterface|linkToDeath)$'
-javap -p $files 2>/dev/null | grep -nE ' native |extends android\.os\.Binder|implements .*android\.os\.IInterface' \
+jp -p $files 2>/dev/null | grep -nE ' native |extends android\.os\.Binder|implements .*android\.os\.IInterface' \
     && bad "native methods or binder stubs (above)"
 
 # 2. CanFeed.call: refuses anything but transaction 1 and 2 before it touches the binder, passes
@@ -124,7 +127,7 @@ sites=$(printf '%s\n' "$TABLE" | awk -F'\t' '
 #     Any edit to the method changes this list and fails the build until it is reviewed here.
 LINK_CLASS=$(printf '%s\n' "$files" | grep '/app/binnacle/CarPlayLink\.class$')
 if [ -n "$LINK_CLASS" ]; then
-    link_dump=$(javap -c -p "$LINK_CLASS" 2>/dev/null) || bad "javap failed on CarPlayLink"
+    link_dump=$(jp -c -p "$LINK_CLASS" 2>/dev/null) || bad "javap failed on CarPlayLink"
     bc=$(printf '%s\n' "$link_dump" | awk '/ binderCall\(int, android.os.Parcel, android.os.Parcel, boolean\);/{on=1;next} on && /^  [a-z]/{exit} on')
     # ldc_w is ldc with a wider constant index (the class's constant pool passed 255 entries);
     # the constants themselves are pinned by the string list below
@@ -358,7 +361,7 @@ EOF
 #     LocalShell: run this script, check the listing it prints, then put its new hash here.
 SHELL_CLASSES=$(printf '%s\n' "$files" | grep -E '/app/binnacle/LocalShell(\$[^/]*)?\.class$')
 if [ -n "$SHELL_CLASSES" ]; then
-    shell_code=$(javap -c -p $SHELL_CLASSES 2>/dev/null | grep -v '^Compiled from' \
+    shell_code=$(jp -c -p $SHELL_CLASSES 2>/dev/null | grep -v '^Compiled from' \
         | sed -E 's/^ +[0-9]+: /  /; s/#[0-9]+(, *[0-9]+)?/#/; s/^( +)ldc(_w|2_w)? /\1ldc /; s/^( +(if[a-z_]*|goto(_w)?|jsr(_w)?)) +[0-9]+$/\1/; s/^ +[0-9-]+: [0-9]+$/  case/; s/ +$//; s/  +/ /g')
     # sha256sum (Linux, GNU coreutils) or shasum (macOS); no tool means no hash, which fails below.
     if command -v sha256sum >/dev/null 2>&1; then hash_cmd='sha256sum'
@@ -377,7 +380,7 @@ fi
 #     (check_readonly.sh also refuses a '$' in any class name written in the source.)
 nested=$(printf '%s\n' "$files" | grep '\$')
 if [ -n "$nested" ]; then
-    fake=$(javap $nested 2>/dev/null | awk '
+    fake=$(jp $nested 2>/dev/null | awk '
         /^Compiled from / { src = $3; gsub(/"/, "", src); next }
         /(class|interface|enum) / {
             for (i = 1; i <= NF; i++) if ($i == "class" || $i == "interface" || $i == "enum") { n = $(i+1); break }
@@ -393,7 +396,7 @@ fi
 #      every R class, from build.sh's javac or AGP's R.jar alike.
 R_CLASSES=$(printf '%s\n' "$files" | grep -E '/app/binnacle/R(\$[^/]*)?\.class$')
 if [ -n "$R_CLASSES" ]; then
-    r_members=$(javap -p $R_CLASSES 2>/dev/null | grep -vE '^(Compiled from |\}$)' \
+    r_members=$(jp -p $R_CLASSES 2>/dev/null | grep -vE '^(Compiled from |\}$)' \
         | grep -vE '^public (final )?class app\.binnacle\.R(\$[a-z_]+)? \{$' \
         | grep -vE '^  public static (final )?int(\[\])? [A-Za-z_][A-Za-z0-9_]*;$' \
         | grep -vE '^  (public |private )?app\.binnacle\.R(\$[a-z_]+)?\(\);$' \
