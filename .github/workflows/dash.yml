@@ -28,6 +28,30 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # The bypass tests take most of the run (~80 planted copies, each compiled). They can only
+      # change result when what the guards read changes (source, resources, manifests, the guards
+      # and build scripts), so a version bump alone, car images, tests or docs skip them. The source
+      # guards and unit tests always run.
+      - name: Do the bypass tests apply?
+        id: scope
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [ -z "$BASE" ] || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            echo "run=true" >> "$GITHUB_OUTPUT"; echo "no base to compare: running them"; exit 0
+          fi
+          changed=$(git diff --name-only "$BASE" HEAD)
+          # the dash's manifest counts unless only its version line changed (a release bump)
+          manifest=$(git diff -U0 "$BASE" HEAD -- app/AndroidManifest.xml | grep -E '^[+-]' | grep -vE '^(\+\+\+|---)' \
+              | grep -vE '^[+-] *android:versionCode="[0-9]+" android:versionName="[^"]*">$' || true)
+          if [ -n "$manifest" ] || printf '%s\n' "$changed" | grep -qE '^(app/(src|tools|res)/|app/build\.(sh|gradle\.kts)$|capture/(src|tools|res)/|capture/AndroidManifest\.xml$|capture/build\.(sh|gradle\.kts)$|buildSrc/|\.github/workflows/dash\.yml$)'; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"; echo "only files the guards don't check changed: skipping the bypass tests"
+          fi
 
       - name: Source guards
         run: app/tools/check_readonly.sh && capture/tools/check_readonly.sh
@@ -44,6 +68,7 @@ jobs:
             build-tools;36.0.0
 
       - name: Guard bypass tests
+        if: steps.scope.outputs.run == 'true'
         run: app/tools/test_guards.sh
 
       - name: Unit tests
