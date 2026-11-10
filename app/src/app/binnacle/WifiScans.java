@@ -102,7 +102,7 @@ final class WifiScans {
             note.show("Wi-Fi scanning is paused while CarPlay runs", false);
             return;
         }
-        note.show("Joining home Wi-Fi…", true);   // straight away: the commands below take a few seconds
+        note.show("Looking for home Wi-Fi…", true);   // straight away: the commands below take a few seconds
         wanted = true;
         SHELL.execute(new Runnable() {
             @Override public void run() {
@@ -124,7 +124,7 @@ final class WifiScans {
                         LocalShell.run(cmd);
                     }
                     ok = true;
-                    msg = "Joining home Wi-Fi…";
+                    msg = "Looking for home Wi-Fi…";
                 } catch (Exception e) {
                     msg = "Couldn't turn Wi-Fi on: " + e.getMessage();
                 }

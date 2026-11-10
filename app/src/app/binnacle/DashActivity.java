@@ -577,7 +577,7 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
                             @Override public void run() {
                                 String msg;
                                 boolean ok = false;
-                                try { LocalShell.Command cmd = LocalShell.Command.END_CARPLAY; LocalShell.run(cmd); msg = "Joining home Wi-Fi…"; ok = true; }
+                                try { LocalShell.Command cmd = LocalShell.Command.END_CARPLAY; LocalShell.run(cmd); msg = "Looking for home Wi-Fi…"; ok = true; }
                                 catch (Exception e) { msg = "Couldn't switch: " + e.getMessage(); }
                                 final String shown = msg;
                                 final boolean busy = ok;
