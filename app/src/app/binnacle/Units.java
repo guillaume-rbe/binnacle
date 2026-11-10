@@ -21,7 +21,7 @@ final class Units {
         return app.car.speedInMph();
     }
 
-    private static boolean carMiles(CarState car) {
+    static boolean carMiles(CarState car) {
         String u = car.distUnit == null ? "" : car.distUnit.toLowerCase(Locale.ROOT);
         return u.contains("m") && !u.contains("k");
     }

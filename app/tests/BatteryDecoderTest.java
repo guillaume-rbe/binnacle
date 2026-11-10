@@ -54,6 +54,29 @@ public class BatteryDecoderTest {
         m.see(63, 23_000);
         if (early || !m.moved) { System.out.println("FAIL 62 held, then 63 held 10 s should count as moving"); fails++; }
         else System.out.println("ok   62 held, then 63 held 10 s is moving");
+        // rangeFromCar(): jhmail is the car's range on some cars (issue #91), never on the owner's
+        // {jhmail, batterylevel, levelMoves, carMiles, expected}
+        int[][] ranges = {
+                {342, 79, 1, 0, 342}, {377, 86, 1, 0, 377}, {347, 81, 1, 0, 347},  // #91, km
+                {342, 79, 0, 0, -1},                                         // batterylevel not seen to move
+                {21663, 58, 1, 0, -1}, {15760, 100, 1, 0, -1},               // the owner's % codes
+                {215, 79, 1, 1, 215},                                         // a car set to miles
+                {500, 79, 1, 1, -1},                                          // 10 km per % in miles: not a range
+                {100, 79, 1, 0, -1}, {900, 79, 1, 0, -1},                     // not 2-8 km per %
+                {0, 50, 1, 0, -1}, {342, 0, 1, 0, -1}, {342, -1, 1, 0, -1}, {-1, 79, 1, 0, -1}};
+        for (int[] r : ranges) {
+            int got = BatteryDecoder.rangeFromCar(r[0], r[1], r[2] == 1, r[3] == 1);
+            boolean ok = got == r[4];
+            System.out.println((ok ? "ok   " : "FAIL ") + "rangeFromCar(" + r[0] + ", " + r[1] + ", " + (r[2] == 1) + ", " + (r[3] == 1) + ") -> " + got);
+            if (!ok) fails++;
+        }
+        // a table value under 1000 where batterylevel agrees with the table is not a range
+        for (int v = 1; v < 1000; v++) {
+            int p = BatteryDecoder.percent(v);
+            if (p > 0 && BatteryDecoder.rangeFromCar(v, p, true, false) != -1) {
+                System.out.println("FAIL % code " + v + " (" + p + " %) taken as a range"); fails++;
+            }
+        }
         if (fails > 0) { System.out.println(fails + " failed"); System.exit(1); }
         System.out.println("all battery checks passed");
     }

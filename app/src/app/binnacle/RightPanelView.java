@@ -121,7 +121,8 @@ public class RightPanelView extends View {
         // the car's % field (batterylevel) is stuck on some cars (77 % all day on the owner's); there
         // the % is decoded from the code 11 jhmail field (BatteryDecoder, table recorded at a
         // Supercharger). Once batterylevel has been seen to change it is used instead.
-        int soc = BatteryDecoder.pick(BatteryDecoder.percent(car.jhmail), car.soc, levelMoves());
+        boolean moves = levelMoves();
+        int soc = BatteryDecoder.pick(BatteryDecoder.percent(car.jhmail), car.soc, moves);
         // no live % yet (just woke, or a value off the table): show the last one, marked estimated
         boolean estimated = soc < 0;
         if (estimated) soc = lastSoc();
@@ -149,8 +150,12 @@ public class RightPanelView extends View {
             if (charging) drawChargeSweep(c, r);
         }
         String line = null;
+        int carRange;
         if (estimated && soc >= 0) {
             line = "Estimated";                           // quiet (the owner): no colour, no time
+        } else if (soc >= 0 && (carRange = BatteryDecoder.rangeFromCar(car.jhmail, car.soc, moves, Units.carMiles(car))) > 0) {
+            // the car's own range where jhmail carries it (issue #91), in place of the estimate
+            line = Units.odometer(app, carRange) + " " + Units.distLabel(app);
         } else if (soc >= 0) {
             int full = fullRangeKm();
             if (full > 0) line = "≈ " + Math.round(Units.distance(app, full * soc / 100.0)) + " " + Units.distLabel(app) + " est.";
