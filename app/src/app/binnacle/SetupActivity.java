@@ -358,12 +358,13 @@ public final class SetupActivity extends Activity {
         final ArrayList<UnitSetup.Change> todo = new ArrayList<>();
         StringBuilder done = new StringBuilder();
         for (UnitSetup.Change ch : UnitSetup.Change.values()) {
-            if (!ch.recommended(this)) continue;
+            if (!ch.recommended(this, st)) continue;
             if (st.isOn(ch)) more.addView(tick(ch.title));
             else todo.add(ch);
         }
         if (todo.isEmpty()) {
             status.setText("The unit is set up.");
+            if (!st.root) more.addView(text("Some changes need root, which this unit doesn't have.", 15, Style.MUTED));
             more.addView(buttons(new String[]{"Next"}, new Runnable[]{new Runnable() { @Override public void run() { next(); } }}));
             focusLast();
             return;
@@ -374,6 +375,7 @@ public final class SetupActivity extends Activity {
             t.setPadding(0, dp(2), 0, 0);
             more.addView(t);
         }
+        if (!st.root) more.addView(text("Some changes need root, which this unit doesn't have.", 15, Style.MUTED));
         more.addView(buttons(new String[]{"Not now", "Set up the unit"}, new Runnable[]{
                 new Runnable() { @Override public void run() { next(); } },
                 new Runnable() { @Override public void run() { applyUnit(todo, status, more); } }}));

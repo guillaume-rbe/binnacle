@@ -50,19 +50,19 @@ final class UnitSetup {
 
     enum Change {
         ADB_KEEP("Keep the unit unlocked after a restart",
-                LocalShell.Command.ADB_KEEP_ON, LocalShell.Command.ADB_KEEP_OFF, false, true),
+                LocalShell.Command.ADB_KEEP_ON, LocalShell.Command.ADB_KEEP_OFF, false, true, true),
         STOCK_TOASTS("Block the stock dash's pop-ups",
-                LocalShell.Command.STOCK_TOASTS_OFF, LocalShell.Command.STOCK_TOASTS_ON, false, true),
+                LocalShell.Command.STOCK_TOASTS_OFF, LocalShell.Command.STOCK_TOASTS_ON, false, true, false),
         STOCK_CAMERA("Turn off the stock full-screen camera",
-                LocalShell.Command.STOCK_CAMERA_OFF, LocalShell.Command.STOCK_CAMERA_ON, false, false),
+                LocalShell.Command.STOCK_CAMERA_OFF, LocalShell.Command.STOCK_CAMERA_ON, false, false, true),
         GPS_DUMPS("Stop the GPS crash dumps",
-                LocalShell.Command.GPS_DUMPS_OFF, LocalShell.Command.GPS_DUMPS_ON, false, true),
+                LocalShell.Command.GPS_DUMPS_OFF, LocalShell.Command.GPS_DUMPS_ON, false, true, true),
         ANDROID_BT("Android Bluetooth for wireless CarPlay",
-                LocalShell.Command.ANDROID_BT_ON, LocalShell.Command.ANDROID_BT_OFF, true, false),
+                LocalShell.Command.ANDROID_BT_ON, LocalShell.Command.ANDROID_BT_OFF, true, false, true),
         BT_VOLUME_FIX("Car Bluetooth volume fix",
-                LocalShell.Command.BT_VOLUME_FIX_ON, LocalShell.Command.BT_VOLUME_FIX_OFF, true, true),
+                LocalShell.Command.BT_VOLUME_FIX_ON, LocalShell.Command.BT_VOLUME_FIX_OFF, true, true, true),
         CARPLAY_CALLS("CarPlay calls",
-                LocalShell.Command.CARPLAY_CALLS_ON, LocalShell.Command.CARPLAY_CALLS_OFF, false, false);
+                LocalShell.Command.CARPLAY_CALLS_ON, LocalShell.Command.CARPLAY_CALLS_OFF, false, false, true);
 
         final String title;
         final LocalShell.Command on, off;
@@ -73,13 +73,22 @@ final class UnitSetup {
          * behaves (Bluetooth, the camera, calls) and are recommended only on tested software.
          */
         final boolean anySoftware;
+        /** Its commands use su 0, so it can only work on a unit with root (issue #90: some have none). */
+        final boolean needsRoot;
 
-        Change(String title, LocalShell.Command on, LocalShell.Command off, boolean needsRestart, boolean anySoftware) {
+        Change(String title, LocalShell.Command on, LocalShell.Command off, boolean needsRestart, boolean anySoftware,
+               boolean needsRoot) {
             this.title = title;
             this.on = on;
             this.off = off;
             this.needsRestart = needsRestart;
             this.anySoftware = anySoftware;
+            this.needsRoot = needsRoot;
+        }
+
+        /** Can't be changed on this unit: it needs root and the unit (which answered) has none. */
+        boolean blocked(Status st) {
+            return needsRoot && st.reachable && !st.root;
         }
 
         /** Not yet tried on this unit's software: offered as a switch, not in setup's one button. */
@@ -97,9 +106,12 @@ final class UnitSetup {
             }
         }
 
-        /** Part of setup's one button: the camera one only when the dash shows the camera itself. */
-        boolean recommended(Context c) {
-            if (!applies(c) || untested()) return false;
+        /**
+         * Part of setup's one button: not on a unit without root (it would only fail), and the
+         * camera one only when the dash shows the camera itself.
+         */
+        boolean recommended(Context c, Status st) {
+            if (!applies(c) || untested() || blocked(st)) return false;
             // only when Binnacle shows the camera instead: dash camera on, Binnacle is Home (Codex),
             // and the dash's camera has shown a picture on this unit at least once
             if (this == STOCK_CAMERA) return DashApp.get(c).prefs().getBoolean("dash_camera", false) && Launch.isDefaultHome(c)
@@ -116,6 +128,8 @@ final class UnitSetup {
         String problem;
         /** ADB answers but the rule keeping it off the Wi-Fi didn't go in (AdbFirewall.failed after this read's attempt). */
         boolean openToWifi;
+        /** The unit's shell finds su, so the root changes can run (false on some units, issue #90). */
+        boolean root;
         final EnumMap<Change, Boolean> on = new EnumMap<>(Change.class);
 
         boolean isOn(Change ch) { return Boolean.TRUE.equals(on.get(ch)); }
@@ -147,6 +161,7 @@ final class UnitSetup {
             s.on.put(Change.ANDROID_BT, out.contains("bt=2"));
             s.on.put(Change.BT_VOLUME_FIX, out.contains("absvol=true"));
             s.on.put(Change.STOCK_TOASTS, out.contains("TOAST_WINDOW: ignore"));
+            s.root = out.contains(" su=/");
         } catch (ConnectException e) {
             s.reachable = false;
         } catch (Exception e) {

@@ -317,7 +317,7 @@ String:appops set --uid com.shilapi.xcertplay COARSE_LOCATION allow && echo BINN
 String:appops set com.xbs.launcher1 TOAST_WINDOW allow && echo BINNACLE_OK
 String:appops set com.xbs.launcher1 TOAST_WINDOW ignore && echo BINNACLE_OK
 String:bad ADB message
-String:echo adb=$(getprop persist.adb.tcp.port) dumps=$(getprop persist.vendor.sys.core.enabled) bt=$(getprop persist.car.use_system_bt) absvol=$(getprop persist.bluetooth.disableabsvol) && appops get com.xbs.launcher1 TOAST_WINDOW; echo BINNACLE_OK
+String:echo adb=$(getprop persist.adb.tcp.port) dumps=$(getprop persist.vendor.sys.core.enabled) bt=$(getprop persist.car.use_system_bt) absvol=$(getprop persist.bluetooth.disableabsvol) su=$(command -v su) && appops get com.xbs.launcher1 TOAST_WINDOW; echo BINNACLE_OK
 String:host::\u0000
 String:mkdir -p /sdcard/Binnacle/screenshots && screencap -p /sdcard/Binnacle/screenshots/$(date +%Y%m%d-%H%M%S).png && echo BINNACLE_OK
 String:no reply from the shell
@@ -362,7 +362,7 @@ if [ -n "$SHELL_CLASSES" ]; then
     elif command -v shasum >/dev/null 2>&1; then hash_cmd='shasum -a 256'
     else bad "no sha256sum or shasum found: cannot check LocalShell's code"; hash_cmd='false'; fi
     sum=$(printf '%s\n' "$shell_code" | $hash_cmd | cut -c1-64)
-    [ "$sum" = 'ff65d87975a781ac6015029c8eb3a248d22b64eaad30085d87ccb04456050518' ] || { printf '%s\n' "$shell_code" >&2; bad "LocalShell's code changed (hash $sum): review the listing above, then update this guard"; }
+    [ "$sum" = '65b50d08ccef6479766530a6349e53e84d0341f477fa8fc0871cb0194ca4e19f' ] || { printf '%s\n' "$shell_code" >&2; bad "LocalShell's code changed (hash $sum): review the listing above, then update this guard"; }
     # and, readably: send() only from run(), four times (connect, open the one shell stream, ack, close)
     [ "$(refs '^app/binnacle/LocalShell\.send$' | awk -F'\t' '$1 == "app/binnacle/LocalShell" && $2 == "run"' | wc -l | tr -d ' ')" = 4 ] \
         && [ "$(refs '^app/binnacle/LocalShell\.send$' | wc -l | tr -d ' ')" = 4 ] || bad "LocalShell.run must send exactly its four ADB messages"
