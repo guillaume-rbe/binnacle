@@ -43,6 +43,7 @@ public class RightPanelView extends View {
     private final Paint line = Style.fill(Style.LINE);
     private final Paint tile = Style.fill(Style.PANEL);
     private final Paint tileEdge = Style.stroke(Style.LINE, 1.5f);
+    private final Paint noteFill = Style.fill(Style.PANEL);
     private final Paint lbl = Style.label(Style.T_LABEL);
     private final Paint big = Style.text(Style.DISPLAY, Style.T_BATTERY, Style.FG, Paint.Align.RIGHT);
     private final Paint mid = Style.text(Style.DISPLAY, Style.T_TEMP, Style.FG, Paint.Align.LEFT);
@@ -555,14 +556,30 @@ public class RightPanelView extends View {
      */
     private static final long NOTE_MS = 4000, NOTE_BUSY_MS = 20_000;
     private String netNote;
-    private boolean netBusy, netPressed;
+    private boolean netBusy, netPressed, netAsking;
     private final Runnable clearNetNote = new Runnable() {
         @Override public void run() {
             if (netBusy) { netNote("Home Wi-Fi not in range", false); return; }
             netNote = null;
+            netAsking = false;
             invalidate();
         }
     };
+
+    /**
+     * A question for a second tap, e.g. "Join home Wi-Fi?" (owner, 10 Nov: one stray tap started a
+     * join with no way back). It goes after NOTE_MS, and the tap is forgotten with it.
+     */
+    void netAsk(String text) {
+        netNote(text, false);
+        netAsking = true;
+    }
+
+    /** The question is showing: this tap answers it. */
+    boolean netAsking() { return netAsking && netNote != null; }
+
+    /** A join is under way: this tap cancels it. */
+    boolean netBusy() { return netBusy && netNote != null; }
 
     void netNote(String text, boolean busy) {
         // the join can finish before the shell command reports back: already on Wi-Fi, so say so
@@ -570,6 +587,7 @@ public class RightPanelView extends View {
         if (busy && net == NET_WIFI) { text = "On home Wi-Fi"; busy = false; }
         netNote = text;
         netBusy = busy;
+        netAsking = false;
         removeCallbacks(clearNetNote);
         postDelayed(clearNetNote, busy ? NOTE_BUSY_MS : NOTE_MS);
         invalidate();
@@ -579,8 +597,10 @@ public class RightPanelView extends View {
         if (netNote == null) return;
         // over the outside temperature for a few seconds: the row has no other free space
         r.set(X0, 64, netIconX - 24, 108);
-        c.drawRoundRect(r, 12, 12, tile);
-        c.drawRoundRect(r, 12, 12, netBusy ? focusEdge : tileEdge);
+        // no outline (owner, 10 Nov: the blue border was too much): the tile, a touch of the
+        // accent while it asks or looks
+        noteFill.setColor(netBusy || netAsking ? CentreView.lerpColor(Style.PANEL, Style.ACCENT, 0.14f) : Style.PANEL);
+        c.drawRoundRect(r, 12, 12, noteFill);
         Style.size(lbl, Style.T_LABEL);
         lbl.setTextAlign(Paint.Align.LEFT);
         lbl.setColor(netBusy ? Style.ACCENT : Style.FG);
@@ -640,7 +660,11 @@ public class RightPanelView extends View {
 
     private boolean hitNetIcon(float x, float y) {
         float s = getHeight() / Style.DESIGN_H;
-        return netIconX > 0 && Math.abs(x / s - netIconX) < 26 && Math.abs(y / s - 86) < 26;
+        if (netIconX <= 0) return false;
+        float dx = x / s, dy = y / s;
+        if (Math.abs(dx - netIconX) < 26 && Math.abs(dy - 86) < 26) return true;
+        // the note beside it answers too, while it asks or looks: that's where the eye is
+        return (netAsking() || netBusy()) && dx >= X0 && dx <= netIconX - 24 && dy >= 64 && dy <= 108;
     }
 
     private void dockRect(int i, RectF out) {

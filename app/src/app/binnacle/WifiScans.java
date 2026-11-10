@@ -93,6 +93,17 @@ final class WifiScans {
         void show(String text, boolean busy);
     }
 
+    /** The latest rejoin; a cancel moves it on, so a queued one is skipped and a running one stays quiet. */
+    private static volatile int rejoinAttempt;
+
+    /**
+     * A second tap while it looks (owner, 10 Nov): stops the rejoin if its commands haven't run yet.
+     * Once they have, Wi-Fi is already back on and Android carries on by itself; only the note goes.
+     */
+    static void cancelRejoin() {
+        rejoinAttempt++;
+    }
+
     static void rejoin(Context context, SharedPreferences prefs, final boolean carplayRunning, final Note note) {
         if (!supported()) {
             note.show("Join Wi-Fi in Android's settings", false);
@@ -104,8 +115,15 @@ final class WifiScans {
         }
         note.show("Looking for home Wi-Fi…", true);   // straight away: the commands below take a few seconds
         wanted = true;
+        final int attempt = ++rejoinAttempt;
         SHELL.execute(new Runnable() {
             @Override public void run() {
+                if (attempt != rejoinAttempt) {   // cancelled before it started: nothing was run
+                    MAIN.post(new Runnable() {
+                        @Override public void run() { wanted = scansOn; }
+                    });
+                    return;
+                }
                 String msg;
                 boolean ok = false;
                 try {
@@ -133,6 +151,7 @@ final class WifiScans {
                 MAIN.post(new Runnable() {
                     @Override public void run() {
                         if (done) scansOn = true; else wanted = scansOn;
+                        if (attempt != rejoinAttempt) return;   // cancelled meanwhile: say nothing more
                         note.show(shown, done);   // done: stays until the dash is on Wi-Fi
                     }
                 });

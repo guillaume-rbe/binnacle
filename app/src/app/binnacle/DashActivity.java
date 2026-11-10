@@ -544,6 +544,12 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
     };
 
     @Override public void onNetIcon() {
+        // a tap while it looks for home Wi-Fi stops it (owner, 10 Nov: no way back from a stray tap)
+        if (right.netBusy()) {
+            WifiScans.cancelRejoin();
+            right.netNote("Stopped", false);
+            return;
+        }
         final boolean hotspot = apOn;
         if (!hotspot && Launch.hasXcertplay(this)) {
             // xcertplay keeps the dash on home Wi-Fi; off it (scanning paused, out of range), the
@@ -564,6 +570,8 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
                         });
                 return;
             }
+            // one tap asks, a second within a few seconds joins (owner, 10 Nov)
+            if (!right.netAsking()) { right.netAsk("Join home Wi-Fi?"); return; }
             WifiScans.rejoin(this, app.prefs(), running, netNote);
             return;
         }
