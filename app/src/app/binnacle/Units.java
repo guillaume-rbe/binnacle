@@ -21,7 +21,7 @@ final class Units {
         return app.car.speedInMph();
     }
 
-    private static boolean carMiles(CarState car) {
+    static boolean carMiles(CarState car) {
         String u = car.distUnit == null ? "" : car.distUnit.toLowerCase(Locale.ROOT);
         return u.contains("m") && !u.contains("k");
     }
@@ -44,6 +44,11 @@ final class Units {
 
     /** The odometer (in the car's distance unit) in the display unit. */
     static long odometer(DashApp app, long carValue) {
+        return carDistance(app, carValue);
+    }
+
+    /** A distance the car sends in its own distance unit (odometer, range), in the display unit. */
+    static long carDistance(DashApp app, long carValue) {
         if (carValue < 0) return carValue;
         boolean miles = imperial(app), carMi = carMiles(app.car);
         if (miles == carMi) return carValue;

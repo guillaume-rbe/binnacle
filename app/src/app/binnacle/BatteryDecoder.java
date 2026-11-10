@@ -41,6 +41,32 @@ final class BatteryDecoder {
     }
 
     /**
+     * The car's own range, from jhmail, in the car's distance unit; -1 if jhmail isn't a range on
+     * this car. On the owner's car jhmail is the 16-bit value decoded by {@link #percent}, but on a
+     * 2020 Model 3 with a 2024-01 ROM and MCU0 mdl3-Ac1.07 it is the range the car shows (342 at
+     * 79 %, 377 km at 86 %, issue #91). It is taken as a range only where batterylevel works
+     * (levelMoves) and the two agree: under 1000 and between 2 and 8 km per % (any Model 3 or Y).
+     * That also rules out the % codes: the few under 1000 (0, 20 and 32 %) are over 25 per %.
+     * Taken to be in the car's distance unit, like the odometer (only seen in km so far).
+     */
+    static int rangeFromCar(int jhmail, int batterylevel, boolean levelMoves, boolean carMiles) {
+        if (!levelMoves || batterylevel < 1 || batterylevel > 100) return -1;
+        if (jhmail <= 0 || jhmail >= 1000) return -1;
+        double kmPerPercent = (carMiles ? jhmail * 1.609344 : jhmail) / batterylevel;
+        if (kmPerPercent < 2 || kmPerPercent > 8) return -1;
+        return jhmail;
+    }
+
+    /**
+     * Once jhmail has been a range ({@link #rangeFromCar}), it stays one: shown as is while it is a
+     * plausible number (0 near empty, or a cold battery under 2 km per %), so the line doesn't
+     * flip to the estimate and back. -1 if it isn't.
+     */
+    static int rangeKept(int jhmail, boolean levelMoves) {
+        return levelMoves && jhmail >= 0 && jhmail < 1000 ? jhmail : -1;
+    }
+
+    /**
      * Notices batterylevel changing. A value counts only once it has held for HOLD_MS, so an odd
      * reading at wake-up (before or after the real one) doesn't count: the first value that holds
      * is the baseline, and a second, different value that holds means the field moves. The caller

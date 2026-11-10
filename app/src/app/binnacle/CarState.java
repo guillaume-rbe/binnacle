@@ -53,7 +53,7 @@ public final class CarState {
     public long odometer;
     public String distUnit;
     public float outsideTemp;             // °C
-    public int jhmail;                    // NOT range; kept only for the raw view
+    public int jhmail;                    // battery % code on some cars, range on others (BatteryDecoder)
 
     // code 9: lights / car info
     public boolean turnLeft, turnRight, lowBeam, highBeam, position, autopilot, charging;

@@ -121,7 +121,8 @@ public class RightPanelView extends View {
         // the car's % field (batterylevel) is stuck on some cars (77 % all day on the owner's); there
         // the % is decoded from the code 11 jhmail field (BatteryDecoder, table recorded at a
         // Supercharger). Once batterylevel has been seen to change it is used instead.
-        int soc = BatteryDecoder.pick(BatteryDecoder.percent(car.jhmail), car.soc, levelMoves());
+        boolean moves = levelMoves();
+        int soc = BatteryDecoder.pick(BatteryDecoder.percent(car.jhmail), car.soc, moves);
         // no live % yet (just woke, or a value off the table): show the last one, marked estimated
         boolean estimated = soc < 0;
         if (estimated) soc = lastSoc();
@@ -149,8 +150,12 @@ public class RightPanelView extends View {
             if (charging) drawChargeSweep(c, r);
         }
         String line = null;
+        int carRange;
         if (estimated && soc >= 0) {
             line = "Estimated";                           // quiet (the owner): no colour, no time
+        } else if (soc >= 0 && (carRange = carRange(moves)) >= 0) {
+            // the car's own range where jhmail carries it (issue #91), in place of the estimate
+            line = Units.carDistance(app, carRange) + " " + Units.distLabel(app);
         } else if (soc >= 0) {
             int full = fullRangeKm();
             if (full > 0) line = "≈ " + Math.round(Units.distance(app, full * soc / 100.0)) + " " + Units.distLabel(app) + " est.";
@@ -239,6 +244,15 @@ public class RightPanelView extends View {
     }
 
     private int fullRangeKm() { return app.fullRangeKm(); }
+
+    /** jhmail is the car's range on this car (seen once since the dash started): kept from then on. */
+    private boolean jhmailIsRange;
+
+    /** The car's own range (car's unit), or -1 where jhmail isn't one (BatteryDecoder.rangeFromCar). */
+    private int carRange(boolean moves) {
+        if (!jhmailIsRange) jhmailIsRange = BatteryDecoder.rangeFromCar(car.jhmail, car.soc, moves, Units.carMiles(car)) > 0;
+        return jhmailIsRange ? BatteryDecoder.rangeKept(car.jhmail, moves) : -1;
+    }
 
     private void drawTyres(Canvas c) {
         float cx = (X0 + X1) / 2f, cy = (CARD_TOP + CARD_BOTTOM) / 2f - 6;   // no title (the owner): the unit goes under each value
