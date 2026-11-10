@@ -762,7 +762,7 @@ public class HubActivity extends Activity {
                                         // No answer at all means ADB isn't on, so nothing is kept on either.
                                         try { UnitSetup.set(UnitSetup.Change.ADB_KEEP, false); }
                                         catch (java.net.ConnectException e) { /* ADB off already */ }
-                                        catch (Exception e) { adbOn = true; }
+                                        catch (Exception e) { adbOn = UnitSetup.adbKept(); }   // no root: usually never kept
                                         final boolean cameraOff = failed, adbStaysOn = adbOn;
                                         runOnUiThread(new Runnable() {
                                             @Override public void run() {
@@ -1150,8 +1150,14 @@ public class HubActivity extends Activity {
         if (!st.reachable) {
             state.setText(st.problem != null ? "Couldn't read: " + st.problem : "Locked. Run setup to unlock");
             state.setTextColor(Style.WARN);
+        } else if (st.openToWifi && !st.root) {
+            // the firewall needs root; without it the unlock ends at the next restart unless it is kept (issue #90)
+            state.setText(st.isOn(UnitSetup.Change.ADB_KEEP)
+                    ? "Open to the Wi-Fi, also after a restart: this unit has no root"
+                    : "Unlocked, but open to the Wi-Fi until a restart: this unit has no root");
+            state.setTextColor(Style.WARN);
         } else if (st.openToWifi) {
-            // the unit answers, but the rule keeping ADB off the Wi-Fi didn't go in (no root?)
+            // the unit answers, but the rule keeping ADB off the Wi-Fi didn't go in
             state.setText("Unlocked, but open to the Wi-Fi. Turn off \"Keep the unit unlocked\" and restart");
             state.setTextColor(Style.WARN);
         } else if (st.isOn(UnitSetup.Change.ADB_KEEP) && !Launch.isDefaultHome(this)) {
@@ -1171,11 +1177,12 @@ public class HubActivity extends Activity {
             LinearLayout label = new LinearLayout(this);
             label.setOrientation(LinearLayout.VERTICAL);
             label.addView(text((on ? "✓  " : "•  ") + ch.title, 14, on ? Style.FG : Style.MUTED));
-            if (ch.untested()) label.addView(text("    Not tested on this unit's software yet", 12, Style.MUTED));
+            if (ch.blocked(st)) label.addView(text("    Needs root, which this unit doesn't have", 12, Style.MUTED));
+            else if (ch.untested()) label.addView(text("    Not tested on this unit's software yet", 12, Style.MUTED));
             row.addView(label, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
             final TextView b = chip(on ? "On" : "Off");
             b.setSelected(on);
-            b.setEnabled(st.reachable);
+            b.setEnabled(st.reachable && !ch.blocked(st));
             b.setOnClickListener(new View.OnClickListener() {
                 @Override public void onClick(View v) {
                     final boolean want = !b.isSelected();
