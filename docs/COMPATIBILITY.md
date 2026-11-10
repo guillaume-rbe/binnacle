@@ -46,7 +46,7 @@ If yours isn't listed yet, you can still try it. Installing Binnacle doesn't rem
 
 ## Known differences between dashes
 
-- **Battery %.** On some cars the original dash's battery figure is stuck (at 77 % on the owner's car), so Binnacle works the % out from another figure instead. On other cars the battery figure works properly. From the release after 0.9.1, Binnacle notices when the figure changes and then uses it. On those cars, the first drive or charge after installing is what shows it the figure works. Some of those cars also send the range the car shows, and Binnacle then shows it under the battery % instead of its own estimate (marked "est.").
+- **Battery %.** On some cars the original dash's battery figure is stuck (at 77 % on the owner's car), so Binnacle works the % out from another figure instead. On other cars the battery figure works properly. From the release after 0.9.1, Binnacle notices when the figure changes and then uses it. On those cars, the first drive or charge after installing is what shows it the figure works. Some of those cars also send the range the car shows. Binnacle then shows that range under the battery %, in place of its own estimate (the figure marked "est.").
 - **Power and regen.** See the \* note under the table.
 - **Newer dash software (2024).** Binnacle itself runs on it. The unit changes in [UNIT-CHANGES.md](UNIT-CHANGES.md) were tested on the February 2023 software. On other software, Binnacle's setup only makes the plain Android ones, and leaves Android Bluetooth, the stock camera and CarPlay calls as switches marked "not tested yet". You don't need any of them for Binnacle to work.
 

@@ -302,7 +302,7 @@ public class HubActivity extends Activity {
                             new String[]{"auto", "metric", "imperial"}, new String[]{"Auto", "Metric", "Imperial"}),
                     choiceCard("Tyre pressure", null, "tyre_unit", "psi",
                             new String[]{"psi", "bar"}, new String[]{"psi", "bar"}),
-                    stepperCard("Range at 100%", "For the km estimate under the battery %", "full_range_km", 410, 150, 700, 5, "km"),
+                    stepperCard("Range at 100%", "For the estimate under the battery %, where the car sends no range", "full_range_km", 410, 150, 700, 5, "km"),
                     pairCard("Autopilot indication", "autopilot_rainbow", "Normal", "Rainbow road"))); break;
             // its own page (owner, 8 Nov: Advanced was getting crowded), so a support screenshot of
             // this one tab shows everything setup changed and which unit and software it is

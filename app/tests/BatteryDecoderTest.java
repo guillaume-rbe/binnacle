@@ -70,12 +70,22 @@ public class BatteryDecoderTest {
             System.out.println((ok ? "ok   " : "FAIL ") + "rangeFromCar(" + r[0] + ", " + r[1] + ", " + (r[2] == 1) + ", " + (r[3] == 1) + ") -> " + got);
             if (!ok) fails++;
         }
-        // a table value under 1000 where batterylevel agrees with the table is not a range
+        // every % code under 1000, with batterylevel anywhere near its %, is not a range
         for (int v = 1; v < 1000; v++) {
             int p = BatteryDecoder.percent(v);
-            if (p > 0 && BatteryDecoder.rangeFromCar(v, p, true, false) != -1) {
-                System.out.println("FAIL % code " + v + " (" + p + " %) taken as a range"); fails++;
+            for (int d = -3; p > 0 && d <= 3; d++) {
+                if (BatteryDecoder.rangeFromCar(v, p + d, true, false) != -1) {
+                    System.out.println("FAIL % code " + v + " (" + p + " %) taken as a range"); fails++;
+                }
             }
+        }
+        // once a range, kept near empty (0 km) and in the cold; never without batterylevel working
+        int[][] kept = {{0, 1, 0}, {5, 1, 5}, {120, 1, 120}, {1000, 1, -1}, {-1, 1, -1}, {120, 0, -1}};
+        for (int[] k : kept) {
+            int got = BatteryDecoder.rangeKept(k[0], k[1] == 1);
+            boolean ok = got == k[2];
+            System.out.println((ok ? "ok   " : "FAIL ") + "rangeKept(" + k[0] + ", " + (k[1] == 1) + ") -> " + got);
+            if (!ok) fails++;
         }
         if (fails > 0) { System.out.println(fails + " failed"); System.exit(1); }
         System.out.println("all battery checks passed");

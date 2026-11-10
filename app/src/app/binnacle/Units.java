@@ -44,6 +44,11 @@ final class Units {
 
     /** The odometer (in the car's distance unit) in the display unit. */
     static long odometer(DashApp app, long carValue) {
+        return carDistance(app, carValue);
+    }
+
+    /** A distance the car sends in its own distance unit (odometer, range), in the display unit. */
+    static long carDistance(DashApp app, long carValue) {
         if (carValue < 0) return carValue;
         boolean miles = imperial(app), carMi = carMiles(app.car);
         if (miles == carMi) return carValue;
