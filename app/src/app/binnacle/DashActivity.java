@@ -544,10 +544,11 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
     };
 
     @Override public void onNetIcon() {
-        // a tap while it looks for home Wi-Fi stops it (owner, 10 Nov: no way back from a stray tap)
+        // a tap while it looks for home Wi-Fi dismisses it (owner, 10 Nov: no way back from a stray
+        // tap): a rejoin not yet run is skipped; Wi-Fi already restarted just carries on quietly
         if (right.netBusy()) {
             WifiScans.cancelRejoin();
-            right.netNote("Stopped", false);
+            right.netClear();
             return;
         }
         final boolean hotspot = apOn;

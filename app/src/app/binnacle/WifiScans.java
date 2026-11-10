@@ -97,8 +97,9 @@ final class WifiScans {
     private static volatile int rejoinAttempt;
 
     /**
-     * A second tap while it looks (owner, 10 Nov): stops the rejoin if its commands haven't run yet.
-     * Once they have, Wi-Fi is already back on and Android carries on by itself; only the note goes.
+     * A tap while it looks (owner, 10 Nov): skips the rejoin if its commands haven't run yet. Once
+     * they have, Wi-Fi is already back on and Android carries on by itself, so the dash only stops
+     * reporting on it (the Wi-Fi icon still shows when home Wi-Fi joins).
      */
     static void cancelRejoin() {
         rejoinAttempt++;

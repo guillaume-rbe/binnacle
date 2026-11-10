@@ -578,6 +578,14 @@ public class RightPanelView extends View {
     /** The question is showing: this tap answers it. */
     boolean netAsking() { return netAsking && netNote != null; }
 
+    /** Takes the note away now. */
+    void netClear() {
+        removeCallbacks(clearNetNote);
+        netNote = null;
+        netBusy = netAsking = false;
+        invalidate();
+    }
+
     /** A join is under way: this tap cancels it. */
     boolean netBusy() { return netBusy && netNote != null; }
 
