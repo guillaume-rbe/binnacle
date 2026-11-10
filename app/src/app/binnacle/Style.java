@@ -48,6 +48,12 @@ final class Style {
 
     /** Panel design sizes (px of the 1920x720 mockup). */
     static final float DESIGN_H = 720f, SIDE_W = 340f;
+    /**
+     * Corner radius of the centre window when CarPlay or the camera fills it, in design px of the
+     * 692 px high window: the iPhone's own rounded CarPlay card (a circle of 68 px covers its
+     * continuous curve, car screenshots 6-10 Nov), so CarPlay and the camera share one corner.
+     */
+    static final float WINDOW_RADIUS = 68f, WINDOW_H = 692f;
 
     /**
      * Design text sizes (px of the 1920x720 layout), tuned after the first in-car test: small labels

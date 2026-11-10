@@ -71,13 +71,41 @@ final class CarPlayPane extends FrameLayout implements SurfaceHolder.Callback {
 
     /** Rounded like the centre window (on), or square edge to edge for full screen (off). */
     void setRounded(boolean rounded) {
+        if (this.rounded == rounded) return;
+        this.rounded = rounded;
         corners.setVisibility(rounded ? VISIBLE : GONE);
+        requestLayout();                 // the video is stretched to the window only when rounded
+    }
+
+    private boolean rounded = true;
+
+    /*
+     * The iPhone (iOS 26) draws each CarPlay screen as a rounded card over its wallpaper, and in
+     * the centre window that card stops short of the right and bottom edges (car screenshots,
+     * 6 Nov, Now Playing, Maps, Waze: card 1203 x 684 in the 1210 x 690 window, flush at the left
+     * and top). So the wallpaper showed as a strip on those two edges and at the corners, inside
+     * our own smaller rounded corner. In the centre window the video is stretched by that much
+     * (under 1 %) so the card fills it, and our corners take the card's radius (Style.WINDOW_RADIUS). Touch is scaled back the same way.
+     */
+    private static final float CARD_GAP_RIGHT = 7f, CARD_GAP_BOTTOM = 6f, CARD_REF_H = 690f;
+
+    /** How much the video is stretched across and down; 1 when not rounded. */
+    private float stretchX = 1f, stretchY = 1f;
+
+    private void updateStretch(int w, int h) {
+        if (!rounded || w <= 0 || h <= 0) {
+            stretchX = stretchY = 1f;
+            return;
+        }
+        float k = h / CARD_REF_H;
+        stretchX = w / Math.max(1f, w - CARD_GAP_RIGHT * k);
+        stretchY = h / Math.max(1f, h - CARD_GAP_BOTTOM * k);
     }
 
     /**
      * The centre window's rounded corners over the video. A SurfaceView ignores clipping to an
      * outline on Android 10, so the corners are painted over it in the dash's background, with
-     * the window's edge line, the same radius as the camera pane (16 px at 692 high).
+     * the window's edge line, at the radius of the iPhone's own card (Style.WINDOW_RADIUS).
      */
     private static final class CornerMask extends View {
         private final android.graphics.Paint fill = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
@@ -95,7 +123,7 @@ final class CarPlayPane extends FrameLayout implements SurfaceHolder.Callback {
             if (w <= 0 || h <= 0) return;
             fill.setColor(Style.BG);            // read each time: the theme can change
             edge.setColor(Style.LINE);
-            float r = 16f * h / 692f, stroke = Math.max(1f, 1.5f * h / 692f);
+            float r = Style.WINDOW_RADIUS * h / Style.WINDOW_H, stroke = Math.max(1f, 1.5f * h / 692f);
             box.set(0, 0, w, h);
             path.reset();
             path.addRoundRect(box, r, r, android.graphics.Path.Direction.CW);
@@ -181,15 +209,16 @@ final class CarPlayPane extends FrameLayout implements SurfaceHolder.Callback {
         status.layout(0, 0, w, h);
         cover.layout(0, 0, w, h);
         corners.layout(0, 0, w, h);
+        updateStretch(w, h);
+        int vl = 0, vt = 0, vw = w, vh = h;
         if (videoLayout.length == 4 && videoLayout[2] > 0 && videoLayout[3] > 0) {
-            int vl = videoLayout[0], vt = videoLayout[1];
-            video.measure(MeasureSpec.makeMeasureSpec(videoLayout[2], MeasureSpec.EXACTLY),
-                    MeasureSpec.makeMeasureSpec(videoLayout[3], MeasureSpec.EXACTLY));
-            video.layout(vl, vt, vl + videoLayout[2], vt + videoLayout[3]);
-        } else {
-            video.measure(MeasureSpec.makeMeasureSpec(w, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(h, MeasureSpec.EXACTLY));
-            video.layout(0, 0, w, h);
+            vl = videoLayout[0]; vt = videoLayout[1]; vw = videoLayout[2]; vh = videoLayout[3];
         }
+        // stretched from the top left, where the iPhone's card sits flush
+        vl = Math.round(vl * stretchX); vt = Math.round(vt * stretchY);
+        vw = Math.round(vw * stretchX); vh = Math.round(vh * stretchY);
+        video.measure(MeasureSpec.makeMeasureSpec(vw, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(vh, MeasureSpec.EXACTLY));
+        video.layout(vl, vt, vl + vw, vt + vh);
     }
 
     /** Centre ↔ full screen: a new CarPlay size, even when the (enlarged) video view keeps its size. */
@@ -214,14 +243,28 @@ final class CarPlayPane extends FrameLayout implements SurfaceHolder.Callback {
             // the status cover came up mid-gesture: end the gesture on the phone, send nothing more
             MotionEvent cancel = MotionEvent.obtain(e);
             cancel.setAction(MotionEvent.ACTION_CANCEL);
-            link.touch(cancel);
+            sendTouch(cancel);
             cancel.recycle();
             gestureSent = false;
             return true;
         }
-        link.touch(e);
+        sendTouch(e);
         gestureSent = action != MotionEvent.ACTION_UP && action != MotionEvent.ACTION_CANCEL;
         return true;
+    }
+
+    /** To CarPlay in this view's coordinates, undoing the video's stretch so a tap lands where it shows. */
+    private void sendTouch(MotionEvent e) {
+        if (stretchX == 1f && stretchY == 1f) {
+            link.touch(e);
+            return;
+        }
+        MotionEvent scaled = MotionEvent.obtain(e);
+        android.graphics.Matrix m = new android.graphics.Matrix();
+        m.setScale(1f / stretchX, 1f / stretchY);
+        scaled.transform(m);
+        link.touch(scaled);
+        scaled.recycle();
     }
 
     /** What the status line says for an xcertplay state; hidden once the picture is drawing. */

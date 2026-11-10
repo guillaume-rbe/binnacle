@@ -88,6 +88,7 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
             @Override public void onCameraState(boolean on) {
                 if (right != null) right.setCameraOn(on);
                 if (left != null) left.setCentreCovered(on || carplayMode == CARPLAY_CENTRE);
+                if (centre != null) centre.setCameraUp(on);
                 // the Camera button keeps its highlight while the camera is up (no timeout), so OK
                 // closes it again; once it closes, the highlight times out as usual
                 if (focus == RightPanelView.DOCK_CAMERA) setFocus(focus);
@@ -543,6 +544,13 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
     };
 
     @Override public void onNetIcon() {
+        // a tap while it looks for home Wi-Fi dismisses it (owner, 10 Nov: no way back from a stray
+        // tap): a rejoin not yet run is skipped; Wi-Fi already restarted just carries on quietly
+        if (right.netBusy()) {
+            WifiScans.cancelRejoin();
+            right.netClear();
+            return;
+        }
         final boolean hotspot = apOn;
         if (!hotspot && Launch.hasXcertplay(this)) {
             // xcertplay keeps the dash on home Wi-Fi; off it (scanning paused, out of range), the
@@ -563,6 +571,8 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
                         });
                 return;
             }
+            // one tap asks, a second within a few seconds joins (owner, 10 Nov)
+            if (!right.netAsking()) { right.netAsk("Join home Wi-Fi?"); return; }
             WifiScans.rejoin(this, app.prefs(), running, netNote);
             return;
         }
