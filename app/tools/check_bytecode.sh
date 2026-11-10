@@ -70,7 +70,10 @@ printf '%s\n' "$TABLE" | awk -F'\t' '$3 == "invokedynamic"' | grep . >&2 && bad 
 
 # refs <regex>: every instruction whose reference matches (extended regex on the reference)
 # (patterns go through the environment: awk -v would eat their backslashes)
-refs() { printf '%s\n' "$TABLE" | RE="$1" awk -F'\t' '$4 ~ ENVIRON["RE"]'; }
+# (it reads REFS, the instructions that have a reference: about a third of the table, and refs runs
+# ~180 times, most of this script's time)
+REFS=$(printf '%s\n' "$TABLE" | awk -F'\t' '$4 != ""')
+refs() { printf '%s\n' "$REFS" | RE="$1" awk -F'\t' '$4 ~ ENVIRON["RE"]'; }
 # only <regex> <class regex>: the reference may appear only in classes matching the second regex
 only() {
     local hits; hits=$(refs "$1" | OK="^($2)([$].*)?$" awk -F'\t' '$1 !~ ENVIRON["OK"]')

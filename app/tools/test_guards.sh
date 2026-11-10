@@ -1,9 +1,10 @@
 #!/bin/bash
 # Tests the read-only guards themselves (app and logger): each case copies the source to a temp
 # folder, slips in one write path, and expects the guards to refuse it. Run by hand after changing
-# a guard (it compiles ~30 copies, so build.sh doesn't run it):
+# a guard (it compiles ~80 copies, side by side, so build.sh doesn't run it):
 #   app/tools/test_guards.sh
 #   ANDROID_HOME   SDK path (default ~/Library/Android/sdk), as for build.sh
+#   GUARD_JOBS     cases at once (default: the number of CPUs)
 set -uo pipefail
 cd "$(dirname "$0")/.."
 APP=$(pwd)
@@ -13,6 +14,17 @@ JAR="$SDK/platforms/$(ls "$SDK/platforms" | sort -V | tail -1)/android.jar"
 BT="$SDK/build-tools/$(ls "$SDK/build-tools" | sort -V | tail -1)"
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 failures=0
+# Cases run side by side, one per CPU (each compiles a full copy, so this is most of the time);
+# each writes its line to its own file and they print in order at the end. Plain bash 3.2 (macOS):
+# no wait -n, so the oldest job is waited for when all slots are busy.
+JOBS=${GUARD_JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2)}
+n=0; pids=()
+bg() {
+    n=$((n + 1))
+    "$@" > "$T/out.$(printf '%04d' $n)" 2>&1 &
+    pids+=($!)
+    if [ ${#pids[@]} -ge "$JOBS" ]; then wait "${pids[0]}"; pids=("${pids[@]:1}"); fi
+}
 
 # R.java for the app copies (the sources reference resources)
 mkdir -p "$T/res" "$T/gen"
@@ -43,24 +55,27 @@ expect() {
         any)  [[ "$got" == *source* || "$got" == *bytecode* ]] && ok=1 ;;
     esac
     if [ $ok = 1 ]; then printf 'ok   %-50s refused by: %s\n' "$name" "$got"
-    else printf 'FAIL %-50s refused by: %s (wanted %s)\n' "$name" "$got" "$want"; failures=$((failures + 1)); fi
+    else printf 'FAIL %-50s refused by: %s (wanted %s)\n' "$name" "$got" "$want"; fi
 }
 # app case with an extra class Evil holding $2
-evil() {
+_evil() {
     local d; d=$(copy_app)
     printf 'package app.binnacle;\nfinal class Evil { static void go(android.content.Context c, android.os.IBinder b) throws Exception {\n%s\n} }\n' "$2" > "$d/src/app/binnacle/Evil.java"
     expect "$1" both "$(guards "$d" "$d/src" "$T/gen")"
 }
+evil() { bg _evil "$@"; }
 # app case with a sed edit of one file
-edit() {
+_edit() {
     local d; d=$(copy_app)
     sed -i.bak "$3" "$d/src/app/binnacle/$2" && rm "$d/src/app/binnacle/$2.bak"
-    cmp -s "$d/src/app/binnacle/$2" "src/app/binnacle/$2" && { printf 'FAIL %-50s (the edit did not apply)\n' "$1"; failures=$((failures + 1)); return; }
+    cmp -s "$d/src/app/binnacle/$2" "src/app/binnacle/$2" && { printf 'FAIL %-50s (the edit did not apply)\n' "$1"; return; }
     expect "$1" "${4:-both}" "$(guards "$d" "$d/src" "$T/gen")"
 }
+edit() { bg _edit "$@"; }
 
-echo "-- app"
-d=$(copy_app); expect "unchanged source passes" pass "$(guards "$d" "$d/src" "$T/gen")"
+bg echo "-- app"
+unchanged_app() { local d; d=$(copy_app); expect "unchanged source passes" pass "$(guards "$d" "$d/src" "$T/gen")"; }
+bg unchanged_app
 evil "transact(5) in another class"      'b.transact(5, android.os.Parcel.obtain(), null, 0);'
 evil "space before the paren"            'b.transact (5, android.os.Parcel.obtain(), null, 0);'
 evil "newline before the paren"          'b.transact
@@ -104,9 +119,12 @@ edit "DashApp: logger query sent elsewhere"     DashApp.java 's|("app.binnacle.l
 edit "DashActivity: a second service start"     DashActivity.java 's|    private void startLogger() {|    private void evil() { startService(new android.content.Intent().setPackage("com.xbs.canapp")); }\n    private void startLogger() {|'
 edit "DashActivity: logger start retargeted"    DashActivity.java 's|"app.binnacle.logger", "app.binnacle.logger.CaptureService"|"com.xbs.canapp", "com.xbs.canapp.Svc"|'
 evil "IBinder.dump"                             'b.dump(new java.io.FileDescriptor(), new String[0]);'
-d=$(copy_app); mkdir -p "$d/src/android/os"
-printf 'package android.os;\nfinal class Evil { }\n' > "$d/src/android/os/Evil.java"
-expect "source in another package" any "$(guards "$d" "$d/src" "$T/gen")"
+other_package() {
+    local d; d=$(copy_app); mkdir -p "$d/src/android/os"
+    printf 'package android.os;\nfinal class Evil { }\n' > "$d/src/android/os/Evil.java"
+    expect "source in another package" any "$(guards "$d" "$d/src" "$T/gen")"
+}
+bg other_package
 evil "network outside CarPacks/Updater"   'new java.net.URL("https://example.com/x").openConnection().getInputStream();'
 evil "PackageInstaller outside Updater"  'c.getPackageManager().getPackageInstaller().createSession(new android.content.pm.PackageInstaller.SessionParams(1));'
 edit "Updater: another address"          Updater.java 's|releases/latest/download/";|releases/download/other/";|'
@@ -136,40 +154,60 @@ evil "java.util.logging FileHandler"     'new java.util.logging.FileHandler("/sd
 edit "CameraPane: path out of the decoder" CameraPane.java 's|        writeDecoder("channel", INPUT);|        writeDecoder("../" + "channel", INPUT);|'
 edit "CameraPane: a second FileWriter"   CameraPane.java 's|    private static void setUpDecoder() {|    static void more(String path) throws java.io.IOException { new java.io.FileWriter(path).close(); }\n\n    private static void setUpDecoder() {|'
 edit "StartupVolume: audio HAL parameters" StartupVolume.java 's|            audio.setStreamVolume(AudioManager.STREAM_MUSIC, level, 0);|            audio.setStreamVolume(AudioManager.STREAM_MUSIC, level, 0);\n            audio.setParameters("x=1");|'
-d=$(copy_app)
-printf 'package app.binnacle;\nfinal class LocalShell$X { static void go() throws Exception { new java.net.Socket("127.0.0.1", 5555).close(); } }\n' > "$d/src/app/binnacle/Evil.java"
-expect "top-level class named LocalShell\$X" both "$(guards "$d" "$d/src" "$T/gen")"
-d=$(copy_app)
-printf 'package app.binnacle;\nfinal class Evil { static void go(android.content.Context c) {\n((android.media.AudioManager) c.getSystemService("audio")).setStreamVolume(3, 0, 0);\n} }\n' > "$d/src/app/binnacle/Evil.java"
-expect "volume set outside StartupVolume" any "$(guards "$d" "$d/src" "$T/gen")"
-d=$(copy_app); ln -s "$APP/src/app/binnacle/CanFeed.java" "$d/src/app/binnacle/Link.java"
-r=""; bash "$d/tools/check_readonly.sh" >/dev/null 2>&1 || r="source"; expect "symlinked source file" any "${r:-none}"
+fake_nested() {
+    local d; d=$(copy_app)
+    printf 'package app.binnacle;\nfinal class LocalShell$X { static void go() throws Exception { new java.net.Socket("127.0.0.1", 5555).close(); } }\n' > "$d/src/app/binnacle/Evil.java"
+    expect "top-level class named LocalShell\$X" both "$(guards "$d" "$d/src" "$T/gen")"
+}
+bg fake_nested
+volume_elsewhere() {
+    local d; d=$(copy_app)
+    printf 'package app.binnacle;\nfinal class Evil { static void go(android.content.Context c) {\n((android.media.AudioManager) c.getSystemService("audio")).setStreamVolume(3, 0, 0);\n} }\n' > "$d/src/app/binnacle/Evil.java"
+    expect "volume set outside StartupVolume" any "$(guards "$d" "$d/src" "$T/gen")"
+}
+bg volume_elsewhere
+symlinked() {
+    local d r=""; d=$(copy_app); ln -s "$APP/src/app/binnacle/CanFeed.java" "$d/src/app/binnacle/Link.java"
+    bash "$d/tools/check_readonly.sh" >/dev/null 2>&1 || r="source"; expect "symlinked source file" any "${r:-none}"
+}
+bg symlinked
 
-echo "-- logger"
+bg echo "-- logger"
 F=src/app/binnacle/logger
-cap() {   # cap <name> <want> <sed on CaptureService.java | manifest:sed>
+_cap() {   # cap <name> <want> <sed on CaptureService.java | manifest:sed>
     local d; d=$(copy_cap) f="$F/CaptureService.java" e=$3
     case "$e" in manifest:*) f=AndroidManifest.xml; e=${e#manifest:};; esac
     sed -i.bak "$e" "$d/$f" && rm "$d/$f.bak"
-    cmp -s "$d/$f" "$CAP/$f" && { printf 'FAIL %-50s (the edit did not apply)\n' "$1"; failures=$((failures + 1)); return; }
+    cmp -s "$d/$f" "$CAP/$f" && { printf 'FAIL %-50s (the edit did not apply)\n' "$1"; return; }
     expect "$1" "$2" "$(guards "$d" "$d/src")"
 }
-d=$(copy_cap); expect "unchanged source passes" pass "$(guards "$d" "$d/src")"
+cap() { bg _cap "$@"; }
+unchanged_cap() { local d; d=$(copy_cap); expect "unchanged source passes" pass "$(guards "$d" "$d/src")"; }
+bg unchanged_cap
 cap "register with txn 3"     both 's/binder.transact(1, d, r, 0)/binder.transact(3, d, r, 0)/'
 cap "socket to adbd"          both 's|    private void register() {|    void evil() throws Exception { new java.net.Socket("127.0.0.1", 5555).close(); }\n    private void register() {|'
 cap "broadcast to canapp"     both 's|    private void register() {|    void evil() { sendBroadcast(new Intent("x").setPackage("com.xbs.canapp")); }\n    private void register() {|'
 cap "Settings.System.putInt"  both 's|    private void register() {|    void evil() { android.provider.Settings.System.putInt(getContentResolver(), "x", 1); }\n    private void register() {|'
 cap "unicode escape"          both 's|    private void register() {|    void evil() throws Exception { binder.\\u0074ransact(5, null, null, 0); }\n    private void register() {|'
-capui() {   # capui <name> <sed on MainActivity.java>: expects both guards to refuse
+_capui() {   # capui <name> <sed on MainActivity.java>: expects both guards to refuse
     local d; d=$(copy_cap) f="$F/MainActivity.java"
     sed -i.bak "$2" "$d/$f" && rm "$d/$f.bak"
-    cmp -s "$d/$f" "$CAP/$f" && { printf 'FAIL %-50s (the edit did not apply)\n' "$1"; failures=$((failures + 1)); return; }
+    cmp -s "$d/$f" "$CAP/$f" && { printf 'FAIL %-50s (the edit did not apply)\n' "$1"; return; }
     expect "$1" both "$(guards "$d" "$d/src")"
 }
+capui() { bg _capui "$@"; }
 capui "insert into any URI"   's|                Uri uri = getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, v);|                Uri uri = getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, v);\n                getContentResolver ().insert(Uri.parse("content://x"), v);|'
 capui "insert, URI from text"  's|getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, v);|getContentResolver().insert(Uri.parse("content://" + "x"), v);|'
 cap "INTERNET permission"     any  'manifest:s|<uses-permission android:name="android.permission.FOREGROUND_SERVICE" />|<uses-permission android:name="android.permission.FOREGROUND_SERVICE" />\n    <uses-permission android:name="android.permission.INTERNET" />|'
 
+wait
+cat "$T"/out.*
+failures=$(cat "$T"/out.* | grep -c '^FAIL')
+# every case must have printed its verdict (a case that died early leaves none)
+for f in "$T"/out.*; do
+    grep -qE '^(ok |FAIL |-- )' "$f" || { echo "test_guards: a case left no result ($(head -c 200 "$f"))"; failures=$((failures + 1)); }
+done
+[ "$(ls "$T"/out.* | wc -l | tr -d ' ')" = "$n" ] || { echo "test_guards: a case is missing"; failures=$((failures + 1)); }
 echo
 [ $failures -eq 0 ] && echo "test_guards: all cases refused as expected" || echo "test_guards: $failures case(s) FAILED"
 exit $failures
