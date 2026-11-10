@@ -362,9 +362,13 @@ public final class SetupActivity extends Activity {
             if (st.isOn(ch)) more.addView(tick(ch.title));
             else todo.add(ch);
         }
+        // say so once if a change setup would make here is left out for want of root (issue #90)
+        boolean rootMissing = false;
+        for (UnitSetup.Change ch : UnitSetup.Change.values())
+            rootMissing |= ch.blocked(st) && ch.applies(this) && !ch.untested();
         if (todo.isEmpty()) {
             status.setText("The unit is set up.");
-            if (!st.root) more.addView(text("Some changes need root, which this unit doesn't have.", 15, Style.MUTED));
+            if (rootMissing) more.addView(text("Some changes need root, which this unit doesn't have.", 15, Style.MUTED));
             more.addView(buttons(new String[]{"Next"}, new Runnable[]{new Runnable() { @Override public void run() { next(); } }}));
             focusLast();
             return;
@@ -375,7 +379,7 @@ public final class SetupActivity extends Activity {
             t.setPadding(0, dp(2), 0, 0);
             more.addView(t);
         }
-        if (!st.root) more.addView(text("Some changes need root, which this unit doesn't have.", 15, Style.MUTED));
+        if (rootMissing) more.addView(text("Some changes need root, which this unit doesn't have.", 15, Style.MUTED));
         more.addView(buttons(new String[]{"Not now", "Set up the unit"}, new Runnable[]{
                 new Runnable() { @Override public void run() { next(); } },
                 new Runnable() { @Override public void run() { applyUnit(todo, status, more); } }}));

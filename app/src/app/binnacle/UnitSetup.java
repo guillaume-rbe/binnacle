@@ -50,19 +50,19 @@ final class UnitSetup {
 
     enum Change {
         ADB_KEEP("Keep the unit unlocked after a restart",
-                LocalShell.Command.ADB_KEEP_ON, LocalShell.Command.ADB_KEEP_OFF, false, true, true),
+                LocalShell.Command.ADB_KEEP_ON, LocalShell.Command.ADB_KEEP_OFF, false, true),
         STOCK_TOASTS("Block the stock dash's pop-ups",
-                LocalShell.Command.STOCK_TOASTS_OFF, LocalShell.Command.STOCK_TOASTS_ON, false, true, false),
+                LocalShell.Command.STOCK_TOASTS_OFF, LocalShell.Command.STOCK_TOASTS_ON, false, true),
         STOCK_CAMERA("Turn off the stock full-screen camera",
-                LocalShell.Command.STOCK_CAMERA_OFF, LocalShell.Command.STOCK_CAMERA_ON, false, false, true),
+                LocalShell.Command.STOCK_CAMERA_OFF, LocalShell.Command.STOCK_CAMERA_ON, false, false),
         GPS_DUMPS("Stop the GPS crash dumps",
-                LocalShell.Command.GPS_DUMPS_OFF, LocalShell.Command.GPS_DUMPS_ON, false, true, true),
+                LocalShell.Command.GPS_DUMPS_OFF, LocalShell.Command.GPS_DUMPS_ON, false, true),
         ANDROID_BT("Android Bluetooth for wireless CarPlay",
-                LocalShell.Command.ANDROID_BT_ON, LocalShell.Command.ANDROID_BT_OFF, true, false, true),
+                LocalShell.Command.ANDROID_BT_ON, LocalShell.Command.ANDROID_BT_OFF, true, false),
         BT_VOLUME_FIX("Car Bluetooth volume fix",
-                LocalShell.Command.BT_VOLUME_FIX_ON, LocalShell.Command.BT_VOLUME_FIX_OFF, true, true, true),
+                LocalShell.Command.BT_VOLUME_FIX_ON, LocalShell.Command.BT_VOLUME_FIX_OFF, true, true),
         CARPLAY_CALLS("CarPlay calls",
-                LocalShell.Command.CARPLAY_CALLS_ON, LocalShell.Command.CARPLAY_CALLS_OFF, false, false, true);
+                LocalShell.Command.CARPLAY_CALLS_ON, LocalShell.Command.CARPLAY_CALLS_OFF, false, false);
 
         final String title;
         final LocalShell.Command on, off;
@@ -76,14 +76,13 @@ final class UnitSetup {
         /** Its commands use su 0, so it can only work on a unit with root (issue #90: some have none). */
         final boolean needsRoot;
 
-        Change(String title, LocalShell.Command on, LocalShell.Command off, boolean needsRestart, boolean anySoftware,
-               boolean needsRoot) {
+        Change(String title, LocalShell.Command on, LocalShell.Command off, boolean needsRestart, boolean anySoftware) {
             this.title = title;
             this.on = on;
             this.off = off;
             this.needsRestart = needsRestart;
             this.anySoftware = anySoftware;
-            this.needsRoot = needsRoot;
+            this.needsRoot = on.shell.contains("su 0") || off.shell.contains("su 0");
         }
 
         /** Can't be changed on this unit: it needs root and the unit (which answered) has none. */
@@ -147,21 +146,26 @@ final class UnitSetup {
             LocalShell.Command cmd = LocalShell.Command.UNIT_STATUS;
             String out = LocalShell.run(cmd);
             s.reachable = true;
-            // the unlock may be new (setup's EngineerMode step after the dash started, when the start-up
-            // firewall found nothing to block): put the rule in place now, not at the next start
-            // and wait for it, so the status below shows whether it worked (AdbFirewall.failed) (Codex)
-            try {
-                AdbFirewall.apply(DashApp.get(c).prefs()).get(15, java.util.concurrent.TimeUnit.SECONDS);
-            } catch (Exception ignored) {
-                // timed out or interrupted: the warning shows on the next read
+            s.root = out.contains(" su=/");
+            if (s.root) {
+                // the unlock may be new (setup's EngineerMode step after the dash started, when the start-up
+                // firewall found nothing to block): put the rule in place now, not at the next start
+                // and wait for it, so the status below shows whether it worked (AdbFirewall.failed) (Codex)
+                try {
+                    AdbFirewall.apply(DashApp.get(c).prefs()).get(15, java.util.concurrent.TimeUnit.SECONDS);
+                } catch (Exception ignored) {
+                    // timed out or interrupted: the warning shows on the next read
+                }
+                s.openToWifi = AdbFirewall.failed;
+            } else {
+                // the firewall needs root: ADB answers on the Wi-Fi too, unless Network ADB says that is wanted
+                s.openToWifi = !DashApp.get(c).prefs().getBoolean(AdbFirewall.KEY, AdbFirewall.DEFAULT);
             }
-            s.openToWifi = AdbFirewall.failed;
             s.on.put(Change.ADB_KEEP, out.contains("adb=5555"));
             s.on.put(Change.GPS_DUMPS, out.contains("dumps=0"));
             s.on.put(Change.ANDROID_BT, out.contains("bt=2"));
             s.on.put(Change.BT_VOLUME_FIX, out.contains("absvol=true"));
             s.on.put(Change.STOCK_TOASTS, out.contains("TOAST_WINDOW: ignore"));
-            s.root = out.contains(" su=/");
         } catch (ConnectException e) {
             s.reachable = false;
         } catch (Exception e) {
@@ -175,6 +179,22 @@ final class UnitSetup {
     static void set(Change ch, boolean wantOn) throws Exception {
         LocalShell.Command cmd = wantOn ? ch.on : ch.off;
         LocalShell.run(cmd);
+    }
+
+    /**
+     * ADB is set to come back on after a restart (persist.adb.tcp.port 5555). For Remove Binnacle,
+     * after turning that off failed: without root it can't be turned off, but it usually was never
+     * on either. True also if this couldn't be read, to be safe.
+     */
+    static boolean adbKept() {
+        try {
+            LocalShell.Command cmd = LocalShell.Command.UNIT_STATUS;
+            return LocalShell.run(cmd).contains("adb=5555");
+        } catch (ConnectException e) {
+            return false;                              // ADB off: nothing is kept on
+        } catch (Exception e) {
+            return true;
+        }
     }
 
     /**

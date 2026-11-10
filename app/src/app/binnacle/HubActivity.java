@@ -762,7 +762,7 @@ public class HubActivity extends Activity {
                                         // No answer at all means ADB isn't on, so nothing is kept on either.
                                         try { UnitSetup.set(UnitSetup.Change.ADB_KEEP, false); }
                                         catch (java.net.ConnectException e) { /* ADB off already */ }
-                                        catch (Exception e) { adbOn = true; }
+                                        catch (Exception e) { adbOn = UnitSetup.adbKept(); }   // no root: usually never kept
                                         final boolean cameraOff = failed, adbStaysOn = adbOn;
                                         runOnUiThread(new Runnable() {
                                             @Override public void run() {
@@ -1151,8 +1151,10 @@ public class HubActivity extends Activity {
             state.setText(st.problem != null ? "Couldn't read: " + st.problem : "Locked. Run setup to unlock");
             state.setTextColor(Style.WARN);
         } else if (st.openToWifi && !st.root) {
-            // the firewall needs root; without it the unlock (not kept) ends at the next restart (issue #90)
-            state.setText("Unlocked, but open to the Wi-Fi until a restart: this unit has no root");
+            // the firewall needs root; without it the unlock ends at the next restart unless it is kept (issue #90)
+            state.setText(st.isOn(UnitSetup.Change.ADB_KEEP)
+                    ? "Open to the Wi-Fi, also after a restart: this unit has no root"
+                    : "Unlocked, but open to the Wi-Fi until a restart: this unit has no root");
             state.setTextColor(Style.WARN);
         } else if (st.openToWifi) {
             // the unit answers, but the rule keeping ADB off the Wi-Fi didn't go in
