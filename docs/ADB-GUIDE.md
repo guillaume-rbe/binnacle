@@ -15,7 +15,7 @@ These steps were tested on a unit reporting the following (check under About, or
 | Kernel | 4.14.133+ (Feb 2023) |
 | Model / board | A007 |
 
-If your unit is a different SoC or firmware, the EngineerMode route may not exist or may behave differently.
+If your unit is a different SoC or firmware, the EngineerMode route may not exist or may behave differently. A unit on July 2023 software (`A007_C03_HA1_OSU-EN-D_2023-07-27-1412`) unlocked the same way, but has no root.
 
 ## What you need
 
@@ -58,6 +58,8 @@ At this point ADB works until the next reboot.
 
 **With Binnacle installed** you can stop after step 5: Binnacle's setup (or Settings → Unit) keeps ADB on after restarts and makes the other unit changes for you. Binnacle also blocks ADB from the Wi-Fi each time it starts, so step 6 only works with **Apps → Settings → Unit → Network ADB** turned on.
 
+**If your unit has no root** (see below), Binnacle can do neither: ADB stays on only until the next restart, and stays reachable from your Wi-Fi until then. The Unit page marks the changes that need root.
+
 ## Root
 
 On this firmware the build is `userdebug`, `/system/xbin/su` is present, and SELinux is **Permissive**. Once you're in `adb shell`:
@@ -66,7 +68,7 @@ On this firmware the build is `userdebug`, `/system/xbin/su` is present, and SEL
 su 0 id          # should print uid=0(root) ... context=u:r:su:s0
 ```
 
-The syntax is `su 0 <command>`. `su -c` isn't supported. The bootloader also reports as unlocked (`ro.boot.flash.locked=0`, verified boot state "orange").
+The syntax is `su 0 <command>`. `su -c` isn't supported. Not every unit has this: on at least one with July 2023 software, `su` gives `su: inaccessible or not found` ([issue #90](https://github.com/lotech/binnacle/issues/90)). Without root, the steps below that use `su 0` won't work, including the partition backup. The bootloader also reports as unlocked (`ro.boot.flash.locked=0`, verified boot state "orange").
 
 ## Make network ADB survive reboots (optional)
 
