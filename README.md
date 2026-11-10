@@ -20,7 +20,7 @@ On a ship, the binnacle is the stand in front of the helm that holds the compass
 - **Live car data, read only:** speed, gear, speed-limit sign, indicators and lights, power and regen bar, tyre pressures (psi or bar), parking sensors, doors, boot and frunk, outside temperature, odometer.
 - **Your car in 3D:** Model 3 or Model Y, left- or right-hand drive, in the original dash's colours (extra colours download from this repo). Open doors, boot and frunk show on the car. In Drive it sits on a moving road with headlight glow, and the lane turns blue on Autopilot. When CarPlay or the camera covers the centre, a glow on the left panel keeps Autopilot in view.
 - **Laid out for your side:** graphics match your side of the road, with touch targets closer to your free hand.
-- **Real battery %:** with a range estimate and charging animation (see below).
+- **Real battery %:** with the car's own range where it sends one (otherwise an estimate) and a charging animation (see below).
 - **Efficiency:** Wh/km over the last 5 km, a 15-minute power and regen graph, and this drive's totals.
 - **GPS compass.**
 - **Parking sensors you can read:** coloured arcs around the car, a STOP sign when you're close, and a sensor card that stays up while the camera is on.
@@ -35,7 +35,7 @@ On a ship, the binnacle is the stand in front of the helm that holds the compass
 ## What it fixes compared with the stock dash
 - **Model Y:** the stock dash only showed a Model 3.
 - **Android Settings:** the stock dash hid the Settings app; Binnacle brings it back.
-- **Battery %:** on some cars (mine included) the stock battery level is stuck at 77%, and the stock dash shows another field as "km" when it isn't range at all. Binnacle decodes the real % from that field, checked across a full 13% to 100% charge, and switches to the car's own battery level on cars where it works.
+- **Battery %:** on some cars (mine included) the stock battery level is stuck at 77%, and the stock dash shows another field as "km" when it isn't range at all. Binnacle decodes the real % from that field, checked across a full 13% to 100% charge, and switches to the car's own battery level on cars where it works. On some of those cars that same field is the car's real range, and Binnacle shows it.
 - **Camera:** the stock camera could fail with "camera error 4" after a restart and judders on the 56 Hz panel. Binnacle sets up the camera input itself, paces frames evenly and hides the start-up roll.
 - **CarPlay that doesn't hijack your phone:** the stock setup grabbed the phone and the unit's Wi-Fi whenever it could. Binnacle only connects when asked (or when you turn on auto-connect).
 - **Media and calls on the Tesla:** the stock setup showed only the Bluetooth device name, with no real media or call controls. Album art isn't possible on Android 10.
@@ -74,10 +74,10 @@ Sold as an "Android 12" 10.25" cluster for the Model 3 and Model Y under several
 |---|---|
 | **Android** | **Android 10** (API 29). The About screen says 12, so apps that need Android 11 or 12 won't run. |
 | **SoC** | Unisoc UMS512, not MediaTek. |
-| **Firmware** | `A007-userdebug` build (Feb 2023), with a fingerprint borrowed from a Vastking tablet. A debug build: SELinux permissive, bootloader unlocked, `su` gives root. ZIQI's update server has nothing for it, so the promised OTA updates don't exist. |
+| **Firmware** | `A007-userdebug` build (Feb 2023), with a fingerprint borrowed from a Vastking tablet. A debug build: SELinux permissive, bootloader unlocked, `su` gives root. Other units' software can differ: one on July 2023 software has no `su` (see [COMPATIBILITY.md](docs/COMPATIBILITY.md)). ZIQI's update server has nothing for it, so the promised OTA updates don't exist. |
 | **Storage** | 64 GB eMMC (about 55 GB for apps and data). |
 | **Screen** | 1920 × 720 at 320 dpi. The panel runs at **56 Hz**, so 30 fps video judders unless it's paced (Binnacle paces the camera). |
-| **Car data** | Two MCUs: one decodes the Tesla CAN bus and sends it over serial to the stock CAN app (`com.xbs.canapp`), which any app can subscribe to. Brake lights, true range and steering angle aren't in that feed. |
+| **Car data** | Two MCUs: one decodes the Tesla CAN bus and sends it over serial to the stock CAN app (`com.xbs.canapp`), which any app can subscribe to. Brake lights and steering angle aren't in that feed, and on some cars nor is the true range. |
 | **Wi-Fi** | One radio. Wireless CarPlay turns it into a hotspot, so the unit drops off your home Wi-Fi while CarPlay is connected. |
 | **Bluetooth** | A separate Goodocom module handles calls and audio. Android's own Bluetooth is off as shipped (no Bluetooth LE, so apps such as S3XY Commander can't connect); setting up the unit turns it on for wireless CarPlay. |
 | **CarPlay** | Wireless only. ZLink comes preinstalled, and the unit rolls it back to that version at every restart. With `BinnacleCarPlay.apk` installed (built from [xcertplay](https://github.com/shilapi/xcertplay), see `carplay/`), Binnacle uses it instead, draws CarPlay in the dash and hides ZLink from its app list (ZLink stays installed). |
