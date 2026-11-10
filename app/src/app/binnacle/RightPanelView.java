@@ -549,13 +549,19 @@ public class RightPanelView extends View {
     /**
      * What a tap on the Wi-Fi icon is doing, shown in a pill beside it (owner, 8 Nov: with only a
      * toast there was no sign the tap had done anything). A busy note (joining) lights the icon and
-     * stays until home Wi-Fi joins or NOTE_BUSY_MS passes; any other note shows for NOTE_MS.
+     * stays until home Wi-Fi joins or NOTE_BUSY_MS passes; any other note shows for NOTE_MS. A join
+     * that times out says so (owner, 10 Nov: a tap away from home showed "Joining home Wi-Fi…" on
+     * the motorway, with nothing after it to say there was no home Wi-Fi to join).
      */
     private static final long NOTE_MS = 4000, NOTE_BUSY_MS = 20_000;
     private String netNote;
     private boolean netBusy, netPressed;
     private final Runnable clearNetNote = new Runnable() {
-        @Override public void run() { netNote = null; netBusy = false; invalidate(); }
+        @Override public void run() {
+            if (netBusy) { netNote("Home Wi-Fi not in range", false); return; }
+            netNote = null;
+            invalidate();
+        }
     };
 
     void netNote(String text, boolean busy) {
