@@ -88,6 +88,7 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
             @Override public void onCameraState(boolean on) {
                 if (right != null) right.setCameraOn(on);
                 if (left != null) left.setCentreCovered(on || carplayMode == CARPLAY_CENTRE);
+                if (centre != null) centre.setCameraUp(on);
                 // the Camera button keeps its highlight while the camera is up (no timeout), so OK
                 // closes it again; once it closes, the highlight times out as usual
                 if (focus == RightPanelView.DOCK_CAMERA) setFocus(focus);

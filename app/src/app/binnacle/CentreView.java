@@ -125,7 +125,29 @@ public class CentreView extends View {
         if (on == covered) return;
         covered = on;
         invalidate();
+        attentionOverlay.invalidate();
     }
+
+    /** The camera is over the centre window (DashActivity): the window takes its rounder corner. */
+    private boolean cameraUp;
+
+    void setCameraUp(boolean on) {
+        if (on == cameraUp) return;
+        cameraUp = on;
+        invalidate();
+        attentionOverlay.invalidate();
+    }
+
+    /**
+     * The window's corner: CarPlay's and the camera's (Style.WINDOW_RADIUS) while either covers
+     * it, so no corner of the scene shows round theirs; the scene's own, tighter one otherwise,
+     * which keeps the badges in its corners clear.
+     */
+    private float windowRadius() {
+        return covered || cameraUp ? Style.WINDOW_RADIUS : SCENE_RADIUS;
+    }
+
+    private static final float SCENE_RADIUS = 16f;
 
     public CentreView(Context c, DashApp app) {
         super(c);
@@ -160,7 +182,7 @@ public class CentreView extends View {
         if (covered) {
             // under CarPlay: only the frame round it, no scene and no animation (audit D9); the
             // attention overlay sits above CarPlay and stays live
-            c.drawRoundRect(box, 16, 16, edge);
+            c.drawRoundRect(box, windowRadius(), windowRadius(), edge);
             c.restore();
             lastFrameMs = 0;
             if (car.driverWarning != 0 || attentionUntil > SystemClock.uptimeMillis()) attentionOverlay.invalidate();
@@ -169,7 +191,8 @@ public class CentreView extends View {
 
         c.save();
         path.reset();
-        path.addRoundRect(box, 16, 16, Path.Direction.CW);
+        float r = windowRadius();
+        path.addRoundRect(box, r, r, Path.Direction.CW);
         c.clipPath(path);
         c.drawRect(box, screen);
         long now = SystemClock.uptimeMillis();
@@ -187,7 +210,7 @@ public class CentreView extends View {
         drawOdometer(c);
         if (!car.raw.isEmpty() && app.rawOverlay()) drawRaw(c);
         c.restore();
-        c.drawRoundRect(box, 16, 16, edge);
+        c.drawRoundRect(box, r, r, edge);
         c.restore();
 
         if (transitioning || (car.moving() && car.speed > 0)) postInvalidateOnAnimation();
@@ -318,12 +341,12 @@ public class CentreView extends View {
         gutterPath.reset();
         gutterPath.setFillType(Path.FillType.EVEN_ODD);
         gutterPath.addRect(0, 0, attentionOverlay.getWidth() / s, Style.DESIGN_H, Path.Direction.CW);
-        gutterPath.addRoundRect(attentionBox, 16, 16, Path.Direction.CW);
+        gutterPath.addRoundRect(attentionBox, windowRadius(), windowRadius(), Path.Direction.CW);
         gutter.setColor(0xff36b9ff);
         gutter.setAlpha(Math.round(fade * (50 + 130 * breath)));
         c.drawPath(gutterPath, gutter);
         attentionClip.reset();
-        attentionClip.addRoundRect(attentionBox, 16, 16, Path.Direction.CW);
+        attentionClip.addRoundRect(attentionBox, windowRadius(), windowRadius(), Path.Direction.CW);
         c.clipPath(attentionClip);
         float half = attentionBox.width() / 2 - 10, pitch = half / ATTENTION_LEDS, ledW = pitch * 0.62f;
         float phase = (now % ATTENTION_PERIOD_MS) / (float) ATTENTION_PERIOD_MS;

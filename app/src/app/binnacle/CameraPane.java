@@ -80,7 +80,7 @@ public class CameraPane extends TextureView implements TextureView.SurfaceTextur
         setSurfaceTextureListener(this);
         setOutlineProvider(new ViewOutlineProvider() {
             @Override public void getOutline(View v, Outline o) {
-                o.setRoundRect(0, 0, v.getWidth(), v.getHeight(), 16f * v.getHeight() / 692f);
+                o.setRoundRect(0, 0, v.getWidth(), v.getHeight(), Style.WINDOW_RADIUS * v.getHeight() / Style.WINDOW_H);
             }
         });
         setClipToOutline(true);

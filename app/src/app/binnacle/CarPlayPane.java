@@ -85,10 +85,9 @@ final class CarPlayPane extends FrameLayout implements SurfaceHolder.Callback {
      * 6 Nov, Now Playing, Maps, Waze: card 1203 x 684 in the 1210 x 690 window, flush at the left
      * and top). So the wallpaper showed as a strip on those two edges and at the corners, inside
      * our own smaller rounded corner. In the centre window the video is stretched by that much
-     * (under 1 %) so the card fills it, and our corners take the card's radius (a circle of 68 px
-     * at 690 high covers its continuous curve). Touch is scaled back the same way.
+     * (under 1 %) so the card fills it, and our corners take the card's radius (Style.WINDOW_RADIUS). Touch is scaled back the same way.
      */
-    private static final float CARD_GAP_RIGHT = 7f, CARD_GAP_BOTTOM = 6f, CARD_RADIUS = 68f, CARD_REF_H = 690f;
+    private static final float CARD_GAP_RIGHT = 7f, CARD_GAP_BOTTOM = 6f, CARD_REF_H = 690f;
 
     /** How much the video is stretched across and down; 1 when not rounded. */
     private float stretchX = 1f, stretchY = 1f;
@@ -106,7 +105,7 @@ final class CarPlayPane extends FrameLayout implements SurfaceHolder.Callback {
     /**
      * The centre window's rounded corners over the video. A SurfaceView ignores clipping to an
      * outline on Android 10, so the corners are painted over it in the dash's background, with
-     * the window's edge line, at the radius of the iPhone's own card (see CARD_RADIUS).
+     * the window's edge line, at the radius of the iPhone's own card (Style.WINDOW_RADIUS).
      */
     private static final class CornerMask extends View {
         private final android.graphics.Paint fill = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
@@ -124,7 +123,7 @@ final class CarPlayPane extends FrameLayout implements SurfaceHolder.Callback {
             if (w <= 0 || h <= 0) return;
             fill.setColor(Style.BG);            // read each time: the theme can change
             edge.setColor(Style.LINE);
-            float r = CARD_RADIUS * h / CARD_REF_H, stroke = Math.max(1f, 1.5f * h / 692f);
+            float r = Style.WINDOW_RADIUS * h / Style.WINDOW_H, stroke = Math.max(1f, 1.5f * h / 692f);
             box.set(0, 0, w, h);
             path.reset();
             path.addRoundRect(box, r, r, android.graphics.Path.Direction.CW);
