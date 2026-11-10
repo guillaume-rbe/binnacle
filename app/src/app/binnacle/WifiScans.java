@@ -97,7 +97,8 @@ final class WifiScans {
     private static volatile int rejoinAttempt;
 
     /**
-     * A tap while it looks (owner, 10 Nov): skips the rejoin if its commands haven't run yet. Once
+     * A tap while it looks (owner, 10 Nov): skips the rejoin's Wi-Fi off and on if its commands
+     * haven't run yet (scans still go on, as promised to forCarPlay). Once
      * they have, Wi-Fi is already back on and Android carries on by itself, so the dash only stops
      * reporting on it (the Wi-Fi icon still shows when home Wi-Fi joins).
      */
@@ -119,16 +120,17 @@ final class WifiScans {
         final int attempt = ++rejoinAttempt;
         SHELL.execute(new Runnable() {
             @Override public void run() {
-                if (attempt != rejoinAttempt) {   // cancelled before it started: nothing was run
-                    MAIN.post(new Runnable() {
-                        @Override public void run() { wanted = scansOn; }
-                    });
-                    return;
-                }
+                // cancelled before it started: only scans back on, which "wanted" already promised
+                // (a CarPlay start meanwhile queued its OFF after this, so that still wins); no
+                // Wi-Fi off and on
+                final boolean skipped = attempt != rejoinAttempt;
                 String msg;
                 boolean ok = false;
                 try {
-                    if (carplayRunning) {
+                    if (skipped) {
+                        LocalShell.Command cmd = LocalShell.Command.WIFI_SCANS_ON;
+                        LocalShell.run(cmd);
+                    } else if (carplayRunning) {
                         // CarPlay keeps the radio (the pause is off): turning Wi-Fi off would end it
                         LocalShell.Command cmd = LocalShell.Command.WIFI_REJOIN;
                         LocalShell.run(cmd);
