@@ -31,7 +31,6 @@ public class RightPanelView extends View {
 
     static final int DOCK_PHONE = 0, DOCK_CAMERA = 1, DOCK_APPS = 2, DOCK_COUNT = 3;
     private static final String[] DOCK_LABELS = {"CarPlay", "Camera", "Apps"};
-    private static final String[] TYRE_NAMES = {"FL", "FR", "RL", "RR"};
     private static final int[] DOCK_COLOURS = {0xff2ad15a, Style.WARN, Style.ACCENT};
     private static final float DOCK_TOP = 606, DOCK_BOTTOM = 708, ODO_TOP = 510, ODO_BOTTOM = 594, X0 = 24, X1 = 316;
 
@@ -518,7 +517,8 @@ public class RightPanelView extends View {
         Style.fit(psi, text, 86);
         c.drawText(text, x, y, psi);
         Style.size(tyreLbl, Style.T_TYRE_POS);
-        c.drawText(TYRE_NAMES[i] + " · " + tyreUnit(), x, y + 22, tyreLbl);
+        // the unit only: each reading sits beside its own tyre (owner, 10 Nov: FL/FR/RL/RR were noise)
+        c.drawText(tyreUnit(), x, y + 22, tyreLbl);
     }
 
     private void drawOdometer(Canvas c) {
