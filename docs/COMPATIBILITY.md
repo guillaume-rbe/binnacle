@@ -59,7 +59,7 @@ You don't need a computer for this. Take a photo of each of these screens on the
 2. **App Store → Online Upgrade.** This shows the Current version, a long name starting with `A007_`.
 3. Optional: **the original dash's data screen**, the one that shows lines like `code 10: carspeed=…`. This helps with problems like the battery % or power figures.
 
-Already have Binnacle installed? **Apps → Settings → Unit** shows your System version and Binnacle versions on one page, and a photo of that page helps too.
+Already have Binnacle installed? **Apps → Unit** shows your System version and Binnacle versions on one page, and a photo of that page helps too.
 
 You can get back to the original dash at any time from **Apps → Advanced → Remove Binnacle**, and reinstall Binnacle afterwards.
 

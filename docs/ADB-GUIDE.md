@@ -56,7 +56,7 @@ In the commands below, replace `<unit-ip>` with the unit's IP address on your ne
 
 At this point ADB works until the next reboot.
 
-**With Binnacle installed** you can stop after step 5: Binnacle's setup (or Settings → Unit) keeps ADB on after restarts and makes the other unit changes for you. Binnacle also blocks ADB from the Wi-Fi each time it starts, so step 6 only works with **Apps → Settings → Unit → Network ADB** turned on.
+**With Binnacle installed** you can stop after step 5: Binnacle's setup (or Apps → Unit) keeps ADB on after restarts and makes the other unit changes for you. Binnacle also blocks ADB from the Wi-Fi each time it starts, so step 6 only works with **Apps → Settings → Unit → Network ADB** turned on.
 
 **If your unit has no root** (see below), Binnacle can do neither: ADB stays on only until the next restart, and stays reachable from your Wi-Fi until then. The Unit page marks the changes that need root.
 
