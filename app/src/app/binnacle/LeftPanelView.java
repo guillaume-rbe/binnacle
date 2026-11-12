@@ -87,7 +87,10 @@ public class LeftPanelView extends View {
         // speed group, vertically centred between the status row and the power bar
         DashApp app = DashApp.get(getContext());
         String speed = car.speed < 0 ? "--" : String.valueOf(Units.speed(app, car.speed));
-        speedP.setColor(car.speed < 0 ? Style.DIM : Style.FG);
+        // red while over the posted limit (both in the display unit, so a mph/km/h mix compares fairly)
+        boolean over = car.speed >= 0 && car.speedLimit > 0
+                && Units.speed(app, car.speed) > Units.speedLimit(app, car.speedLimit);
+        speedP.setColor(car.speed < 0 ? Style.DIM : over ? Style.BAD : Style.FG);
         Style.size(speedP, Style.T_SPEED);
         Style.fit(speedP, speed, w - 40);
         c.drawText(speed, cx, 296, speedP);
