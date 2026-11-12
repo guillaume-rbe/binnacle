@@ -34,7 +34,7 @@ If yours isn't listed yet, you can still try it. Installing Binnacle doesn't rem
 | **Battery %** | ✅ | 🟡 Should work in the release after 0.9.1 (see below) | ❓ |
 | **Power / regen** | ✅\* | ❓\* | ❓\* |
 | **Forward camera** | ✅ | ❓ | ❓ |
-| **Wireless CarPlay** | ✅ | ❓ | ✅ On 0.9.4, in the centre window with auto-connect, after the changes [below](#wireless-carplay-on-a-dash-without-su) |
+| **Wireless CarPlay** | ✅ | ❓ | 🟡 Works on 0.9.4, in the centre window with auto-connect, after the changes [below](#wireless-carplay-on-a-dash-without-su). Calls don't work yet |
 | **Bluetooth calls and music** | ✅ | ❓ | ❓ |
 | **Reported in** | The owner's own car, in daily use | [Issue #91](https://github.com/lotech/binnacle/issues/91) | [Issue #90](https://github.com/lotech/binnacle/issues/90) |
 
@@ -59,7 +59,7 @@ Dash 3 (software `A007_C03_HA1_OSU-EN-D_2023-07-27-1412`, Binnacle 0.9.4, CarPla
 2. **Android Bluetooth on.** `adb root`, then `adb shell setprop persist.car.use_system_bt 2`, then restart.
 3. **Pair the iPhone from the dash.** The iPhone doesn't list the dash's Android Bluetooth ("A007"): it reports itself as a phone, and iOS hides those. Pair from the dash instead: Android settings → Connected devices → *Pair new device*, with the iPhone's Bluetooth settings open, then pick the iPhone. Pairing to "a007_bt" (the stock Bluetooth module) doesn't help: the CarPlay app only sees Android Bluetooth ("No bonded PHONE_SMART devices found").
 4. **CarPlay allowed to start in the background.** As root, add the `com.shilapi.xcertplay` line to `/data/system/appPowerSaveConfig.xml` as in UNIT-CHANGES.md, with **`secondarylaunch="2"`**: with `1` the dash's bind stayed refused after a restart and auto-connect never started.
-5. **ADB kept after a restart.** `adb root`, then `adb shell setprop persist.adb.tcp.port 5555`. Without it, the dash can't run its own commands after a restart (it pauses Wi-Fi scans during CarPlay through ADB), and the first wireless CarPlay attempt after a restart stalled with the iPhone never joining the CarPlay Wi-Fi. Leave Apps → Unit → Network ADB off afterwards.
+5. **ADB kept after a restart.** `adb root`, then `adb shell setprop persist.adb.tcp.port 5555`. Without it, the dash can't run its own commands after a restart (it pauses Wi-Fi scans during CarPlay through ADB), and the first wireless CarPlay attempt after a restart stalled with the iPhone never joining the CarPlay Wi-Fi. Leave Apps → Unit → Network ADB off afterwards. **Warning:** without `su`, Binnacle can't keep ADB off the Wi-Fi, so with this setting ADB is open to the Wi-Fi after every restart, with no password, and `adb root` works on these builds. Anyone on the same Wi-Fi can then take full control of the dash. Only use it on a Wi-Fi you trust, and undo it with `adb shell setprop persist.adb.tcp.port ""` and a restart.
 6. **CarPlay app's own *Start on boot* off** (CarPlay app: Settings → Startup & window). Once the CarPlay app may start in the background (step 4), this option opens it full screen at boot, ahead of Binnacle's auto-connect. Turn it off and leave Apps → Display → CarPlay auto-connect on "Show".
 
 Don't disable or force-stop ZLink for any of this: it breaks the stock Bluetooth module until a restart, and CarPlay works with ZLink running.
