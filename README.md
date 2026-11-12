@@ -25,7 +25,7 @@ On a ship, the binnacle is the stand in front of the helm that holds the compass
 - **GPS compass.**
 - **Parking sensors you can read:** coloured arcs around the car, a STOP sign when you're close, and a sensor card that stays up while the camera is on.
 - **Forward camera in the dash,** with a smooth picture.
-- **Autopilot attention warning:** a blue LED bar that pulses out from the centre.
+- **Autopilot attention warning:** a red LED bar that pulses out from the centre, with a soft blue glow round the window.
 - **Wireless CarPlay on your terms:** starts when you tap CarPlay, shows in the centre or full screen, and one tap ends it and rejoins your home Wi-Fi. Optional auto-connect (Apps → Display → CarPlay auto-connect, off by default) looks for your iPhone when the car wakes, shows what CarPlay is doing on the centre window while it connects, and gives up quietly after 90 s.
 - **Light, dark or Auto theme:** Auto follows the car's screen brightness, so it goes dark at night.
 - **Steering-wheel control.**

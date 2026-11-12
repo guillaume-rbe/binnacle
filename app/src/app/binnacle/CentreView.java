@@ -332,7 +332,7 @@ public class CentreView extends View {
 
     /**
      * Autopilot attention warning (driverwarning, a 2-3 s pulse every few minutes on Autosteer in
-     * the 28 Oct drive log): a row of blue LEDs along the top of the centre window, with pulses
+     * the 28 Oct drive log): a row of red LEDs along the top of the centre window, with pulses
      * running out from the centre to both edges, mirrored (the owner's design, 29 Oct). Blue because
      * it is a reminder, not a danger. It shows while the car's warning is on and fades out over ATTENTION_MIN_MS once the
      * car clears it, like the stock dash and the Tesla screen. Returns true while it needs more frames.
@@ -340,6 +340,9 @@ public class CentreView extends View {
     private static final long GUTTER_PULSE_MS = 1200;
     private final Path gutterPath = new Path();
     private final Paint gutter = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+    /** The LED strip, its glow and light spill are red; the gutter's breathing stays blue (owner, 12 Nov). */
+    private static final int STRIP_RED = 0xffff3b30;
 
     private boolean drawAttention(Canvas c, long now) {
         if (car.driverWarning != 0) attentionUntil = now + ATTENTION_MIN_MS;
@@ -350,7 +353,7 @@ public class CentreView extends View {
         attentionBox.set(pad, pad, attentionOverlay.getWidth() / s - pad, Style.DESIGN_H - pad);
         float top = attentionBox.top + 5, ledH = 7, cx = attentionBox.centerX();
         if (attentionShader == null || attentionTop != top) {   // light spilling down from the LEDs
-            attentionShader = new LinearGradient(0, top, 0, top + 34, 0xff36b9ff, 0x0036b9ff, Shader.TileMode.CLAMP);
+            attentionShader = new LinearGradient(0, top, 0, top + 34, STRIP_RED, STRIP_RED & 0x00ffffff, Shader.TileMode.CLAMP);
             attentionTop = top;
         }
         attentionSpill.setShader(attentionShader);
@@ -382,11 +385,11 @@ public class CentreView extends View {
                 attentionBar.set(x - pitch / 2, top, x + pitch / 2, top + 34);
                 attentionSpill.setAlpha(Math.round(150 * level * lit));
                 if (lit > 0) c.drawRect(attentionBar, attentionSpill);
-                attention.setColor(0xff36b9ff);                       // glow
+                attention.setColor(STRIP_RED);                        // glow
                 attention.setAlpha(Math.round(140 * level * (0.3f + 0.7f * lit)));
                 attentionBar.set(x - ledW / 2 - 4, top - 4, x + ledW / 2 + 4, top + ledH + 4);
                 c.drawRoundRect(attentionBar, 6, 6, attention);
-                attention.setColor(lit > 0.6f ? 0xffd8f3ff : 0xff7fd4ff);   // the LED itself, near white when hot
+                attention.setColor(lit > 0.6f ? 0xffffe2de : 0xffff8a80);   // the LED itself, near white when hot
                 attention.setAlpha(Math.round(255 * level));
                 attentionBar.set(x - ledW / 2, top, x + ledW / 2, top + ledH);
                 c.drawRoundRect(attentionBar, 3, 3, attention);
