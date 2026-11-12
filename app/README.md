@@ -81,7 +81,7 @@ adb shell appops set com.xbs.launcher SYSTEM_ALERT_WINDOW allow   # lets the Dri
 ## Left panel and warnings
 - **Gears** read R P N D (reverse on the left).
 - **Status icons:** the five fixed ones, then any of seatbelt, Auto Hold and fog that are on (no auto high beam: its field never changed in the car), in line on one row (it tightens and scales down slightly when many are on).
-- **Attention warning:** while the car's Autosteer nag is on (`driverwarning`), a blue LED-style bar pulses out from the centre to both edges along the top of the centre window; it fades out a quarter-second after the car clears it.
+- **Attention warning:** while the car's Autosteer nag is on (`driverwarning`), a red LED-style bar pulses out from the centre to both edges along the top of the centre window, over a soft blue glow round the window; it fades out a quarter-second after the car clears it.
 - **After a restart:** the car only resends lights and warnings when they change, so the last ones are kept (`last_code9` prefs) and restored if under 30 minutes old (indicators and the nag are never restored).
 
 ## Steering wheel
