@@ -36,15 +36,16 @@ On a ship, the binnacle is the stand in front of the helm that holds the compass
 - **Model Y:** the stock dash only showed a Model 3.
 - **Android Settings:** the stock dash hid the Settings app; Binnacle brings it back.
 - **Battery %:** on some cars (mine included) the stock battery level is stuck at 77%, and the stock dash shows another field as "km" when it isn't range at all. Binnacle decodes the real % from that field, checked across a full 13% to 100% charge, and switches to the car's own battery level on cars where it works. On some of those cars that same field is the car's real range, and Binnacle shows it.
-- **Camera:** the stock camera could fail with "camera error 4" after a restart and judders on the 56 Hz panel. Binnacle sets up the camera input itself, paces frames evenly and hides the start-up roll.
+- **Camera:** the stock camera judders on the 56 Hz panel. Binnacle sets up the camera input itself, paces frames evenly and hides the start-up roll.
 - **CarPlay that doesn't hijack your phone:** the stock setup grabbed the phone and the unit's Wi-Fi whenever it could. Binnacle only connects when asked (or when you turn on auto-connect).
-- **Media and calls on the Tesla:** the stock setup showed only the Bluetooth device name, with no real media or call controls. Album art isn't possible on Android 10.
+- **Media and calls on the Tesla:** the stock setup showed only the Bluetooth device name, with no real media or call controls. Album art isn't possible on Android 10. You can now see track names, skip forward and back, and answer calls like a normal phone connection.
 - **No stray pop-ups:** no more full-screen picture every time a door or the boot opens. Binnacle shows the doors on its own car instead.
 - **Warnings that clear on time:** the attention warning goes when the car clears it.
 - **A theme that doesn't flip-flop:** Auto waits for the car's light level to settle before switching.
 
 ## Planned
 - A much improved default dash design.
+- Use S3XY Commander for data alongside the built in CANBUS connection on the unit.
 - Android Auto again.
 - Other Android apps in the centre of the screen, such as [Horizon Maps](https://github.com/benbishop028-arch/Horizon-Maps).
 - A Tesla-style easter egg.
