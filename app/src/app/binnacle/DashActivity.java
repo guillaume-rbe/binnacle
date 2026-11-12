@@ -177,7 +177,10 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
 
     private final CarPlayLink.Listener carplayListener = new CarPlayLink.Listener() {
         @Override public void onLinkChanged(boolean connected) {
-            if (!connected) right.setNowPlaying(null);
+            if (!connected) {
+                right.setNowPlaying(null);
+                centre.setCarPlayStage(null);
+            }
             else XcertplayLocation.restore();     // after a reboot or an xcertplay update, before CarPlay starts
             if (connected) {
                 declaredSizes = null;
@@ -203,6 +206,8 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
         }
         @Override public void onCarPlayState(int state, String stage) {
             carplay.showState(state, stage);
+            // the same stage on the centre while CarPlay connects behind it (auto-connect)
+            centre.setCarPlayStage(state == CarPlayLink.STATE_CONNECTING ? (stage == null ? "" : stage) : null);
             watchCarPlayLost(state);
             carplayAuto.onCarPlayState(state);
             WifiScans.forCarPlay(app.prefs(), CarPlayLink.running(state));
