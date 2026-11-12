@@ -128,6 +128,27 @@ public class CentreView extends View {
         attentionOverlay.invalidate();
     }
 
+    /**
+     * What xcertplay says it is doing while CarPlay connects behind the dash (auto-connect, or a
+     * session started before the centre showed it), or null. Shown as a chip so the wait isn't blank.
+     */
+    private String carplayStage;
+    /** Keeps the chip on one line next to the others. */
+    private static final int CARPLAY_STAGE_MAX = 34;
+
+    void setCarPlayStage(String stage) {
+        String s = null;
+        if (stage != null) {
+            s = stage.trim();
+            if (s.isEmpty()) s = "CONNECTING";
+            if (s.length() > CARPLAY_STAGE_MAX) s = s.substring(0, CARPLAY_STAGE_MAX - 1).trim() + "…";
+            s = "CARPLAY · " + s.toUpperCase();
+        }
+        if (s == null ? carplayStage == null : s.equals(carplayStage)) return;
+        carplayStage = s;
+        invalidate();
+    }
+
     /** The camera is over the centre window (DashActivity): the window takes its rounder corner. */
     private boolean cameraUp;
 
@@ -855,7 +876,9 @@ public class CentreView extends View {
         CarArt art = app.art();
         boolean onCar = blend == 0 && art != null && art.src != null && art.side != null && doorScene.canShow(car.doors);
         if (car.doors > 0 && !onCar) x = badge(c, x + 8, car.doorsText().toUpperCase(), Style.WARN);
-        if (app.isDemo()) badge(c, x + 8, "DEMO DATA", Style.WARN);
+        if (app.isDemo()) x = badge(c, x + 8, "DEMO DATA", Style.WARN);
+        // last: optional, so it never pushes a problem or the logger chip off (issue #90)
+        if (carplayStage != null) badge(c, x + 8, carplayStage, Style.ACCENT);
     }
 
     private float badge(Canvas c, float x, String text, int col) {
