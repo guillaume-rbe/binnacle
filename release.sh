@@ -25,7 +25,12 @@ KS_ALIAS="${KS_ALIAS:-binnacle}"
 [ -n "${BINNACLE_DEPLOY:-}" ] || ./deploy.sh check
 # The commit this build is from, only when nothing is changed locally (./deploy.sh release
 # --no-build publishes only a build stamped with the current commit).
-COMMIT=""; [ -n "$(git status --porcelain)" ] || COMMIT=$(git rev-parse HEAD)
+# Untracked files outside the build's folders (a _to_delete/, notes) don't count; see deploy.sh dirty().
+COMMIT=""
+if [ -z "$(git status --porcelain --untracked-files=no)" ] &&
+   [ -z "$(git ls-files --others --exclude-standard -- app capture carplay buildSrc gradle settings.gradle.kts build.gradle.kts gradle.properties gradlew release.sh)" ]; then
+    COMMIT=$(git rev-parse HEAD)
+fi
 
 # Unsigned release builds; the guards, tests and iCloud-copy check run inside Gradle and stop it
 # on any failure.

@@ -12,8 +12,9 @@
 #       --draft      publish it as a draft instead (not visible to the dash until you publish it)
 #       --no-build   reuse build/release from an earlier `build` of this same commit
 #       --yes        don't ask before publishing
-#   ./deploy.sh bump [--yes]  bump the dash's version (and CarPlay's if carplay/ changed) on a new
-#                             branch and open the PR; merge it, then release
+#   ./deploy.sh bump [--yes]  bump the dash's version (and CarPlay's if carplay/ changed): a PR
+#                             that it merges straight away, so main gets the bump with no manual
+#                             steps. `release` offers this itself when the versions aren't bumped.
 #   ./deploy.sh cars TAG FILE... [--yes]   publish car-image packs (TAG = cars-vN) as a release that never
 #                             becomes the latest (--latest=false), or add the files to it
 #
@@ -123,8 +124,15 @@ check_versions() {
     return $ok
 }
 
+# Changes that could end up in a build: edited tracked files, and new files in the build's own
+# folders. Other untracked files and folders (a _to_delete/ at the top, notes) don't count.
+BUILD_PATHS="app capture carplay buildSrc gradle settings.gradle.kts build.gradle.kts gradle.properties gradlew release.sh"
+dirty() {
+    # shellcheck disable=SC2086
+    { git status --porcelain --untracked-files=no; git ls-files --others --exclude-standard -- $BUILD_PATHS | sed 's/^/?? /'; }
+}
 need_clean() {
-    [ -z "$(git status --porcelain)" ] || { git status --short | head -20; die "local changes; commit or stash them first"; }
+    [ -z "$(dirty)" ] || { dirty | head -20; die "local changes; commit or stash them first"; }
 }
 
 # Switch to main and fast-forward it. Refuses local changes and local-only commits on main.
@@ -209,7 +217,7 @@ cmd_bump() {
     branch="release-${new_name:-carplay-$cp_new_name}"
     git rev-parse -q --verify "refs/heads/$branch" >/dev/null && die "branch $branch already exists here"
     git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1 && die "branch $branch already exists on GitHub (an open bump PR?)"
-    confirm "Make branch $branch with this bump and open a PR?" || die "nothing changed"
+    confirm "Bump it? (a PR on $branch, merged straight away)" || die "nothing changed"
 
     git checkout --quiet -b "$branch"
     local msg="" body=""
@@ -230,12 +238,30 @@ cmd_bump() {
     fi
     git commit --quiet -am "$msg"
     git push --quiet -u origin "$branch"
-    gh pr create --repo "$REPO" --base main --head "$branch" --title "$msg" \
+    local url bump
+    bump=$(git rev-parse HEAD)
+    url=$(gh pr create --repo "$REPO" --base main --head "$branch" --title "$msg" \
         --body "$body
 
-Opened by \`./deploy.sh bump\`. After merging: \`./deploy.sh\` -> 6 (build and publish the release)."
+Opened and merged by \`./deploy.sh bump\`: a version-only change." | tail -1)
+    say "PR: $url"
     git checkout --quiet main
-    good "Back on main. Merge the PR, then choose 6 in the menu to build and publish."
+    # Merge it now, as the owner would on GitHub: a merge commit (keeps carplay/ history), no admin
+    # override, so branch protection still applies. GitHub may need a few seconds to work out that
+    # a new PR is mergeable, so try a few times.
+    local try
+    for try in 1 2 3 4 5 6; do
+        if gh pr merge "$url" --repo "$REPO" --merge --delete-branch >/dev/null 2>&1; then
+            git fetch --quiet --tags origin main
+            git merge-base --is-ancestor "$bump" origin/main || die "gh says merged, but main doesn't have the bump yet; check $url"
+            git merge --quiet --ff-only origin/main
+            git branch -D "$branch" >/dev/null 2>&1 || true
+            good "Merged. main is now $(git log -1 --format='%h %s')"
+            return 0
+        fi
+        [ "$try" = 6 ] || sleep 5
+    done
+    die "couldn't merge $url; merge it on GitHub, then release"
 }
 
 cmd_status() {
@@ -249,7 +275,7 @@ cmd_status() {
         if [ "$behind" = 0 ] && [ "$ahead" = 0 ]; then say "  same commit as GitHub's main"
         else say "  $behind behind and $ahead ahead of GitHub's main"; fi
     fi
-    [ -z "$(git status --porcelain)" ] || say "  local changes: $(git status --porcelain | wc -l | tr -d ' ') file(s)"
+    [ -z "$(dirty)" ] || say "  local changes: $(dirty | wc -l | tr -d ' ') file(s)"
     say "Dash:    $(dash_name) (versionCode $(dash_code))"
     say "CarPlay: $(cp_name) (versionCode $(cp_code))"
     tag=$(last_tag)
@@ -302,7 +328,14 @@ cmd_release() {
     done
     need_gh
     pull_main
-    check_versions release || die "fix the versions above first"
+    if ! check_versions release; then
+        say
+        confirm "Bump the versions now (a PR merged straight away) and carry on?" ||
+            die "fix the versions above first (menu 4 bumps them)"
+        if [ "${YES:-}" = 1 ]; then "$0" bump --yes; else "$0" bump; fi || die "the bump didn't finish"
+        pull_main
+        check_versions release || die "fix the versions above first"
+    fi
     local name tag
     name=$(dash_name); tag="v$name"
     git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null 2>&1 && die "tag $tag already exists on GitHub"
@@ -392,7 +425,7 @@ menu_items() {
     say "$line"
     title "  Get ready"
     item 3 "Get the latest main from GitHub"    "pull"
-    item 4 "Bump the version numbers (opens a PR)" "bump"
+    item 4 "Bump the version numbers"           "bump"
     say "$line"
     title "  Build and publish"
     item 5 "Build signed APKs, publish nothing" "build"
