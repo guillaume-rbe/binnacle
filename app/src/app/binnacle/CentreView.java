@@ -920,8 +920,9 @@ public class CentreView extends View {
         for (int d : v) if (d > 0 && d < closest) closest = d;
         float w = car.width(), h = car.height(), cx = car.centerX();
         float cy = rear ? car.bottom - h * 0.2f : car.top + h * 0.5f;
-        float rx0 = w * (rear ? 0.6f : 0.5f), ry0 = h * (rear ? 0.2f : 0.56f);
-        float sx = w * 0.075f, sy = h * (rear ? 0.05f : 0.07f);
+        // rear rings spread into the road below the car (in-car, 15 Nov: they were bunched)
+        float rx0 = w * (rear ? 0.6f : 0.5f), ry0 = h * (rear ? 0.24f : 0.56f);
+        float sx = w * (rear ? 0.09f : 0.075f), sy = h * (rear ? 0.075f : 0.07f);
         float[] starts = rear ? REAR_ARCS : FRONT_ARCS;
         sensorArc.setStrokeWidth(rear ? 9 : 7);
         for (int i = 0; i < 4; i++) {
