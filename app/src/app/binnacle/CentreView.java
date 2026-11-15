@@ -846,7 +846,6 @@ public class CentreView extends View {
         c.drawText(t, cx, cy + 14, limitNum);
     }
 
-    /** Rect for b scaled to fit maxW x maxH, centred, its bottom edge at `bottom`. */
     /** Where drive/rear.png goes so its car's box matches the behind view's car drawn in car. */
     private static void driveImage(RectF car, RectF out) {
         float u = car.width() / DoorScene.FRAME_W;
@@ -856,6 +855,7 @@ public class CentreView extends View {
         out.set(left, top, left + CarArt.DRIVE_W * scale, top + CarArt.DRIVE_H * scale);
     }
 
+    /** Rect for b scaled to fit maxW x maxH, centred, its bottom edge at `bottom`. */
     private void fitRect(Bitmap b, float maxW, float maxH, float bottom, RectF out) {
         float k = Math.min(maxW / b.getWidth(), maxH / b.getHeight());
         float w = b.getWidth() * k, h = b.getHeight() * k, x = box.centerX() - w / 2;
