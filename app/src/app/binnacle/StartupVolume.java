@@ -119,13 +119,13 @@ final class StartupVolume {
                 if (android.os.SystemClock.uptimeMillis() >= watchUntil[0]) return;
                 // the car went to sleep: its mute then is deliberate (screen-off also stops this)
                 if (power != null && !power.isInteractive()) return;
-                if (silent(audio)) apply(audio, prefs);
+                if (silent(audio)) apply(audio, prefs, main);
                 main.postDelayed(this, WATCH_STEP_MS);
             }
         };
         final Runnable apply = new Runnable() {
             @Override public void run() {
-                apply(audio, prefs);
+                apply(audio, prefs, main);
                 watchUntil[0] = android.os.SystemClock.uptimeMillis() + WATCH_MS;
                 main.removeCallbacks(watch);
                 main.postDelayed(watch, WATCH_STEP_MS);
@@ -157,7 +157,7 @@ final class StartupVolume {
                     if (restores[1] == RESTORE_MAX + 1) Log.w(TAG, "start-up volume: music keeps going to 0, leaving it");
                     return;
                 }
-                apply(audio, prefs);
+                apply(audio, prefs, main);
             }
         };
         android.content.IntentFilter change = new android.content.IntentFilter(VOLUME_CHANGED);
@@ -184,6 +184,7 @@ final class StartupVolume {
                 main.removeCallbacks(apply);
                 main.removeCallbacks(watch);
                 main.removeCallbacks(restore);
+                stopFade(main);
                 watchUntil[0] = 0;
                 // the car sleeping: the CAN app mutes music on purpose, so leave it until the next wake
                 if (android.content.Intent.ACTION_SCREEN_OFF.equals(i.getAction())) return;
@@ -212,21 +213,68 @@ final class StartupVolume {
                 || (android.os.Build.VERSION.SDK_INT >= 23 && audio.isStreamMute(AudioManager.STREAM_MUSIC));
     }
 
-    private static void apply(AudioManager audio, SharedPreferences prefs) {
+    /**
+     * Music fades up to the level over about this long (owner, 15 Nov: quick, but not a sudden jump
+     * into a car whose own volume expects full from the dash).
+     */
+    private static final long FADE_MS = 1000, FADE_STEP_MIN_MS = 15;
+    /** The fade in progress, or null. Main thread only. */
+    private static Runnable fading;
+
+    private static void apply(AudioManager audio, SharedPreferences prefs, Handler main) {
         int p = percent(prefs.getString(KEY, DEFAULT));
         if (p < 0) return;
         int max = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
         int level = Math.max(1, Math.round(max * p / 100f));
         boolean muted = android.os.Build.VERSION.SDK_INT >= 23 && audio.isStreamMute(AudioManager.STREAM_MUSIC);
-        if (!muted && audio.getStreamVolume(AudioManager.STREAM_MUSIC) == level) return;
+        int now = muted ? 0 : audio.getStreamVolume(AudioManager.STREAM_MUSIC);
+        if (!muted && now == level) return;
+        stopFade(main);
         try {
-            // the CAN app mutes music (ADJUST_MUTE) as well as setting it to 0 when the car sleeps;
-            // a level set while muted stays silent
-            if (muted) audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_UNMUTE, 0);
-            audio.setStreamVolume(AudioManager.STREAM_MUSIC, level, 0);
-            Log.i(TAG, "start-up volume " + p + "% (" + level + "/" + max + ")");
+            if (now >= level) {                  // only ever lower: no fade needed
+                setLevel(audio, level);
+            } else {
+                // start from the quietest step: the CAN app mutes music (ADJUST_MUTE) as well as setting
+                // it to 0 when the car sleeps, a level set while muted stays silent, and an unmute alone
+                // would bring back the level it kept at once
+                if (now == 0) setLevel(audio, 1);
+                if (muted) audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_UNMUTE, 0);
+                fade(audio, main, Math.max(now, 1), level);
+            }
+            Log.i(TAG, "start-up volume " + p + "% (" + now + " -> " + level + "/" + max + ")");
         } catch (SecurityException e) {
             Log.w(TAG, "start-up volume refused: " + e.getMessage());
         }
+    }
+
+    /** Raises music one step at a time from `from` to `to`; stops if anything else changes it. */
+    private static void fade(final AudioManager audio, final Handler main, final int from, final int to) {
+        if (to <= from) return;
+        final long step = Math.max(FADE_STEP_MIN_MS, FADE_MS / (to - from));
+        fading = new Runnable() {
+            private int at = from;
+            @Override public void run() {
+                if (fading != this) return;
+                // turned by hand, zeroed or muted again: stop (a reset is picked up and faded again)
+                if (audio.getStreamVolume(AudioManager.STREAM_MUSIC) != at) { fading = null; return; }
+                try {
+                    setLevel(audio, ++at);
+                } catch (SecurityException e) {
+                    fading = null;
+                    return;
+                }
+                if (at < to) main.postDelayed(this, step); else fading = null;
+            }
+        };
+        main.postDelayed(fading, step);
+    }
+
+    static void stopFade(Handler main) {
+        if (fading != null) main.removeCallbacks(fading);
+        fading = null;
+    }
+
+    private static void setLevel(AudioManager audio, int level) {
+        audio.setStreamVolume(AudioManager.STREAM_MUSIC, level, 0);
     }
 }
