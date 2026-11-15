@@ -61,6 +61,34 @@ final class StartupVolume {
     }
 
     /**
+     * Which volume and mute broadcasts are a reset to put back. Android 10 also mutes music when it
+     * is set to 0 and sends a mute broadcast after the volume one, so a 1 → 0 step stays silent
+     * through both: the mute is ignored while music was last stepped down to 0 (the restore checks
+     * again, in case the mute arrives first).
+     */
+    static final class Resets {
+        private boolean steppedToZero;
+
+        /** A VOLUME_CHANGED broadcast for music; true = put it back. */
+        boolean onVolume(int prev, int now) {
+            if (now != 0) { steppedToZero = false; return false; }
+            if (zeroedInOneGo(prev, now)) { steppedToZero = false; return true; }
+            if (prev == 1) steppedToZero = true;   // the wheel's last step (prev 0 = no change, keep)
+            return false;
+        }
+
+        /** A STREAM_MUTE_CHANGED broadcast for music; true = put it back. */
+        boolean onMute(boolean muted) {
+            return muted && !steppedToZero;
+        }
+
+        /** Whether the music level was last stepped down to 0 by hand. */
+        boolean steppedToZero() {
+            return steppedToZero;
+        }
+    }
+
+    /**
      * The car's Bluetooth audio (the dash's A2DP link to the car) is connected; read only. Also used
      * by CarPlayAuto, which waits for it after a start or wake (CarPlay's sound goes over it).
      */
@@ -85,6 +113,7 @@ final class StartupVolume {
         final android.os.PowerManager power = (android.os.PowerManager) context.getSystemService(Context.POWER_SERVICE);
         final long[] watchUntil = {0};
         final long[] restores = {0, 0};   // start of the current window, restores in it
+        final Resets resets = new Resets();
         final Runnable watch = new Runnable() {
             @Override public void run() {
                 if (android.os.SystemClock.uptimeMillis() >= watchUntil[0]) return;
@@ -121,6 +150,7 @@ final class StartupVolume {
             @Override public void run() {
                 if (power != null && !power.isInteractive()) return;   // the car went to sleep meanwhile
                 if (!silent(audio)) return;                             // put back already (the CAN app)
+                if (resets.steppedToZero()) return;                     // turned down to 0 by hand
                 long now = android.os.SystemClock.uptimeMillis();
                 if (now - restores[0] > RESTORE_WINDOW_MS) { restores[0] = now; restores[1] = 0; }
                 if (++restores[1] > RESTORE_MAX) {                      // something keeps zeroing it: don't fight
@@ -139,8 +169,8 @@ final class StartupVolume {
                 if (power != null && !power.isInteractive()) return;   // the car sleeping: its mute is deliberate
                 boolean muted = MUTE_CHANGED.equals(i.getAction());
                 boolean reset = muted
-                        ? i.getBooleanExtra(EXTRA_MUTED, false)
-                        : zeroedInOneGo(i.getIntExtra(EXTRA_PREV, -1), i.getIntExtra(EXTRA_VALUE, -1));
+                        ? resets.onMute(i.getBooleanExtra(EXTRA_MUTED, false))
+                        : resets.onVolume(i.getIntExtra(EXTRA_PREV, -1), i.getIntExtra(EXTRA_VALUE, -1));
                 if (!reset) return;
                 Log.i(TAG, "start-up volume: music " + (muted ? "muted" : "set to 0") + " while awake");
                 main.removeCallbacks(restore);
