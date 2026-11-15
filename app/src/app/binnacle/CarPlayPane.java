@@ -273,7 +273,11 @@ final class CarPlayPane extends FrameLayout implements SurfaceHolder.Callback {
                 link.openSettings();
                 return true;
             }
-            if (up > -SLOP_DP * dp && dx <= Math.max(SLOP_DP * dp, up / MENU_SWIPE_RATIO)) return true;   // still undecided
+            if (up > -SLOP_DP * dp && dx <= Math.max(SLOP_DP * dp, up / MENU_SWIPE_RATIO)) {
+                // still undecided; once it is clearly moving up it is no long press, so no handover
+                if (up > SLOP_DP * dp) removeCallbacks(releaseCorner);
+                return true;
+            }
         }
         // not the swipe: CarPlay gets the gesture from its start, then this event as usual
         handOverCorner();
