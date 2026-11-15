@@ -153,7 +153,7 @@ evil "openFileOutput"                    'c.openFileOutput("x", 0).write(1);'
 evil "java.util.logging FileHandler"     'new java.util.logging.FileHandler("/sdcard/x").close();'
 edit "CameraPane: path out of the decoder" CameraPane.java 's|        writeDecoder("channel", INPUT);|        writeDecoder("../" + "channel", INPUT);|'
 edit "CameraPane: a second FileWriter"   CameraPane.java 's|    private static void setUpDecoder() {|    static void more(String path) throws java.io.IOException { new java.io.FileWriter(path).close(); }\n\n    private static void setUpDecoder() {|'
-edit "StartupVolume: audio HAL parameters" StartupVolume.java 's|            audio.setStreamVolume(AudioManager.STREAM_MUSIC, level, 0);|            audio.setStreamVolume(AudioManager.STREAM_MUSIC, level, 0);\n            audio.setParameters("x=1");|'
+edit "StartupVolume: audio HAL parameters" StartupVolume.java 's|        audio.setStreamVolume(AudioManager.STREAM_MUSIC, level, 0);|        audio.setStreamVolume(AudioManager.STREAM_MUSIC, level, 0);\n        audio.setParameters("x=1");|'
 fake_nested() {
     local d; d=$(copy_app)
     printf 'package app.binnacle;\nfinal class LocalShell$X { static void go() throws Exception { new java.net.Socket("127.0.0.1", 5555).close(); } }\n' > "$d/src/app/binnacle/Evil.java"
