@@ -236,55 +236,71 @@ final class CarPlayPane extends FrameLayout implements SurfaceHolder.Callback {
     private boolean gestureSent;
 
     /**
-     * Three fingers swiped down opens xcertplay's own screen and menu, as the same swipe does there
-     * (in-car, 15 Nov: drawn in the dash, CarPlay got the swipe and the menu was out of reach).
-     * Same thresholds as xcertplay's CarPlayHostActivity: 72 dp down, mostly vertical.
+     * One finger swiped up from the bottom-left corner opens xcertplay's own screen and menu
+     * (owner, 16 Nov). In-car: three fingers can't work here, because this touch panel almost
+     * never reports a third finger; two fingers are CarPlay Maps' zoom and tilt; and the top edge
+     * is Android's pull-down. A touch that starts in the corner is held back from CarPlay until it
+     * is clearly not that swipe, then handed over from its start. A tap there lands on lifting,
+     * and a finger held still is handed over after HOLD_MS, so a long press on CarPlay's home
+     * button (Siri) still works.
      */
-    private static final float MENU_SWIPE_DP = 72, MENU_SWIPE_RATIO = 1.15f;
-    private float menuX0, menuY0;
-    private boolean menuTracking, menuOpened;
+    private static final float CORNER_W = 0.25f, CORNER_DP = 40, MENU_SWIPE_DP = 72, MENU_SWIPE_RATIO = 1.15f, SLOP_DP = 12;
+    private static final long HOLD_MS = 250;
+    /** The held-back start of a touch in the corner, or null. */
+    private MotionEvent cornerDown;
+    private boolean menuOpened;
 
-    /** True while a three-finger swipe is being watched or has opened the menu (the gesture is then ours). */
+    /** True while a touch from the corner is held back or has opened the menu (the gesture is then ours). */
     private boolean menuSwipe(MotionEvent e) {
         int action = e.getActionMasked();
-        if (action == MotionEvent.ACTION_DOWN) { menuTracking = false; menuOpened = false; }
+        float dp = getResources().getDisplayMetrics().density;
+        if (action == MotionEvent.ACTION_DOWN) {
+            menuOpened = false;
+            dropCorner();
+            if (status.getVisibility() == VISIBLE || e.getX() > getWidth() * CORNER_W
+                    || e.getY() < getHeight() - CORNER_DP * dp) return false;
+            cornerDown = MotionEvent.obtain(e);
+            postDelayed(releaseCorner, HOLD_MS);
+            return true;
+        }
         if (menuOpened) return true;
-        if (action == MotionEvent.ACTION_POINTER_DOWN && e.getPointerCount() == 3) {
-            menuTracking = true;
-            menuX0 = meanX(e);
-            menuY0 = meanY(e);
-        } else if (menuTracking && (e.getPointerCount() != 3 || action == MotionEvent.ACTION_UP
-                || action == MotionEvent.ACTION_CANCEL)) {
-            menuTracking = false;
-        } else if (menuTracking && action == MotionEvent.ACTION_MOVE) {
-            float dy = meanY(e) - menuY0, dx = Math.abs(meanX(e) - menuX0);
-            if (dy >= MENU_SWIPE_DP * getResources().getDisplayMetrics().density && dy >= dx * MENU_SWIPE_RATIO) {
-                menuTracking = false;
+        if (cornerDown == null) return false;
+        if (action == MotionEvent.ACTION_MOVE && e.getPointerCount() == 1) {
+            float up = cornerDown.getY() - e.getY(), dx = Math.abs(e.getX() - cornerDown.getX());
+            if (up >= MENU_SWIPE_DP * dp && up >= dx * MENU_SWIPE_RATIO) {
                 menuOpened = true;
-                if (gestureSent) {                       // lift the fingers on the phone first
-                    MotionEvent cancel = MotionEvent.obtain(e);
-                    cancel.setAction(MotionEvent.ACTION_CANCEL);
-                    sendTouch(cancel);
-                    cancel.recycle();
-                    gestureSent = false;
-                }
+                dropCorner();
                 link.openSettings();
                 return true;
             }
+            if (up > -SLOP_DP * dp && dx <= Math.max(SLOP_DP * dp, up / MENU_SWIPE_RATIO)) return true;   // still undecided
         }
+        // not the swipe: CarPlay gets the gesture from its start, then this event as usual
+        handOverCorner();
         return false;
     }
 
-    private static float meanX(MotionEvent e) {
-        float sum = 0;
-        for (int i = 0; i < e.getPointerCount(); i++) sum += e.getX(i);
-        return sum / e.getPointerCount();
+    /** A finger held still in the corner: CarPlay gets it (a long press, e.g. Siri on the home button). */
+    private final Runnable releaseCorner = new Runnable() {
+        @Override public void run() {
+            if (cornerDown != null && status.getVisibility() != VISIBLE) handOverCorner();
+        }
+    };
+
+    private void handOverCorner() {
+        removeCallbacks(releaseCorner);
+        MotionEvent down = cornerDown;
+        cornerDown = null;
+        if (down == null) return;
+        sendTouch(down);
+        down.recycle();
+        gestureSent = true;
     }
 
-    private static float meanY(MotionEvent e) {
-        float sum = 0;
-        for (int i = 0; i < e.getPointerCount(); i++) sum += e.getY(i);
-        return sum / e.getPointerCount();
+    private void dropCorner() {
+        removeCallbacks(releaseCorner);
+        if (cornerDown != null) cornerDown.recycle();
+        cornerDown = null;
     }
 
     @Override public boolean onTouchEvent(MotionEvent e) {
