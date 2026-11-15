@@ -924,7 +924,7 @@ public class CentreView extends View {
         // flattened like a ring on the road seen from behind, the rear half spreads into the
         // road below the car (they were bunched)
         float cy = car.bottom - h * 0.2f;
-        float rx0 = w * 0.6f, ry0 = h * (rear ? 0.24f : 0.56f);
+        float rx0 = w * 0.6f, ry0 = h * (rear ? 0.24f : 0.64f);
         float sx = w * 0.09f, sy = h * 0.075f;
         float[] starts = rear ? REAR_ARCS : FRONT_ARCS;
         sensorArc.setStrokeWidth(rear ? 9 : 7);
