@@ -254,6 +254,7 @@ public class CentreView extends View {
         long now = SystemClock.uptimeMillis();
         boolean transitioning = updateBlend(now);
         apBlend = approachBlend(apBlend, car.autopilot ? 1 : 0, now);   // every frame, whatever the scene
+        stopAlpha = 0;                // drawSensorArcs (inside drawDrive) places the STOP sign
         if (blend > 0) { drawDrive(c, now, blend); doorScene.pause(); } else { drawPark(c); lastFrameMs = 0; }
         reportDial();
         float shown = dialShown();
@@ -262,6 +263,7 @@ public class CentreView extends View {
             dial.draw(c, app, car, box.left + DIAL_X, box.top + DIAL_Y, shown, apBlend);
             if (car.speedLimit > 0) drawLimit(c, box.left + 76, box.top + 616, Units.speedLimit(app, car.speedLimit), shown);
         }
+        drawStop(c);                  // after the scrim and dial: an urgent warning stays on top
         // the old pills when there's no car render, and until the hand-over to the driving view has
         // finished: the arcs only draw once the car has settled (mid-change they didn't line up with
         // the sliding car, in-car feedback), and a reading must never vanish
@@ -910,25 +912,37 @@ public class CentreView extends View {
         }
         if (closest <= 2) {
             // a red octagon STOP sign, front and centre above the fan (in-car feedback): above the
-            // outer front ring in D, above the roof in R (the rear fan is below the car)
-            float rad = 44, sx2 = cx;
-            float sy2 = rear ? car.top - rad - 14 : cy - ry0 - sy * ARC_BANDS - rad - 10;
-            stopPath.reset();
-            for (int k = 0; k < 8; k++) {
-                double ang = Math.PI / 8 + k * Math.PI / 4;
-                float px = sx2 + (float) Math.cos(ang) * rad, py = sy2 + (float) Math.sin(ang) * rad;
-                if (k == 0) stopPath.moveTo(px, py); else stopPath.lineTo(px, py);
-            }
-            stopPath.close();
-            int a = Math.round(255 * arcFade);
-            stopFill.setAlpha(a);
-            c.drawPath(stopPath, stopFill);
-            stopRim.setAlpha(a);
-            c.drawPath(stopPath, stopRim);
-            Style.size(stopText, Style.T_BADGE * 1.45f);
-            stopText.setAlpha(a);
-            c.drawText("STOP", sx2, sy2 - (stopText.ascent() + stopText.descent()) / 2, stopText);
+            // outer front ring in D, above the roof in R (the rear fan is below the car). Only placed
+            // here: drawStop paints it after the dial, so the dial's scrim and digits never hide it.
+            stopRad = 44;
+            stopX = cx;
+            stopY = rear ? car.top - stopRad - 14 : cy - ry0 - sy * ARC_BANDS - stopRad - 10;
+            stopAlpha = arcFade;
         }
+    }
+
+    /** Where drawSensorArcs placed this frame's STOP sign (stopAlpha 0 = none). */
+    private float stopX, stopY, stopRad, stopAlpha;
+
+    /** The STOP sign from drawSensorArcs, on top of the scene and the dial. */
+    private void drawStop(Canvas c) {
+        if (stopAlpha <= 0) return;
+        float rad = stopRad, sx2 = stopX, sy2 = stopY;
+        stopPath.reset();
+        for (int k = 0; k < 8; k++) {
+            double ang = Math.PI / 8 + k * Math.PI / 4;
+            float px = sx2 + (float) Math.cos(ang) * rad, py = sy2 + (float) Math.sin(ang) * rad;
+            if (k == 0) stopPath.moveTo(px, py); else stopPath.lineTo(px, py);
+        }
+        stopPath.close();
+        int a = Math.round(255 * stopAlpha);
+        stopFill.setAlpha(a);
+        c.drawPath(stopPath, stopFill);
+        stopRim.setAlpha(a);
+        c.drawPath(stopPath, stopRim);
+        Style.size(stopText, Style.T_BADGE * 1.45f);
+        stopText.setAlpha(a);
+        c.drawText("STOP", sx2, sy2 - (stopText.ascent() + stopText.descent()) / 2, stopText);
     }
 
     private void sensorRow(Canvas c, int[] v, float y) {
