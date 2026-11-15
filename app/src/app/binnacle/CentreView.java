@@ -28,11 +28,13 @@ public class CentreView extends View {
     /** Lane dash geometry in metres: a 3 m dash every 12 m; the bottom of the screen is 4 m ahead. */
     private static final float DASH = 3f, PERIOD = 12f, NEAR = 4f, FAR = 120f;
     /**
-     * Horizon height in the centre window. In-car feedback (28 Oct): the road looked as if seen
-     * from lower down than the car render, so the horizon came down a little (0.34 -> 0.38) and the
-     * lane spreads wider at the bottom (BOT_X), which tips the road plane up to meet the car's view.
+     * Design 2a (15 Nov): the road starts under the big dial (horizon 418 px down the window box;
+     * it was 38% of the window), narrower (half-width 0.34 of the box; was 0.52), and the cars are
+     * smaller: the rear view 64% and the parked car 92% of their old size. The lane still spreads
+     * wider at the bottom (BOT_X), which tips the road plane up to meet the car's view (28 Oct).
      */
-    private static final float HORIZON = 0.38f;
+    private static final float HORIZON_Y = 418, ROAD_HALF = 0.34f, DRIVE_SCALE = 0.64f, DRIVE_BOTTOM = 638,
+            PARK_SCALE = 0.92f;
 
     private final DashApp app;
     private final CarState car;
@@ -126,6 +128,35 @@ public class CentreView extends View {
         covered = on;
         invalidate();
         attentionOverlay.invalidate();
+        reportDial();
+    }
+
+    /**
+     * The speed dial (design 2a, 15 Nov): the big one sits in the centre window in Drive and
+     * Reverse, fading in with the road; otherwise the left column shows a compact one. Exactly one
+     * speed on screen: the left column follows dialShown() (0..1) through this listener.
+     */
+    interface DialListener { void onDialShown(float shown); }
+
+    private DialListener dialListener;
+    private float reportedDial = -1;
+    private final SpeedDial dial = SpeedDial.big();
+    /** Dial centre in the window box (design px of the 1212 x 692 box). */
+    private static final float DIAL_X = 606, DIAL_Y = 328;
+
+    void setDialListener(DialListener l) { dialListener = l; reportedDial = -1; reportDial(); }
+
+    /** How much of the big dial is showing: the road's hand-over, nothing while covered. */
+    float dialShown() {
+        if (covered || cameraUp) return 0;
+        return blend * blend * (3 - 2 * blend);   // smoothstep, as the car's slide
+    }
+
+    private void reportDial() {
+        float d = dialShown();
+        if (d == reportedDial || dialListener == null) return;
+        reportedDial = d;
+        dialListener.onDialShown(d);
     }
 
     /**
@@ -157,6 +188,7 @@ public class CentreView extends View {
         cameraUp = on;
         invalidate();
         attentionOverlay.invalidate();
+        reportDial();
     }
 
     /**
@@ -220,6 +252,13 @@ public class CentreView extends View {
         boolean transitioning = updateBlend(now);
         apBlend = approachBlend(apBlend, car.autopilot ? 1 : 0, now);   // every frame, whatever the scene
         if (blend > 0) { drawDrive(c, now, blend); doorScene.pause(); } else { drawPark(c); lastFrameMs = 0; }
+        reportDial();
+        float shown = dialShown();
+        if (shown > 0) {
+            drawScrim(c, shown);
+            dial.draw(c, app, car, box.left + DIAL_X, box.top + DIAL_Y, shown, apBlend);
+            if (car.speedLimit > 0) drawLimit(c, box.left + 76, box.top + 616, Units.speedLimit(app, car.speedLimit), shown);
+        }
         // the old pills when there's no car render, and until the hand-over to the driving view has
         // finished: the arcs only draw once the car has settled (mid-change they didn't line up with
         // the sliding car, in-car feedback), and a reading must never vanish
@@ -507,7 +546,7 @@ public class CentreView extends View {
         lastFrameMs = now;
 
         float bw = box.width(), bh = box.height();
-        float top = box.top + bh * HORIZON, bottom = box.bottom, rh = bottom - top;
+        float top = box.top + HORIZON_Y, bottom = box.bottom, rh = bottom - top;
         if (sky.getShader() == null) {
             sky.setShader(new LinearGradient(0, box.top, 0, box.bottom, Style.SKY, null, Shader.TileMode.CLAMP));
             // the far end fades into the sky instead of stopping at a hard horizon line
@@ -518,7 +557,10 @@ public class CentreView extends View {
         Bitmap b = a == null ? null : a.rear;
         if (b != null) {
             // the car slides between its parked and driving spots as the road fades
-            fitRect(b, bw * 0.39f, bh * 0.46f, box.bottom - bh * 0.13f, driveRect);   // room below for the rear sensor arcs
+            fitRect(b, bw * 0.39f, bh * 0.46f, box.bottom - bh * 0.13f, driveRect);
+            // under the dial (design 2a): 64% of the old size, bottom at 638; room below for the rear sensor arcs
+            float dw = driveRect.width() * DRIVE_SCALE, dh = driveRect.height() * DRIVE_SCALE, db = box.top + DRIVE_BOTTOM;
+            driveRect.set(box.centerX() - dw / 2, db - dh, box.centerX() + dw / 2, db);
             if (k >= 1) {
                 carRect.set(driveRect);
             } else {
@@ -535,9 +577,9 @@ public class CentreView extends View {
         int layer = k < 1 ? c.saveLayerAlpha(box, Math.round(255 * k)) : -1;
         c.drawRect(box, sky);
 
-        // road surface: trapezoid 104% wide, top 44-56%, with feathered sides: wider copies drawn
+        // road surface: trapezoid 68% wide, top 44-56%, with feathered sides: wider copies drawn
         // outermost first, each alpha chosen so the coverage ramps evenly up to the solid road
-        float rx0 = box.centerX() - bw * 0.52f, rw = bw * 1.04f;
+        float rx0 = box.centerX() - bw * ROAD_HALF, rw = bw * 2 * ROAD_HALF;
         for (int i = ROAD_FEATHER_STEPS; i >= 0; i--) {
             float grow = ROAD_FEATHER * i / ROAD_FEATHER_STEPS;
             float cov = 1f - (float) i / (ROAD_FEATHER_STEPS + 1), prev = 1f - (float) (i + 1) / (ROAD_FEATHER_STEPS + 1);
@@ -709,7 +751,8 @@ public class CentreView extends View {
     /** Parked car frame: ~30% larger than at first (in-car feedback, 29 Oct), a little lower. */
     private void parkRect(RectF out) {
         float bw = box.width(), bh = box.height();
-        float w = Math.min(bw * 0.8f, bh * 0.572f / DoorScene.aspect()), h = w * DoorScene.aspect();
+        // 92% of the old frame (design 2a, 15 Nov), bottom where it was
+        float w = Math.min(bw * 0.8f, bh * 0.572f / DoorScene.aspect()) * PARK_SCALE, h = w * DoorScene.aspect();
         float bottom = box.bottom - bh * 0.06f;
         out.set(box.centerX() - w / 2, bottom - h, box.centerX() + w / 2, bottom);
     }
@@ -739,6 +782,49 @@ public class CentreView extends View {
         c.drawOval(r, groundRim);
     }
 
+    /**
+     * Keeps the dial on top of the road and car (design 2a): a soft radial shade in the window's
+     * own colour behind it, Drive and Reverse only, faded with the hand-over. Shader cached.
+     */
+    private void drawScrim(Canvas c, float alpha) {
+        float cx = box.left + DIAL_X, cy = box.top + 280;
+        if (scrimShader == null || scrimX != cx || scrimY != cy || scrimColour != Style.SCREEN) {
+            int base = Style.SCREEN & 0x00ffffff;
+            scrimShader = new RadialGradient(cx, cy, 340,
+                    new int[]{base | 0xeb000000, base | 0xb3000000, base | 0x2e000000, base},
+                    new float[]{0f, 0.42f, 0.66f, 1f}, Shader.TileMode.CLAMP);
+            scrimX = cx;
+            scrimY = cy;
+            scrimColour = Style.SCREEN;
+        }
+        scrim.setShader(scrimShader);
+        scrim.setAlpha(Math.round(255 * alpha));
+        c.drawCircle(cx, cy, 340, scrim);
+    }
+
+    private final Paint scrim = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private Shader scrimShader;
+    private float scrimX = Float.NaN, scrimY = Float.NaN;
+    private int scrimColour;
+
+    private final Paint limitWhite = Style.fill(0xffffffff), limitRed = Style.stroke(Style.BAD, 8);
+    private final Paint limitNum = Style.text(Style.DISPLAY, Style.T_LIMIT, 0xff111111, Paint.Align.CENTER);
+
+    /** The speed-limit sign (as the left column's), bottom left of the window in Drive and Reverse. */
+    private void drawLimit(Canvas c, float cx, float cy, int limit, float alpha) {
+        int a = Math.round(255 * alpha);
+        limitWhite.setAlpha(a);
+        limitRed.setColor(Style.BAD);
+        limitRed.setAlpha(a);
+        limitNum.setAlpha(a);
+        c.drawCircle(cx, cy, 48, limitWhite);
+        c.drawCircle(cx, cy, 44, limitRed);
+        String t = String.valueOf(limit);
+        Style.size(limitNum, Style.T_LIMIT);
+        Style.fit(limitNum, t, 72);
+        c.drawText(t, cx, cy + 14, limitNum);
+    }
+
     /** Rect for b scaled to fit maxW x maxH, centred, its bottom edge at `bottom`. */
     private void fitRect(Bitmap b, float maxW, float maxH, float bottom, RectF out) {
         float k = Math.min(maxW / b.getWidth(), maxH / b.getHeight());
@@ -758,7 +844,7 @@ public class CentreView extends View {
      */
     private void drawSensors(Canvas c) {
         if (car.gear == CarState.GEAR_R) sensorRow(c, car.rear, box.bottom - 18);
-        else if (car.gear == CarState.GEAR_D && car.speedKmh() < 10) sensorRow(c, car.front, box.top + box.height() * HORIZON - 30);
+        else if (car.gear == CarState.GEAR_D && car.speedKmh() < 10) sensorRow(c, car.front, box.top + HORIZON_Y - 30);
     }
 
     /** Arc sweeps (Canvas degrees, 0 = right, 90 = down) per sensor, in feed order left to right. */
