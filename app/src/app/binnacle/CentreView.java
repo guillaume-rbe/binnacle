@@ -919,15 +919,15 @@ public class CentreView extends View {
         int closest = CarState.SENSOR_NONE;
         for (int d : v) if (d > 0 && d < closest) closest = d;
         float w = car.width(), h = car.height(), cx = car.centerX();
-        // one four-ring "circle" lying on the road round the car (in-car, 15 Nov): front and rear
-        // share the centre and widths, so their rings meet at the sides; the front half is
-        // flattened like a ring on the road seen from behind, the rear half spreads into the
-        // road below the car (they were bunched)
-        float cy = car.bottom - h * 0.2f;
-        float rx0 = w * 0.6f, ry0 = h * (rear ? 0.24f : 0.64f);
-        float sx = w * 0.09f, sy = h * 0.075f;
+        // rings lying on the road round the car (in-car, 15 Nov; the owner picked these from a
+        // render): the front ones centred near the wheels and flatter, so they start on the road
+        // beside the car and arch over the roof clear of the digits; the rear ones spread about
+        // twice as far apart into the road below the car (they were bunched)
+        float cy = car.bottom - h * (rear ? 0.2f : 0.1f);
+        float rx0 = w * (rear ? 0.7f : 0.62f), ry0 = h * (rear ? 0.2f : 0.68f);
+        float sx = w * (rear ? 0.11f : 0.085f), sy = h * (rear ? 0.1f : 0.06f);
         float[] starts = rear ? REAR_ARCS : FRONT_ARCS;
-        sensorArc.setStrokeWidth(rear ? 9 : 7);
+        sensorArc.setStrokeWidth(rear ? 9 : 8);
         for (int i = 0; i < 4; i++) {
             int d = v[i];
             boolean seen = d > 0 && d < CarState.SENSOR_NONE;
