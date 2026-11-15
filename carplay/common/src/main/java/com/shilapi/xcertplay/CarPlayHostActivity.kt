@@ -865,8 +865,19 @@ class CarPlayHostActivity : ComponentActivity() {
             checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED
         }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+    }
+
     override fun onResume() {
         super.onResume()
+        // Binnacle's three-finger swipe (CarPlayEmbedService.openSettings) asks for the menu itself,
+        // not just this screen; taken once, so a later resume doesn't reopen it
+        if (intent?.getBooleanExtra(EXTRA_OPEN_SETTINGS, false) == true) {
+            intent.removeExtra(EXTRA_OPEN_SETTINGS)
+            window.decorView.post { openSettingsMenu() }
+        }
         session.audioFocus().apply {
             retain(this@CarPlayHostActivity)
             setEnabled(audioFocusEnabled)
@@ -3831,3 +3842,6 @@ class CarPlayViewAreas private constructor(
         }
     }
 }
+
+/** Open the settings menu on arrival (CarPlayEmbedService.openSettings, Binnacle's three-finger swipe). */
+internal const val EXTRA_OPEN_SETTINGS = "com.shilapi.xcertplay.extra.OPEN_SETTINGS"

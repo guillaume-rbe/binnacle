@@ -177,7 +177,8 @@ class CarPlayEmbedService : Service() {
             onMain {
                 startActivity(
                     Intent(this@CarPlayEmbedService, CarPlayHostActivity::class.java)
-                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        .putExtra(EXTRA_OPEN_SETTINGS, true),
                 )
             }
         }

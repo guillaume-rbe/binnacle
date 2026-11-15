@@ -95,6 +95,8 @@
 >   starts the session at the first size the client declared, instead of waiting for a window
 > - Embedding: a finger is lifted on the phone when the head unit lets go of the surface or a gesture
 >   ends after it, and attaching a surface no longer makes the head unit wait for xcertplay's main thread
+> - Embedding: `openSettings()` (the head unit's three-finger swipe) opens the settings menu, not
+>   just the full-screen view
 > - Call clean-ups: an answer or hang-up from the car is held back when the key (which has no call
 >   ID) would hit the other call instead, calls the phone has ended are cleared from the car if
 >   their end update never came, the audio mode never sticks in ringtone mode, and the echo

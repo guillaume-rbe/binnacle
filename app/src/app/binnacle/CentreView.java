@@ -146,6 +146,8 @@ public class CentreView extends View {
     private final SpeedDial dial = SpeedDial.big();
     /** Dial centre in the window box (design px of the 1212 x 692 box). */
     private static final float DIAL_X = 606, DIAL_Y = 328;
+    /** The STOP sign's centre beside the dial's digits (digits: 247 px, baseline DIAL_Y + 22). */
+    private static final float STOP_BESIDE_DX = 190, STOP_BESIDE_DY = -64;
 
     void setDialListener(DialListener l) { dialListener = l; reportedDial = -1; reportDial(); }
 
@@ -264,10 +266,10 @@ public class CentreView extends View {
             if (car.speedLimit > 0) drawLimit(c, box.left + 76, box.top + 616, Units.speedLimit(app, car.speedLimit), shown);
         }
         drawStop(c);                  // after the scrim and dial: an urgent warning stays on top
-        // the old pills when there's no car render, and until the hand-over to the driving view has
-        // finished: the arcs only draw once the car has settled (mid-change they didn't line up with
-        // the sliding car, in-car feedback), and a reading must never vanish
-        if (app.art() == null || app.art().rear == null || blend < 1) drawSensors(c);
+        // the old pills only when there's no car render. They also used to bridge the hand-over to the
+        // driving view (the arcs wait for the car to settle), but flashing up for that half second
+        // they read as a glitch (in-car, 15 Nov); the right card's sensor page still shows them
+        if (app.art() == null || app.art().rear == null) drawSensors(c);
         drawBadges(c);
         drawCompass(c);
         if (car.driverWarning != 0 || attentionUntil > now) attentionOverlay.invalidate();
@@ -917,11 +919,15 @@ public class CentreView extends View {
         int closest = CarState.SENSOR_NONE;
         for (int d : v) if (d > 0 && d < closest) closest = d;
         float w = car.width(), h = car.height(), cx = car.centerX();
-        float cy = rear ? car.bottom - h * 0.2f : car.top + h * 0.5f;
-        float rx0 = w * (rear ? 0.6f : 0.5f), ry0 = h * (rear ? 0.2f : 0.56f);
-        float sx = w * 0.075f, sy = h * (rear ? 0.05f : 0.07f);
+        // rings lying on the road round the car (in-car, 15 Nov; the owner picked these from a
+        // render): the front ones centred near the wheels and flatter, so they start on the road
+        // beside the car and arch over the roof clear of the digits; the rear ones spread about
+        // twice as far apart into the road below the car (they were bunched)
+        float cy = car.bottom - h * (rear ? 0.2f : 0.1f);
+        float rx0 = w * (rear ? 0.7f : 0.62f), ry0 = h * (rear ? 0.2f : 0.68f);
+        float sx = w * (rear ? 0.11f : 0.085f), sy = h * (rear ? 0.1f : 0.06f);
         float[] starts = rear ? REAR_ARCS : FRONT_ARCS;
-        sensorArc.setStrokeWidth(rear ? 9 : 7);
+        sensorArc.setStrokeWidth(rear ? 9 : 8);
         for (int i = 0; i < 4; i++) {
             int d = v[i];
             boolean seen = d > 0 && d < CarState.SENSOR_NONE;
@@ -953,6 +959,13 @@ public class CentreView extends View {
     private void drawStop(Canvas c) {
         if (stopAlpha <= 0) return;
         float rad = stopRad, sx2 = stopX, sy2 = stopY;
+        // with the big dial up, beside its digits rather than over them (in-car, 15 Nov): right of
+        // the middle of a one-digit speed (it only shows under 10 km/h), inside the tick labels
+        float d = dialShown();
+        if (d > 0) {
+            sx2 = lerp(sx2, box.left + DIAL_X + STOP_BESIDE_DX, d);
+            sy2 = lerp(sy2, box.top + DIAL_Y + STOP_BESIDE_DY, d);
+        }
         stopPath.reset();
         for (int k = 0; k < 8; k++) {
             double ang = Math.PI / 8 + k * Math.PI / 4;
