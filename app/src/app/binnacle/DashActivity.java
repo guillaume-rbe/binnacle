@@ -682,7 +682,8 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
                 centre.invalidate();
                 right.invalidate();
                 break;
-            case 12:
+            case 12:                            // tyres: either card can show them
+                left.invalidate();
                 right.invalidate();
                 break;
             case 15:                            // doors: the centre car animates them and shows the badge
@@ -690,7 +691,8 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
                 followFrontCam();
                 centre.invalidate();
                 break;
-            case 3: case 4:                    // parking sensors: centre arcs and the right-hand sensor card
+            case 3: case 4:                    // parking sensors: centre arcs and either card's sensor page
+                left.invalidate();
                 centre.invalidate();
                 right.invalidate();
                 break;
