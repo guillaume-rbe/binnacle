@@ -266,10 +266,10 @@ public class CentreView extends View {
             if (car.speedLimit > 0) drawLimit(c, box.left + 76, box.top + 616, Units.speedLimit(app, car.speedLimit), shown);
         }
         drawStop(c);                  // after the scrim and dial: an urgent warning stays on top
-        // the old pills when there's no car render, and until the hand-over to the driving view has
-        // finished: the arcs only draw once the car has settled (mid-change they didn't line up with
-        // the sliding car, in-car feedback), and a reading must never vanish
-        if (app.art() == null || app.art().rear == null || blend < 1) drawSensors(c);
+        // the old pills only when there's no car render. They also used to bridge the hand-over to the
+        // driving view (the arcs wait for the car to settle), but flashing up for that half second
+        // they read as a glitch (in-car, 15 Nov); the right card's sensor page still shows them
+        if (app.art() == null || app.art().rear == null) drawSensors(c);
         drawBadges(c);
         drawCompass(c);
         if (car.driverWarning != 0 || attentionUntil > now) attentionOverlay.invalidate();
