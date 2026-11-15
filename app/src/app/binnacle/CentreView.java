@@ -919,10 +919,13 @@ public class CentreView extends View {
         int closest = CarState.SENSOR_NONE;
         for (int d : v) if (d > 0 && d < closest) closest = d;
         float w = car.width(), h = car.height(), cx = car.centerX();
-        float cy = rear ? car.bottom - h * 0.2f : car.top + h * 0.5f;
-        // rear rings spread into the road below the car (in-car, 15 Nov: they were bunched)
-        float rx0 = w * (rear ? 0.6f : 0.5f), ry0 = h * (rear ? 0.24f : 0.56f);
-        float sx = w * (rear ? 0.09f : 0.075f), sy = h * (rear ? 0.075f : 0.07f);
+        // one four-ring "circle" lying on the road round the car (in-car, 15 Nov): front and rear
+        // share the centre and widths, so their rings meet at the sides; the front half is
+        // flattened like a ring on the road seen from behind, the rear half spreads into the
+        // road below the car (they were bunched)
+        float cy = car.bottom - h * 0.2f;
+        float rx0 = w * 0.6f, ry0 = h * (rear ? 0.24f : 0.56f);
+        float sx = w * 0.09f, sy = h * 0.075f;
         float[] starts = rear ? REAR_ARCS : FRONT_ARCS;
         sensorArc.setStrokeWidth(rear ? 9 : 7);
         for (int i = 0; i < 4; i++) {
