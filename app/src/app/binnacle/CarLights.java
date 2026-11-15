@@ -29,8 +29,13 @@ final class CarLights {
     private static final class Lamps {
         final float[] behindLeft, behindRight, leftRear, leftFront, rightRear, rightFront, leftFog, rightFog,
                 behindFogLeft, behindFogRight;
+        /** The same lamps in the driving render (drive/rear.png, CarArt.DRIVE_W px wide). */
+        final float[] driveLeft, driveRight, driveFogLeft, driveFogRight;
         Lamps(float[] behindLeft, float[] behindRight, float[] leftRear, float[] leftFront, float[] rightRear,
-              float[] rightFront, float[] leftFog, float[] rightFog, float[] behindFogLeft, float[] behindFogRight) {
+              float[] rightFront, float[] leftFog, float[] rightFog, float[] behindFogLeft, float[] behindFogRight,
+              float[] driveLeft, float[] driveRight, float[] driveFogLeft, float[] driveFogRight) {
+            this.driveLeft = driveLeft; this.driveRight = driveRight;
+            this.driveFogLeft = driveFogLeft; this.driveFogRight = driveFogRight;
             this.behindLeft = behindLeft; this.behindRight = behindRight; this.leftRear = leftRear;
             this.leftFront = leftFront; this.rightRear = rightRear; this.rightFront = rightFront;
             this.leftFog = leftFog; this.rightFog = rightFog;
@@ -43,13 +48,17 @@ final class CarLights {
             new float[]{711, 168}, new float[]{100, 188},     // left side: rear, front
             new float[]{95, 159}, new float[]{700, 180},      // right side: rear, front
             new float[]{88, 222}, new float[]{712, 218},      // front fogs on the side views
-            new float[]{310, 352}, new float[]{496, 352});    // rear fogs from behind
+            new float[]{310, 352}, new float[]{496, 352},     // rear fogs from behind
+            new float[]{79, 139}, new float[]{160, 140},      // driving render: tail lamps, rear fogs
+            new float[]{79, 175}, new float[]{160, 175});
     private static final Lamps MODEL_Y = new Lamps(
             new float[]{300, 250}, new float[]{510, 250},
             new float[]{716, 152}, new float[]{112, 172},
             new float[]{92, 152}, new float[]{688, 172},
             new float[]{92, 212}, new float[]{708, 212},
-            new float[]{333, 350}, new float[]{473, 350});
+            new float[]{333, 350}, new float[]{473, 350},
+            new float[]{83, 129}, new float[]{156, 129},
+            new float[]{93, 170}, new float[]{148, 170});
 
     private Lamps lamps = MODEL_3;
 
@@ -177,6 +186,25 @@ final class CarLights {
     /** Rear lamps in the driving (rear) view; draw after the car. */
     void drawRearView(Canvas c, RectF frame, CarState car) {
         drawRear(c, frame, frame.width() / DoorScene.FRAME_W, car);
+    }
+
+    /**
+     * Rear lamps on the driving render (CarArt.drive); draw after the car. Glows sized as on the
+     * behind view: its car is REAR_CAR px wide where the driving render's is DRIVE_CAR px.
+     */
+    void drawDriveView(Canvas c, RectF frame, CarState car) {
+        float k = frame.width() / CarArt.DRIVE_W;
+        float rk = (CarArt.DRIVE_CAR_X1 - CarArt.DRIVE_CAR_X0) / (CarArt.REAR_CAR_X1 - CarArt.REAR_CAR_X0);
+        if (car.position || car.lowBeam) {
+            spot(c, frame, k, lamps.driveLeft, 44 * rk, red, 0.5f);
+            spot(c, frame, k, lamps.driveRight, 44 * rk, red, 0.5f);
+        }
+        if (car.rearFog) {
+            spot(c, frame, k, lamps.driveFogLeft, 40 * rk, red, 0.9f);
+            spot(c, frame, k, lamps.driveFogRight, 40 * rk, red, 0.9f);
+        }
+        if (car.turnLeft) spot(c, frame, k, lamps.driveLeft, 58 * rk, amber, 1f);
+        if (car.turnRight) spot(c, frame, k, lamps.driveRight, 58 * rk, amber, 1f);
     }
 
     private void drawRear(Canvas c, RectF frame, float k, CarState car) {

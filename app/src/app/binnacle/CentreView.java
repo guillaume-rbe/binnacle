@@ -115,7 +115,7 @@ public class CentreView extends View {
     private long lastBlendMs, gearSince, waitSince;
     private static final float BLEND_SECONDS = 0.7f;
     private static final long GEAR_SETTLE_MS = 400, TURN_TIMEOUT_MS = 1500;
-    private final RectF parkRect = new RectF(), driveRect = new RectF();
+    private final RectF parkRect = new RectF(), driveRect = new RectF(), driveImg = new RectF();
 
     private float travel;          // metres of road travelled, drives the dash phase
     private long lastFrameMs;
@@ -618,9 +618,25 @@ public class CentreView extends View {
         if (layer >= 0) c.restoreToCount(layer);
         if (b != null) {
             if (k >= 1) drawSensorArcs(c, driveRect);         // once the car has settled; under the car
-            c.drawBitmap(b, null, carRect, bmp);
             lights.setModelY(app.modelY());
-            lights.drawRearView(c, carRect, car);
+            Bitmap dv = a.drive;
+            if (dv == null) {                                 // a pack from before the driving render
+                c.drawBitmap(b, null, carRect, bmp);
+                lights.drawRearView(c, carRect, car);
+            } else {
+                // the parked car's behind view hands over to the driving render (horizon on the lane
+                // lines, 15 Nov) as it slides into place; both cars' boxes line up all the way
+                float e = k >= 1 ? 1f : k * k * (3 - 2 * k);
+                driveImage(carRect, driveImg);
+                if (e < 1) {
+                    bmp.setAlpha(Math.round(255 * Math.min(1f, 2 * (1 - e))));
+                    c.drawBitmap(b, null, carRect, bmp);
+                }
+                bmp.setAlpha(Math.round(255 * Math.min(1f, 2 * e)));
+                c.drawBitmap(dv, null, driveImg, bmp);
+                bmp.setAlpha(255);
+                if (e < 0.5f) lights.drawRearView(c, carRect, car); else lights.drawDriveView(c, driveImg, car);
+            }
         } else {
             float cx = box.centerX(), base = box.bottom - bh * 0.07f, W = bw * 0.26f, H = bh * 0.3f;
             r.set(cx - W / 2, base - H * 0.55f, cx + W / 2, base);
@@ -828,6 +844,15 @@ public class CentreView extends View {
         Style.size(limitNum, Style.T_LIMIT);
         Style.fit(limitNum, t, 72);
         c.drawText(t, cx, cy + 14, limitNum);
+    }
+
+    /** Where drive/rear.png goes so its car's box matches the behind view's car drawn in car. */
+    private static void driveImage(RectF car, RectF out) {
+        float u = car.width() / DoorScene.FRAME_W;
+        float scale = (CarArt.REAR_CAR_X1 - CarArt.REAR_CAR_X0) * u / (CarArt.DRIVE_CAR_X1 - CarArt.DRIVE_CAR_X0);
+        float cx = car.left + (CarArt.REAR_CAR_X0 + CarArt.REAR_CAR_X1) / 2 * u, bottom = car.top + CarArt.REAR_CAR_BOTTOM * u;
+        float left = cx - (CarArt.DRIVE_CAR_X0 + CarArt.DRIVE_CAR_X1) / 2 * scale, top = bottom - CarArt.DRIVE_CAR_BOTTOM * scale;
+        out.set(left, top, left + CarArt.DRIVE_W * scale, top + CarArt.DRIVE_H * scale);
     }
 
     /** Rect for b scaled to fit maxW x maxH, centred, its bottom edge at `bottom`. */
