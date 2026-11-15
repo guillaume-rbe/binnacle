@@ -30,7 +30,7 @@ final class CarArt {
     private static final String[] COLOURS = {"white", "red", "blue", "black", "silver"};
     private static final String ASSET_ROOT = "cars";
 
-    static final CarArt NONE = new CarArt(null, null, null, null);
+    static final CarArt NONE = new CarArt(null, null, null, null, null);
 
     /** Where a colour's renders come from: a folder on the unit, or the bundled assets. */
     abstract static class Source {
@@ -43,11 +43,21 @@ final class CarArt {
     }
 
     final Bitmap side, rear, top;
+    /**
+     * The driving view's own render (drive/rear.png, DRIVE_W x 210; 15 Nov 2026): a level camera
+     * whose horizon meets the road's lane lines, so the car sits on the road. Null in packs from
+     * before it (cars-v3 and older): the driving view then uses rear, as before.
+     */
+    final Bitmap drive;
+    /** drive/rear.png's size, and the car's box in it (matches rear's 247-560 x 10-387 of 800x434). */
+    static final float DRIVE_W = 240, DRIVE_H = 210, DRIVE_CAR_X0 = 60.8f, DRIVE_CAR_X1 = 179.2f, DRIVE_CAR_BOTTOM = 185;
+    static final float REAR_CAR_X0 = 247, REAR_CAR_X1 = 560, REAR_CAR_BOTTOM = 387;
     /** The colour's renders (null if none), for loading door frames on demand. */
     final Source src;
 
-    private CarArt(Source src, Bitmap side, Bitmap rear, Bitmap top) {
+    private CarArt(Source src, Bitmap side, Bitmap rear, Bitmap top, Bitmap drive) {
         this.src = src;
+        this.drive = drive;
         this.side = side;
         this.rear = rear;
         this.top = top;
@@ -71,7 +81,8 @@ final class CarArt {
         return new CarArt(s,
                 s.decode("turn/0.png"),
                 s.decode("body/middle.png"),
-                s.decode("tpmscar/tpmscar.png"));
+                s.decode("tpmscar/tpmscar.png"),
+                s.decode("drive/rear.png"));
     }
 
     private static Source find(Context c, int carColour, String hand) {

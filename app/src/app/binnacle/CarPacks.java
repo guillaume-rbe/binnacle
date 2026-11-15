@@ -24,7 +24,7 @@ import java.util.zip.ZipInputStream;
  * touches the car.
  */
 final class CarPacks {
-    static final String RELEASE_BASE = "https://github.com/lotech/binnacle/releases/download/cars-v3/";
+    static final String RELEASE_BASE = "https://github.com/lotech/binnacle/releases/download/cars-v4/";
     /** Model 3 right / left-hand drive, then Model Y right / left. */
     static final String[] HANDS = {"rhd", "lhd", "y-rhd", "y-lhd"};
     /** Same order as the car's carcolor value. */

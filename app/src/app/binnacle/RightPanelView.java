@@ -51,11 +51,14 @@ public class RightPanelView extends View {
     private final Paint fill = Style.fill(Style.GOOD);
     private final Paint dockBg = Style.fill(Style.PANEL2);
     private final Paint focusEdge = Style.stroke(Style.ACCENT, 3), litEdge = Style.stroke(Style.WARN, 2.5f);
-    private final Paint iconText = Style.text(Style.DISPLAY, 15, 0xff04121c, Paint.Align.CENTER);
     private final Paint dockText = Style.text(Style.BODY_BOLD, Style.T_DOCK, Style.FG, Paint.Align.CENTER);
     private final Path path = new Path();
     private final RectF r = new RectF(), icon = new RectF();
     private final Paint ink = Style.fill(0xff04121c);
+    /** The CarPlay icon: an open ring (round ends) and a play triangle with softened corners. */
+    private final Paint inkRing = Style.stroke(0xff04121c, 3f), inkSoft = Style.stroke(0xff04121c, 1.6f);
+    private final RectF ring = new RectF();
+    { inkSoft.setStyle(Paint.Style.FILL_AND_STROKE); }      // the round join softens the corners
     private final NumberFormat grouping = NumberFormat.getIntegerInstance(Locale.UK);
 
     public RightPanelView(Context c, DashApp app) {
@@ -446,7 +449,15 @@ public class RightPanelView extends View {
 
     private void drawDockIcon(Canvas c, int i, float cx, float cy) {
         if (i == DOCK_PHONE) {
-            c.drawText("CP", cx, cy + 5.5f, iconText);
+            // a ring open on the right (from 25 to 335 degrees) round a play triangle (Simon, 15 Nov)
+            ring.set(cx - 12, cy - 12, cx + 12, cy + 12);
+            c.drawArc(ring, 25, 310, false, inkRing);
+            path.reset();
+            path.moveTo(cx - 3.8f, cy - 6.6f);
+            path.lineTo(cx + 8f, cy);
+            path.lineTo(cx - 3.8f, cy + 6.6f);
+            path.close();
+            c.drawPath(path, inkSoft);
         } else if (i == DOCK_CAMERA) {
             r.set(cx - 12, cy - 8, cx + 5, cy + 8);
             c.drawRoundRect(r, 3, 3, ink);
