@@ -80,6 +80,11 @@ final class SwipeCard {
     void setShown(boolean on) {
         if (on == shown) return;
         shown = on;
+        if (!on) {                       // a hold or swipe under way ends with the card
+            host.removeCallbacks(hold);
+            swipeX = Float.NaN;
+            cardTouch = false;
+        }
         host.invalidate();
         if (other != null) other.host.invalidate();
     }
@@ -130,20 +135,31 @@ final class SwipeCard {
         return left;   // two automatic choices can't clash today; the left card keeps it if they ever do
     }
 
-    /** The page the other card shows, or -1 while it is hidden. */
+    /** The page this card shows now: its own choice, or the next free one if it lost a clash. */
+    private int page() {
+        int w = wanted();
+        if (other == null || !other.shown || !shown) return w;
+        int ow = other.wanted();
+        return w != ow || wins() ? w : step(w, 1, ow);
+    }
+
+    /** The page the other card shows, or -1 while either is hidden. */
     private int otherPage() {
         if (other == null || !other.shown || !shown) return -1;
-        return other.wanted();
+        return other.page();
+    }
+
+    /** Driving off ends a manual choice (a swipe while driving holds). Also called while hidden. */
+    void track() {
+        boolean driving = car.speedKmh() >= 10;
+        if (driving && !wasDriving) manual = -1;
+        wasDriving = driving;
     }
 
     private int cardPage() {
-        boolean driving = car.speedKmh() >= 10;
-        if (driving && !wasDriving) manual = -1;       // driving off ends a manual choice; a swipe while driving holds
-        wasDriving = driving;
-        int page = wanted(), taken = otherPage();
-        if (page == taken && !wins()) page = step(page, 1, taken);
-        shownPage = page;
-        return page;
+        track();
+        shownPage = page();
+        return shownPage;
     }
 
     /** The next page round the loop in direction dir, skipping the page the other card shows. */
@@ -235,7 +251,7 @@ final class SwipeCard {
         else cardPos = page;                         // settled: back inside 0..count-1
     }
 
-    /** Page dots at the bottom of the card: which page is showing (the other card's page dimmed out). */
+    /** Page dots at the bottom of the card: which page is showing. */
     private void pageDots(Canvas c, int page) {
         float cx = (X0 + X1) / 2f;
         int count = pageCount();

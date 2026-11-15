@@ -46,7 +46,7 @@ public class LeftPanelView extends View {
 
     void onDialShown(float shown) {
         dialShown = shown;
-        card.setShown(shown >= 0.5f);
+        card.setShown(shown > 0);   // a page clash is settled from the first faded-in frame
         invalidate();
     }
 
@@ -100,8 +100,9 @@ public class LeftPanelView extends View {
         // compact layout (dial, gears low, limit) hands over to the Drive layout (gears high, card)
         // as the centre's dial comes in: the gears and indicators slide up, the rest cross-fades
         float d = dialShown, compact = 1f - d;
+        card.track();   // a drive off ends a swipe on the card even while it is hidden
         DashApp app = DashApp.get(getContext());
-        if (compact > 0) dial.draw(c, app, car, cx, DIAL_Y, compact, cue);
+        if (compact > 0) dial.draw(c, app, car, cx, DIAL_Y, compact, car.autopilot ? 1 : 0);
         float gears = lerp(GEARS_COMPACT, GEARS_DRIVE, d), turns = lerp(TURNS_COMPACT, TURNS_DRIVE, d);
         drawGears(c, cx, gears);
         drawTurn(c, cx - 52, turns, true, car.turnLeft);

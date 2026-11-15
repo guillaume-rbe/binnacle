@@ -194,7 +194,8 @@ final class SpeedDial {
 
     /**
      * Power: amber at zero brightening to orange at full power (as the old power bar). Rainbow:
-     * the Rainbow road's hues round the speed arc. Rebuilt only when the centre or theme changes.
+     * the Rainbow road's hues round the speed arc. Rebuilt only when the centre or theme changes
+     * (a theme change rebuilds the whole activity, and with it this dial).
      */
     private void ensureShaders(float cx, float cy) {
         if (powerShader != null && cx == shaderCx && cy == shaderCy && shaderWarn == Style.WARN) return;
@@ -220,13 +221,9 @@ final class SpeedDial {
             cols[i] = Color.HSVToColor(hsv);
             pos[i] = u * arcSpan;
         }
-        cols[n - 1] = Color.HSVToColor(new float[]{0, CentreView.RAINBOW_SAT, 1f});
         rainbowShader = new SweepGradient(cx, cy, cols, pos);
-        Matrix m = new Matrix();
-        m.setRotate(SPEED_A0 - 90, cx, cy);
-        rainbowShader.setLocalMatrix(m);
+        matrix.reset();
+        matrix.setRotate(SPEED_A0 - 90, cx, cy);
+        rainbowShader.setLocalMatrix(matrix);   // setLocalMatrix copies it
     }
-
-    /** Clears the cached shaders (theme change). */
-    void reset() { powerShader = null; rainbowShader = null; }
 }

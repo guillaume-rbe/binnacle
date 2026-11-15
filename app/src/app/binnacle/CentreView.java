@@ -126,9 +126,12 @@ public class CentreView extends View {
     void setCovered(boolean on) {
         if (on == covered) return;
         covered = on;
+        // the scene stood still while covered: on the way out, take the gear's view at once (as at
+        // start) rather than playing a stale hand-over, so the left column doesn't flip back and forth
+        if (!on) blendStarted = false;
         invalidate();
         attentionOverlay.invalidate();
-        reportDial();
+        if (on) reportDial();         // uncovered: the next frame reports, after the snap
     }
 
     /**
@@ -844,7 +847,7 @@ public class CentreView extends View {
      */
     private void drawSensors(Canvas c) {
         if (car.gear == CarState.GEAR_R) sensorRow(c, car.rear, box.bottom - 18);
-        else if (car.gear == CarState.GEAR_D && car.speedKmh() < 10) sensorRow(c, car.front, box.top + HORIZON_Y - 30);
+        else if (car.gear == CarState.GEAR_D && car.speedKmh() < 10) sensorRow(c, car.front, box.top + HORIZON_Y + 24);
     }
 
     /** Arc sweeps (Canvas degrees, 0 = right, 90 = down) per sensor, in feed order left to right. */
