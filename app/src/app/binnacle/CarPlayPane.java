@@ -235,9 +235,62 @@ final class CarPlayPane extends FrameLayout implements SurfaceHolder.Callback {
     /** A gesture whose start went to CarPlay: its end goes too, so no finger stays down on the phone. */
     private boolean gestureSent;
 
+    /**
+     * Three fingers swiped down opens xcertplay's own screen and menu, as the same swipe does there
+     * (in-car, 15 Nov: drawn in the dash, CarPlay got the swipe and the menu was out of reach).
+     * Same thresholds as xcertplay's CarPlayHostActivity: 72 dp down, mostly vertical.
+     */
+    private static final float MENU_SWIPE_DP = 72, MENU_SWIPE_RATIO = 1.15f;
+    private float menuX0, menuY0;
+    private boolean menuTracking, menuOpened;
+
+    /** True while a three-finger swipe is being watched or has opened the menu (the gesture is then ours). */
+    private boolean menuSwipe(MotionEvent e) {
+        int action = e.getActionMasked();
+        if (action == MotionEvent.ACTION_DOWN) { menuTracking = false; menuOpened = false; }
+        if (menuOpened) return true;
+        if (action == MotionEvent.ACTION_POINTER_DOWN && e.getPointerCount() == 3) {
+            menuTracking = true;
+            menuX0 = meanX(e);
+            menuY0 = meanY(e);
+        } else if (menuTracking && (e.getPointerCount() != 3 || action == MotionEvent.ACTION_UP
+                || action == MotionEvent.ACTION_CANCEL)) {
+            menuTracking = false;
+        } else if (menuTracking && action == MotionEvent.ACTION_MOVE) {
+            float dy = meanY(e) - menuY0, dx = Math.abs(meanX(e) - menuX0);
+            if (dy >= MENU_SWIPE_DP * getResources().getDisplayMetrics().density && dy >= dx * MENU_SWIPE_RATIO) {
+                menuTracking = false;
+                menuOpened = true;
+                if (gestureSent) {                       // lift the fingers on the phone first
+                    MotionEvent cancel = MotionEvent.obtain(e);
+                    cancel.setAction(MotionEvent.ACTION_CANCEL);
+                    sendTouch(cancel);
+                    cancel.recycle();
+                    gestureSent = false;
+                }
+                link.openSettings();
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static float meanX(MotionEvent e) {
+        float sum = 0;
+        for (int i = 0; i < e.getPointerCount(); i++) sum += e.getX(i);
+        return sum / e.getPointerCount();
+    }
+
+    private static float meanY(MotionEvent e) {
+        float sum = 0;
+        for (int i = 0; i < e.getPointerCount(); i++) sum += e.getY(i);
+        return sum / e.getPointerCount();
+    }
+
     @Override public boolean onTouchEvent(MotionEvent e) {
         int action = e.getActionMasked();
         if (action == MotionEvent.ACTION_DOWN) gestureSent = false;
+        if (menuSwipe(e)) return true;
         if (status.getVisibility() == VISIBLE && !gestureSent) return super.onTouchEvent(e);
         if (status.getVisibility() == VISIBLE) {
             // the status cover came up mid-gesture: end the gesture on the phone, send nothing more
