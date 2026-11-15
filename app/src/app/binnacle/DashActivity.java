@@ -70,13 +70,17 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
         app = DashApp.get(this);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
-        left = new LeftPanelView(this, app.car);
-        left.setOnPowerTap(new Runnable() {
+        left = new LeftPanelView(this, app);
+        left.setOnShotTap(new Runnable() {
             @Override public void run() { if (app.prefs().getBoolean(Screenshot.KEY, false)) Screenshot.take(DashActivity.this, left); }
         });
         centre = new CentreView(this, app);
         right = new RightPanelView(this, app);
         right.setDockListener(this);
+        SwipeCard.link(left.card, right.card);          // a page shows in one column at a time
+        centre.setDialListener(new CentreView.DialListener() {
+            @Override public void onDialShown(float shown) { left.onDialShown(shown); }
+        });
 
         root = new LinearLayout(this);
         root.setOrientation(LinearLayout.HORIZONTAL);
@@ -196,6 +200,12 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
         }
     };
 
+    /** What CarPlay is playing, for the Now playing page of both swipe cards (null: nothing). */
+    private void setNowPlaying(NowPlaying now) {
+        right.card.setNowPlaying(now);
+        left.card.setNowPlaying(now);
+    }
+
     /** End CarPlay tapped while the link was down: disconnect when it comes up before this (uptime ms). */
     private long endWhenLinkedUntil;
     private static final long END_WHEN_LINKED_MS = 30_000;
@@ -203,7 +213,7 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
     private final CarPlayLink.Listener carplayListener = new CarPlayLink.Listener() {
         @Override public void onLinkChanged(boolean connected) {
             if (!connected) {
-                right.setNowPlaying(null);
+                setNowPlaying(null);
                 centre.setCarPlayStage(null);
             }
             else XcertplayLocation.restore();     // after a reboot or an xcertplay update, before CarPlay starts
@@ -231,7 +241,7 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
             carplay.setVideoLayout(video);
         }
         @Override public void onNowPlaying(NowPlaying now) {
-            right.setNowPlaying(now);
+            setNowPlaying(now);
         }
         @Override public void onCarPlayState(int state, String stage) {
             carplay.showState(state, stage);
@@ -274,7 +284,7 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
             if (carplayMode == CARPLAY_OFF) return;
             android.util.Log.i("binnacle", "CarPlay hasn't drawn for " + CARPLAY_LOST_MS / 1000 + " s; back to the dash");
             showCarPlay(CARPLAY_OFF);
-            right.setNowPlaying(null);
+            setNowPlaying(null);
         }
     };
 
@@ -672,7 +682,8 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
                 centre.invalidate();
                 right.invalidate();
                 break;
-            case 12:
+            case 12:                            // tyres: either card can show them
+                left.invalidate();
                 right.invalidate();
                 break;
             case 15:                            // doors: the centre car animates them and shows the badge
@@ -680,7 +691,8 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
                 followFrontCam();
                 centre.invalidate();
                 break;
-            case 3: case 4:                    // parking sensors: centre arcs and the right-hand sensor card
+            case 3: case 4:                    // parking sensors: centre arcs and either card's sensor page
+                left.invalidate();
                 centre.invalidate();
                 right.invalidate();
                 break;

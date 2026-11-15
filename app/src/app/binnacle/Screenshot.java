@@ -9,7 +9,8 @@ import android.widget.Toast;
 
 /**
  * The hidden screenshot button (owner, 5 Nov: shots while driving): with Advanced → Screenshot on
- * power bar tap on, a tap on the power bar saves the whole screen, CarPlay and the camera
+ * corner tap on, a tap in the top-left corner of the screen (the left column's, owner 15 Nov; it
+ * was the power bar until the dial took that over) saves the whole screen, CarPlay and the camera
  * included, through one pinned LocalShell command. A click says it was heard; a short note says
  * when it is saved (after the capture, so it isn't in the picture).
  */

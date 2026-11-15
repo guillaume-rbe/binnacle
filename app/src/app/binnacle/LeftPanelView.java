@@ -12,65 +12,78 @@ import android.os.SystemClock;
 import android.view.View;
 
 /**
- * Left panel: status lights, big speed, PRND, indicators, speed-limit sign, power/regen bar.
+ * Left panel: status lights, PRND, indicators, and either the compact speed dial with the
+ * speed-limit sign (Park, or the camera or CarPlay over the centre) or a swipe card (Drive and
+ * Reverse, while the big dial is in the centre). Exactly one speed on screen (design 2a, 15 Nov):
+ * the centre reports how much of its dial shows and this column hands over to it.
  * Drawn in 340x720 design pixels (mockup's .side.l).
  */
 public class LeftPanelView extends View {
 
-    /** Power bar full scale (raw curentergyval units; the capture saw ~0-60). */
-    private static final float POWER_MAX = 80f, REGEN_MAX = 40f, ZERO_AT = 0.38f;
-
     private final CarState car;
     private final Paint line = Style.fill(Style.LINE);
-    private final Paint speedP = Style.text(Style.DISPLAY, Style.T_SPEED, Style.FG, Paint.Align.CENTER);
-    private final Paint unitP = Style.label(Style.T_UNIT);
     private final Paint gearP = Style.text(Style.DISPLAY, Style.T_GEAR, Style.DIM, Paint.Align.CENTER);
     private final Paint limitNum = Style.text(Style.DISPLAY, Style.T_LIMIT, 0xff111111, Paint.Align.CENTER);
     private final Paint white = Style.fill(0xffffffff);
     private final Paint red = Style.stroke(Style.BAD, 8);
     private final Paint iconFill = Style.fill(Style.DIM);
     private final Paint iconStroke = Style.stroke(Style.DIM, 3);
-    private final Paint track = Style.fill(Style.PANEL2);
-    private final Paint trackEdge = Style.stroke(Style.LINE, 1);
-    private final Paint bar = Style.fill(Style.WARN);
-    private final Paint scaleP = Style.text(Style.BODY, Style.T_SCALE, Style.DIM, Paint.Align.LEFT);
-    private final Paint powerLbl = Style.label(Style.T_LABEL);
-    private final Paint zeroP = Style.fill(Style.DIM);
-    private Shader powerShader;
     private final Path path = new Path();
     private final RectF r = new RectF();
 
-    public LeftPanelView(Context c, CarState car) {
+    public LeftPanelView(Context c, DashApp app) {
         super(c);
-        this.car = car;
-        unitP.setTextAlign(Paint.Align.CENTER);
+        this.car = app.car;
+        card = new SwipeCard(this, app, true, "left_card_pinned");
+        card.setShown(false);
     }
 
-    /** Tapped on the power bar (the hidden screenshot button, when it is switched on). */
-    private Runnable onPowerTap;
-    void setOnPowerTap(Runnable r) { onPowerTap = r; }
+    /** The left swipe card: up only while the big dial is in the centre. */
+    final SwipeCard card;
 
-    /** The power bar with its label and scale (design px): an easy target while driving. */
-    private static final float TAP_TOP = 612, TAP_BOTTOM = 712;
-    private boolean powerTouch;
+    /** How much of the centre's big dial shows (CentreView.dialShown): 0 = this column's compact layout. */
+    private float dialShown;
+
+    void onDialShown(float shown) {
+        dialShown = shown;
+        card.setShown(shown > 0);   // a page clash is settled from the first faded-in frame
+        invalidate();
+    }
+
+    /**
+     * Tapped in the top-left corner (the hidden screenshot button, when it is switched on). No
+     * element of its own (the owner, 15 Nov): a good-sized area over the corner of the column.
+     */
+    private Runnable onShotTap;
+    void setOnShotTap(Runnable r) { onShotTap = r; }
+
+    private static final float SHOT_SIZE = 120;
+    private boolean shotTouch;
+    /** The left card sits CARD_DY lower than in the right column's frame it is drawn in. */
+    private static final float CARD_DY = 90;
 
     @Override public boolean onTouchEvent(android.view.MotionEvent e) {
-        if (onPowerTap == null) return false;
-        float y = e.getY() / (getHeight() / Style.DESIGN_H);
-        switch (e.getActionMasked()) {
+        float s = getHeight() / Style.DESIGN_H, x = e.getX() / s, y = e.getY() / s;
+        int action = e.getActionMasked();
+        if (!shotTouch && card.touch(action, x, y - CARD_DY)) return true;
+        if (onShotTap == null) return false;
+        boolean in = x <= SHOT_SIZE && y <= SHOT_SIZE;
+        switch (action) {
             case android.view.MotionEvent.ACTION_DOWN:
-                powerTouch = y >= TAP_TOP && y <= TAP_BOTTOM;
-                return powerTouch;
+                shotTouch = in;
+                return shotTouch;
             case android.view.MotionEvent.ACTION_UP:
-                if (powerTouch && y >= TAP_TOP - 20 && y <= TAP_BOTTOM + 20) onPowerTap.run();
-                powerTouch = false;
+                if (shotTouch && x <= SHOT_SIZE + 20 && y <= SHOT_SIZE + 20) onShotTap.run();
+                shotTouch = false;
                 return true;
             case android.view.MotionEvent.ACTION_CANCEL:
-                powerTouch = false;
+                shotTouch = false;
                 return true;
         }
-        return powerTouch;
+        return shotTouch;
     }
+
+    private final SpeedDial dial = SpeedDial.compact();
 
     @Override protected void onDraw(Canvas c) {
         float s = getHeight() / Style.DESIGN_H;
@@ -80,25 +93,29 @@ public class LeftPanelView extends View {
         c.drawRect(w - 1, 0, w, Style.DESIGN_H, line);
 
         cue = approachCue(centreCovered && car.autopilot ? 1 : 0);
-        if (cue > 0) drawAutopilotCue(c, cx, w);   // under the sign and the power bar
+        if (cue > 0) drawAutopilotCue(c, cx, w);   // under the indicators and the sign
 
         drawStatusRow(c, cx, 84);
 
-        // speed group, vertically centred between the status row and the power bar
+        // compact layout (dial, gears low, limit) hands over to the Drive layout (gears high, card)
+        // as the centre's dial comes in: the gears and indicators slide up, the rest cross-fades
+        float d = dialShown, compact = 1f - d;
+        card.track();   // a drive off ends a swipe on the card even while it is hidden
         DashApp app = DashApp.get(getContext());
-        String speed = car.speed < 0 ? "--" : String.valueOf(Units.speed(app, car.speed));
-        speedP.setColor(car.speed < 0 ? Style.DIM : Style.FG);
-        Style.size(speedP, Style.T_SPEED);
-        Style.fit(speedP, speed, w - 40);
-        c.drawText(speed, cx, 296, speedP);
-        Style.size(unitP, Style.T_UNIT);
-        c.drawText(Units.speedLabel(app), cx, 330, unitP);
-        drawGears(c, cx, 398);
-        drawTurn(c, cx - 52, 438, true, car.turnLeft);
-        drawTurn(c, cx + 52, 438, false, car.turnRight);
-        if (car.speedLimit > 0) drawLimit(c, cx, 520, Units.speedLimit(app, car.speedLimit));
-
-        drawPower(c, w);
+        if (compact > 0) dial.draw(c, app, car, cx, DIAL_Y, compact, car.autopilot ? 1 : 0);
+        float gears = lerp(GEARS_COMPACT, GEARS_DRIVE, d), turns = lerp(TURNS_COMPACT, TURNS_DRIVE, d);
+        drawGears(c, cx, gears);
+        drawTurn(c, cx - 52, turns, true, car.turnLeft);
+        drawTurn(c, cx + 52, turns, false, car.turnRight);
+        if (car.speedLimit > 0 && compact > 0) drawLimit(c, cx, LIMIT_Y, Units.speedLimit(app, car.speedLimit), compact);
+        if (d > 0) {
+            int layer = d < 1 ? c.saveLayerAlpha(0, 0, w, Style.DESIGN_H, Math.round(255 * d)) : -1;
+            c.save();
+            c.translate(0, CARD_DY);
+            card.draw(c);
+            c.restore();
+            if (layer >= 0) c.restoreToCount(layer);
+        }
         c.restore();
     }
 
@@ -117,12 +134,12 @@ public class LeftPanelView extends View {
     /**
      * Autopilot cue while the centre is covered (in-car feedback, 6 Nov: on CarPlay or the camera
      * there was no sign of Autopilot but the small wheel icon): a soft glow in the shape of the
-     * centre's Autopilot lane, from just below the gears down to the bottom of the screen behind the
-     * power bar, clear of the speed (the owner, 6 Nov). Blue, or the rainbow with Rainbow road on. No
+     * centre's Autopilot lane, from just below the gears down to the bottom of the screen, clear of
+     * the speed (the owner, 6 Nov). Blue, or the rainbow with Rainbow road on. No
      * hard edges: it fades in from the top and out to nothing at the sides. It fades in and out like
      * the centre's and then holds still (no pulse or flow), so it never pulls the eye while driving.
      */
-    private static final float CUE_TOP = 412, CUE_TOP_W = 70;
+    private static final float CUE_TOP = 512, CUE_TOP_W = 70;
     /** Nested passes, each narrower toward the middle: they add up to a soft fade at the sides. */
     private static final int CUE_FEATHER = 20;
     private static final float CUE_EDGE = 0.48f;
@@ -176,17 +193,6 @@ public class LeftPanelView extends View {
             path.close();
             c.drawPath(path, cueFill);
         }
-    }
-
-    /**
-     * The power bar's text sits on the Autopilot cue, where its dim grey was hard to read (car,
-     * 7 Nov). While the cue shows, the text brightens toward the foreground colour and gets a soft
-     * halo in the panel colour, both scaled by the cue's fade.
-     */
-    private void legibleOverCue(Paint p, int base) {
-        p.setColor(CentreView.lerpColor(base, Style.FG, cue));
-        if (cue > 0) p.setShadowLayer(6, 0, 0, (Style.PANEL & 0x00ffffff) | (Math.round(0xe6 * cue) << 24));
-        else p.clearShadowLayer();
     }
 
     /** Telltales that only show while on, in priority order (warnings first). */
@@ -271,7 +277,12 @@ public class LeftPanelView extends View {
         iconStroke.setStrokeWidth(3);
     }
 
-    private void drawLimit(Canvas c, float cx, float cy, int limit) {
+    private void drawLimit(Canvas c, float cx, float cy, int limit, float alpha) {
+        int a = Math.round(255 * alpha);
+        white.setAlpha(a);
+        red.setColor(Style.BAD);
+        red.setAlpha(a);
+        limitNum.setAlpha(a);
         c.drawCircle(cx, cy, 48, white);
         c.drawCircle(cx, cy, 44, red);
         String t = String.valueOf(limit);
@@ -280,41 +291,12 @@ public class LeftPanelView extends View {
         c.drawText(t, cx, cy + 14, limitNum);
     }
 
-    private void drawPower(Canvas c, float w) {
-        float x0 = 24, x1 = w - 24, top = 648, bottom = 676;   // 28 tall, same as the battery bar (the owner)
-        legibleOverCue(powerLbl, Style.MUTED);
-        legibleOverCue(scaleP, Style.DIM);
-        Style.size(powerLbl, Style.T_LABEL);
-        // "EST." while the car's power reading is unusable and the bar is worked out from speed
-        c.drawText(car.powerEstimated() ? "POWER · EST." : "POWER", x0, 638, powerLbl);
-        Style.size(scaleP, Style.T_SCALE);
-        r.set(x0, top, x1, bottom);
-        c.drawRoundRect(r, 8, 8, track);
-        c.drawRoundRect(r, 8, 8, trackEdge);
-        float zero = x0 + (x1 - x0) * ZERO_AT;
-        if (car.power > 0) {
-            if (car.regen) {
-                float len = (zero - x0) * Math.min(1f, car.power / REGEN_MAX);
-                r.set(zero - len, top, zero, bottom);
-                bar.setShader(null);
-                bar.setColor(Style.GOOD);
-            } else {
-                float len = (x1 - zero) * Math.min(1f, car.power / POWER_MAX);
-                r.set(zero, top, zero + len, bottom);
-                if (powerShader == null) powerShader = new LinearGradient(zero, 0, x1, 0, Style.WARN, 0xffff8a3d, Shader.TileMode.CLAMP);
-                bar.setShader(powerShader);
-            }
-            c.save();
-            c.clipRect(x0, top, x1, bottom);
-            c.drawRect(r, bar);
-            c.restore();
-        }
-        c.drawRect(zero - 1, top, zero + 1, bottom, zeroP);
-        scaleP.setTextAlign(Paint.Align.LEFT);
-        c.drawText("Regen", x0, 702, scaleP);
-        scaleP.setTextAlign(Paint.Align.CENTER);
-        c.drawText("0", zero, 702, scaleP);
-        scaleP.setTextAlign(Paint.Align.RIGHT);
-        c.drawText("Power", x1, 702, scaleP);
-    }
+    /**
+     * Design 2a (15 Nov), design px: compact dial centre, then the gears, indicators and limit
+     * sign under it; in Drive the gears and indicators move up under the telltales.
+     */
+    private static final float DIAL_Y = 292, GEARS_COMPACT = 500, TURNS_COMPACT = 548, LIMIT_Y = 640,
+            GEARS_DRIVE = 196, TURNS_DRIVE = 262;
+
+    private static float lerp(float a, float b, float t) { return a + (b - a) * t; }
 }

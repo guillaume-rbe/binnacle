@@ -17,8 +17,9 @@ The shipped software is janky and the promised over-the-air updates never came. 
 On a ship, the binnacle is the stand in front of the helm that holds the compass, lit so the helmsman can read it at a glance.
 
 ## Features
-- **Live car data, read only:** speed, gear, speed-limit sign, indicators and lights, power and regen bar, tyre pressures (psi or bar), parking sensors, doors, boot and frunk, outside temperature, odometer.
+- **Live car data, read only:** a speed dial with power and regen, gear, speed-limit sign, indicators and lights, tyre pressures (psi or bar), parking sensors, doors, boot and frunk, outside temperature, odometer.
 - **Your car in 3D:** Model 3 or Model Y, left- or right-hand drive, in the original dash's colours (extra colours download from this repo). Open doors, boot and frunk show on the car. In Drive it sits on a moving road with headlight glow, and the lane turns blue on Autopilot. When CarPlay or the camera covers the centre, a glow on the left panel keeps Autopilot in view.
+- **One speed on screen:** in Drive a large dial in the centre shows speed, power and regen, with the car under it; parked, or with CarPlay or the camera in the centre, a compact copy moves to the left panel.
 - **Laid out for your side:** graphics match your side of the road, with touch targets closer to your free hand.
 - **Real battery %:** with the car's own range where it sends one (otherwise an estimate) and a charging animation (see below).
 - **Efficiency:** Wh/km over the last 5 km, a 15-minute power and regen graph, and this drive's totals.

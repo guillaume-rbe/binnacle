@@ -314,7 +314,7 @@ public class HubActivity extends Activity {
             default: content.addView(cards(
                     // About top left, Updates top right (owner, 8 Nov)
                     stack(aboutCard(), setupCard(), resetCard()),
-                    stack(updateCard(), switchCard("Screenshot on power bar tap", "Saved in Binnacle/screenshots", Screenshot.KEY, false),
+                    stack(updateCard(), switchCard("Screenshot on corner tap", "Saved in Binnacle/screenshots", Screenshot.KEY, false),
                             loggerCards(),
                             switchCard("Show raw CAN values", "Latest raw fields over the centre view, for in-car checks", "raw_overlay", false),
                             switchCard("Demo data", "Simulated drive instead of the car feed", "demo", false)))); break;

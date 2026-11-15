@@ -79,6 +79,7 @@ adb shell appops set com.xbs.launcher SYSTEM_ALERT_WINDOW allow   # lets the Dri
 - Undo: these are drawing-only; reverting the commits restores the plain side/rear renders.
 
 ## Left panel and warnings
+- **One speed on screen** (design 2a, 15 Nov): in Drive and Reverse the centre window shows a big dial (`SpeedDial`: speed arc 0–160 km/h or 0–100 mph with the digits inside, power/regen arc on the right, red speed-limit mark, "EST." while power is estimated) over a smaller car on the road, with the limit sign bottom left. The left panel then has the gears and indicators under the status icons and a second swipe card. Parked, or with CarPlay or the camera in the centre, the left panel shows a compact dial instead, with the gears, indicators and limit sign under it, and no card. The two layouts hand over with the road (`CentreView.dialShown`).
 - **Gears** read R P N D (reverse on the left).
 - **Status icons:** the five fixed ones, then any of seatbelt, Auto Hold and fog that are on (no auto high beam: its field never changed in the car), in line on one row (it tightens and scales down slightly when many are on).
 - **Attention warning:** while the car's Autosteer nag is on (`driverwarning`), a red LED-style bar pulses out from the centre to both edges along the top of the centre window, over a soft blue glow round the window; it fades out a quarter-second after the car clears it.
@@ -90,7 +91,7 @@ Scroll down/up moves the dock selection (highlight times out after 8 s), right t
 ## Right panel
 - **Network icon** (top right): Wi-Fi fan on home Wi-Fi, rings when the unit is running CarPlay's hotspot, dim when neither. Tap it for a prompt: start CarPlay, or end CarPlay and rejoin Wi-Fi.
 - **Battery:** the car's own % field (`batterylevel`) is used once it has been seen to change (it works on most cars, issue #91). On the owner's car it is stuck at 77, so until it moves the % is decoded from code 11 `jhmail` (`BatteryDecoder`, a table recorded during a 13 % → 100 % Supercharge; checked against every reading from 13 % to 100 %). Under it: `≈ N km est.` from the % and **Range at 100 %**. When no live value has decoded yet (just woken, or a value off the table) it shows the last known % with a quiet "Estimated" line until the car sends one. While charging (code 9 `chargelight`) the label reads CHARGING and a light sweeps along the bar as the % climbs; no charge power or time to full is shown, since the car doesn't send them (the owner: no estimates).
-- **Middle card, three pages:** parking sensors (automatic while parked), tyre pressures (automatic once driving; the car only sends pressures then), and **efficiency**: net Wh/km over the last 5 km, a 15-minute strip of power (amber, up) and regen (green, down), and this drive's km, Wh/km and regen share (`EfficiencyTracker`, fed on every code 10 so it keeps counting behind CarPlay; `curentergyval` taken as kW: driving peaks ~210, still to confirm against the car's trip screen). Swipe left/right moves a page; a swipe holds until you next drive off.
+- **Middle card** (`SwipeCard`, shared with the left panel's card: a page shows on one card at a time; the left card defaults to Now playing while CarPlay plays, efficiency otherwise, and has its own pin), **three pages** (four with Now playing): parking sensors (automatic while parked), tyre pressures (automatic once driving; the car only sends pressures then), and **efficiency**: net Wh/km over the last 5 km, a 15-minute strip of power (amber, up) and regen (green, down), and this drive's km, Wh/km and regen share (`EfficiencyTracker`, fed on every code 10 so it keeps counting behind CarPlay; `curentergyval` taken as kW: driving peaks ~210, still to confirm against the car's trip screen). Swipe left/right moves a page; a swipe holds until you next drive off.
 - **Dock:** CarPlay (starts ZLink; ZLink's own Background Connection is off so CarPlay only starts from here), Camera (lit and reads Close while open), Apps.
 
 ## Apps & settings (dock → Apps)
@@ -109,7 +110,7 @@ One wide screen (`HubActivity`), compact cards, tabs with icons down one side (�
 - No brake-light or true-range field exists in the feed.
 - Battery % below 13 % (the table there is untested).
 - Forward camera opening over CarPlay (needs the appops grant above; Android 10 blocks background activity starts otherwise).
-- Power bar full scale (raw 0–60 seen; bar full at 80 power / 40 regen).
+- Power arc full scale (raw 0–60 seen; the dial's power arc is full at 80 power / 40 regen).
 
 ## Files
 | File | What |
