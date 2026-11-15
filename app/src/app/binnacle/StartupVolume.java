@@ -17,9 +17,11 @@ import android.util.Log;
  *
  * This is Android's own music volume, the one the wheel's volume keys change (the CAN app sets it
  * on the unit too). It is not the car-setup speaker level, which goes to the MCU. Nothing here
- * reaches the car or the MCU. The volume keys still change it at any time; it is only set again
- * at the next start, screen-on or Bluetooth audio connection, and for a minute after each of those
- * if music is zeroed or muted again (by the CAN app, or by hand within that minute).
+ * reaches the car or the MCU. The volume keys still change it at any time; it is set again at the
+ * next start, screen-on or Bluetooth audio connection, and whenever music is muted or jumps to 0
+ * in one go while the screen is on (android.car.server and the CAN app do that on car wakes and
+ * mutes; on 15 Nov it was 0 again on getting in, after the one-minute watch had ended). A level
+ * turned down to 0 step by step with the wheel keys is left alone.
  */
 final class StartupVolume {
     static final String KEY = "startup_volume";
@@ -33,7 +35,30 @@ final class StartupVolume {
      */
     private static final long WATCH_MS = 60_000, WATCH_STEP_MS = 2000;
 
+    /** Android's volume broadcasts (hidden constants in AudioManager, unchanged since Android 4). */
+    private static final String VOLUME_CHANGED = "android.media.VOLUME_CHANGED_ACTION",
+            MUTE_CHANGED = "android.media.STREAM_MUTE_CHANGED_ACTION",
+            EXTRA_STREAM = "android.media.EXTRA_VOLUME_STREAM_TYPE",
+            EXTRA_VALUE = "android.media.EXTRA_VOLUME_STREAM_VALUE",
+            EXTRA_PREV = "android.media.EXTRA_PREV_VOLUME_STREAM_VALUE",
+            EXTRA_MUTED = "android.media.EXTRA_STREAM_VOLUME_MUTED";
+    /**
+     * A reset seen while the screen is on is put back this long after it (a car going to sleep turns
+     * the screen off around its mute, which is then left), at most RESTORE_MAX times per
+     * RESTORE_WINDOW_MS, so it never fights something that keeps zeroing music.
+     */
+    private static final long RESTORE_DELAY_MS = 1500, RESTORE_WINDOW_MS = 30_000;
+    private static final int RESTORE_MAX = 5;
+
     private StartupVolume() {}
+
+    /**
+     * Music went to 0 in one go (android.car.server or the CAN app setting it), not by the last step
+     * of the wheel's volume keys, which go down one step at a time: that 0 is left alone.
+     */
+    static boolean zeroedInOneGo(int prev, int now) {
+        return now == 0 && prev > 1;
+    }
 
     /**
      * The car's Bluetooth audio (the dash's A2DP link to the car) is connected; read only. Also used
@@ -59,6 +84,7 @@ final class StartupVolume {
         final Handler main = new Handler(Looper.getMainLooper());
         final android.os.PowerManager power = (android.os.PowerManager) context.getSystemService(Context.POWER_SERVICE);
         final long[] watchUntil = {0};
+        final long[] restores = {0, 0};   // start of the current window, restores in it
         final Runnable watch = new Runnable() {
             @Override public void run() {
                 if (android.os.SystemClock.uptimeMillis() >= watchUntil[0]) return;
@@ -89,12 +115,45 @@ final class StartupVolume {
                 }
             }
         }, main);
+        // React to music being zeroed or muted while the screen is on, whenever it happens (the minute's
+        // watch above missed a later reset on 15 Nov). Android's own volume broadcasts; read only.
+        final Runnable restore = new Runnable() {
+            @Override public void run() {
+                if (power != null && !power.isInteractive()) return;   // the car went to sleep meanwhile
+                if (!silent(audio)) return;                             // put back already (the CAN app)
+                long now = android.os.SystemClock.uptimeMillis();
+                if (now - restores[0] > RESTORE_WINDOW_MS) { restores[0] = now; restores[1] = 0; }
+                if (++restores[1] > RESTORE_MAX) {                      // something keeps zeroing it: don't fight
+                    if (restores[1] == RESTORE_MAX + 1) Log.w(TAG, "start-up volume: music keeps going to 0, leaving it");
+                    return;
+                }
+                apply(audio, prefs);
+            }
+        };
+        android.content.IntentFilter change = new android.content.IntentFilter(VOLUME_CHANGED);
+        change.addAction(MUTE_CHANGED);
+        context.getApplicationContext().registerReceiver(new android.content.BroadcastReceiver() {
+            @Override public void onReceive(Context c, android.content.Intent i) {
+                if (i.getIntExtra(EXTRA_STREAM, -1) != AudioManager.STREAM_MUSIC) return;
+                if (percent(prefs.getString(KEY, DEFAULT)) < 0) return;   // "Leave as is"
+                if (power != null && !power.isInteractive()) return;   // the car sleeping: its mute is deliberate
+                boolean muted = MUTE_CHANGED.equals(i.getAction());
+                boolean reset = muted
+                        ? i.getBooleanExtra(EXTRA_MUTED, false)
+                        : zeroedInOneGo(i.getIntExtra(EXTRA_PREV, -1), i.getIntExtra(EXTRA_VALUE, -1));
+                if (!reset) return;
+                Log.i(TAG, "start-up volume: music " + (muted ? "muted" : "set to 0") + " while awake");
+                main.removeCallbacks(restore);
+                main.postDelayed(restore, RESTORE_DELAY_MS);   // a screen-off that goes with it arrives first
+            }
+        }, change, null, main);
         android.content.IntentFilter screen = new android.content.IntentFilter(android.content.Intent.ACTION_SCREEN_ON);
         screen.addAction(android.content.Intent.ACTION_SCREEN_OFF);
         context.getApplicationContext().registerReceiver(new android.content.BroadcastReceiver() {
             @Override public void onReceive(Context c, android.content.Intent i) {
                 main.removeCallbacks(apply);
                 main.removeCallbacks(watch);
+                main.removeCallbacks(restore);
                 watchUntil[0] = 0;
                 // the car sleeping: the CAN app mutes music on purpose, so leave it until the next wake
                 if (android.content.Intent.ACTION_SCREEN_OFF.equals(i.getAction())) return;
