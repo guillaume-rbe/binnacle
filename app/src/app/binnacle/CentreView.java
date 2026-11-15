@@ -146,6 +146,8 @@ public class CentreView extends View {
     private final SpeedDial dial = SpeedDial.big();
     /** Dial centre in the window box (design px of the 1212 x 692 box). */
     private static final float DIAL_X = 606, DIAL_Y = 328;
+    /** The STOP sign's centre beside the dial's digits (digits: 247 px, baseline DIAL_Y + 22). */
+    private static final float STOP_BESIDE_DX = 190, STOP_BESIDE_DY = -64;
 
     void setDialListener(DialListener l) { dialListener = l; reportedDial = -1; reportDial(); }
 
@@ -953,6 +955,13 @@ public class CentreView extends View {
     private void drawStop(Canvas c) {
         if (stopAlpha <= 0) return;
         float rad = stopRad, sx2 = stopX, sy2 = stopY;
+        // with the big dial up, beside its digits rather than over them (in-car, 15 Nov): right of
+        // the middle of a one-digit speed (it only shows under 10 km/h), inside the tick labels
+        float d = dialShown();
+        if (d > 0) {
+            sx2 = lerp(sx2, box.left + DIAL_X + STOP_BESIDE_DX, d);
+            sy2 = lerp(sy2, box.top + DIAL_Y + STOP_BESIDE_DY, d);
+        }
         stopPath.reset();
         for (int k = 0; k < 8; k++) {
             double ang = Math.PI / 8 + k * Math.PI / 4;

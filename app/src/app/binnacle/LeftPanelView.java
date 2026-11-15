@@ -42,12 +42,26 @@ public class LeftPanelView extends View {
     final SwipeCard card;
 
     /** How much of the centre's big dial shows (CentreView.dialShown): 0 = this column's compact layout. */
-    private float dialShown;
+    private float dialShown, dialTarget;
+    private long dialStepMs;
+    /** A snap (CarPlay or the camera covering the centre) fades over at least this long (in-car, 15 Nov). */
+    private static final float DIAL_FADE_S = 0.25f;
 
     void onDialShown(float shown) {
-        dialShown = shown;
+        dialTarget = shown;
         card.setShown(shown > 0);   // a page clash is settled from the first faded-in frame
         invalidate();
+    }
+
+    /** Moves dialShown toward the centre's value, no faster than DIAL_FADE_S for the whole way. */
+    private void stepDial() {
+        long now = SystemClock.uptimeMillis();
+        if (dialShown == dialTarget) { dialStepMs = 0; return; }
+        float dt = dialStepMs == 0 ? 1f / 60 : Math.min(0.1f, (now - dialStepMs) / 1000f);
+        dialStepMs = now;
+        float step = dt / DIAL_FADE_S;
+        dialShown = dialShown < dialTarget ? Math.min(dialTarget, dialShown + step) : Math.max(dialTarget, dialShown - step);
+        if (dialShown != dialTarget) postInvalidateOnAnimation();
     }
 
     /**
@@ -99,6 +113,7 @@ public class LeftPanelView extends View {
 
         // compact layout (dial, gears low, limit) hands over to the Drive layout (gears high, card)
         // as the centre's dial comes in: the gears and indicators slide up, the rest cross-fades
+        stepDial();
         float d = dialShown, compact = 1f - d;
         card.track();   // a drive off ends a swipe on the card even while it is hidden
         DashApp app = DashApp.get(getContext());
