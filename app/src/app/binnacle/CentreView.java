@@ -144,7 +144,7 @@ public class CentreView extends View {
     private DialListener dialListener;
     private float reportedDial = -1;
     private final SpeedDial dial = SpeedDial.big();
-    /** Dial centre in the window box (design px of the 1212 x 692 box). */
+    /** The dial's digits centre in the window box (design px of the 1212 x 692 box); the ring sits lower (SpeedDial.big). */
     private static final float DIAL_X = 606, DIAL_Y = 328;
     /** The STOP sign's centre beside the dial's digits (digits: 247 px, baseline DIAL_Y + 22). */
     private static final float STOP_BESIDE_DX = 190, STOP_BESIDE_DY = -64;

@@ -31,6 +31,8 @@ final class SpeedDial {
     /** Big (centre) or compact (left column). */
     private final boolean big;
     private final float radius, stroke, digitSize, digitBase, unitSize, unitBase;
+    /** How far the ring's centre sits below the digits' centre (cy in draw()). */
+    private final float ringDrop;
 
     private final Paint arc = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint tick = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -48,9 +50,10 @@ final class SpeedDial {
     private float shaderCx = Float.NaN, shaderCy = Float.NaN;
     private int shaderWarn;
 
-    private SpeedDial(boolean big, float radius, float stroke, float digitSize, float digitBase,
+    private SpeedDial(boolean big, float radius, float ringDrop, float stroke, float digitSize, float digitBase,
                       float unitSize, float unitBase) {
         this.big = big;
+        this.ringDrop = ringDrop;
         this.radius = radius;
         this.stroke = stroke;
         this.digitSize = digitSize;
@@ -65,21 +68,27 @@ final class SpeedDial {
         est.setLetterSpacing(0.16f);
     }
 
-    /** The centre window's dial: R 300, stroke 22 (in-car, 16 Nov: was 16), ticks and labels, digits 247. */
-    static SpeedDial big() { return new SpeedDial(true, 300, 22, 247, 22, Style.T_UNIT, 74); }
+    /**
+     * The centre window's dial: R 380 with its centre 80 px below the digits' (owner's mock, 16 Nov:
+     * was R 300 round the digits), stroke 22 (in-car, 16 Nov: was 16), ticks and labels, digits 247.
+     */
+    static SpeedDial big() { return new SpeedDial(true, 380, 80, 22, 247, 22, Style.T_UNIT, 74); }
 
     /** The left column's dial: R 136, stroke 8.8, no ticks or labels, digits 150. */
-    static SpeedDial compact() { return new SpeedDial(false, 136, 8.8f, 150, 57, 22, 98); }
+    static SpeedDial compact() { return new SpeedDial(false, 136, 0, 8.8f, 150, 57, 22, 98); }
 
     /** How far the dial reaches below its centre, digits and unit included (for layout). */
     float bottomReach() { return unitBase + 8; }
 
     /**
-     * Draws the dial centred at (cx, cy). alpha fades the whole dial (the Park/Drive hand-over);
+     * Draws the dial with its digits centred at (cx, cy); the ring's centre is ringDrop lower.
+     * alpha fades the whole dial (the Park/Drive hand-over);
      * ap is the Autopilot blend (0..1): the speed fill turns Autopilot blue, or the rainbow.
      */
     void draw(Canvas c, DashApp app, CarState car, float cx, float cy, float alpha, float ap) {
         if (alpha <= 0) return;
+        float digitsY = cy;
+        cy += ringDrop;
         int a = Math.round(255 * Math.min(1f, alpha));
         boolean imperial = Units.imperial(app);
         float max = imperial ? 100 : 160, step = 10;
@@ -193,12 +202,12 @@ final class SpeedDial {
         Style.size(digits, digitSize);
         digits.setColor(speed < 0 ? Style.DIM : Style.FG);
         digits.setAlpha(a);
-        Style.fit(digits, text, radius * 1.5f);
-        c.drawText(text, cx, cy + digitBase, digits);
+        Style.fit(digits, text, (radius - ringDrop) * 1.5f);
+        c.drawText(text, cx, digitsY + digitBase, digits);
         Style.size(unit, unitSize);
         unit.setColor(Style.MUTED);
         unit.setAlpha(a);
-        c.drawText(Units.speedLabel(app), cx, cy + unitBase, unit);
+        c.drawText(Units.speedLabel(app), cx, digitsY + unitBase, unit);
     }
 
     /** A radial line at design angle ang from radius r0 to r1. */
