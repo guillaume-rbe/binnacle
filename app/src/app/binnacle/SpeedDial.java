@@ -18,8 +18,11 @@ import android.graphics.SweepGradient;
  */
 final class SpeedDial {
 
-    /** Speed arc ends: 0 at -140, full scale at -10. Power: full at 10, zero at 96, full regen at 140. */
-    private static final float SPEED_A0 = -140, SPEED_A1 = -10, POWER_FULL = 10, POWER_ZERO = 96, REGEN_FULL = 140;
+    /**
+     * Speed arc ends: 0 at -115, full scale at -10. Power: full at 10, zero at 85, full regen at 115.
+     * The lower ends sit level with the digits, clear of the car and road (in-car, 16 Nov; was 140).
+     */
+    private static final float SPEED_A0 = -115, SPEED_A1 = -10, POWER_FULL = 10, POWER_ZERO = 85, REGEN_FULL = 115;
     /** Power arc full scale (raw curentergyval units, as the old power bar). */
     private static final float POWER_MAX = 80f, REGEN_MAX = 40f;
     /** Light and dark track colour: the only new colours of the design. */
@@ -34,7 +37,7 @@ final class SpeedDial {
     private final Paint label = Style.text(Style.BODY, 17, Style.MUTED, Paint.Align.CENTER);
     private final Paint digits = Style.text(Style.DISPLAY, 247, Style.FG, Paint.Align.CENTER);
     private final Paint unit = Style.label(Style.T_UNIT);
-    private final Paint est = Style.text(Style.BODY, 16, Style.MUTED, Paint.Align.CENTER);
+    private final Paint est = Style.text(Style.BODY, 16, Style.MUTED, Paint.Align.LEFT);
     private final RectF oval = new RectF();
     private final Matrix matrix = new Matrix();
     private SweepGradient powerShader, rainbowShader, limitShader;
@@ -62,8 +65,8 @@ final class SpeedDial {
         est.setLetterSpacing(0.16f);
     }
 
-    /** The centre window's dial: R 300, stroke 16, ticks and labels, digits 247. */
-    static SpeedDial big() { return new SpeedDial(true, 300, 16, 247, 22, Style.T_UNIT, 74); }
+    /** The centre window's dial: R 300, stroke 22 (in-car, 16 Nov: was 16), ticks and labels, digits 247. */
+    static SpeedDial big() { return new SpeedDial(true, 300, 22, 247, 22, Style.T_UNIT, 74); }
 
     /** The left column's dial: R 136, stroke 8.8, no ticks or labels, digits 150. */
     static SpeedDial compact() { return new SpeedDial(false, 136, 8.8f, 150, 57, 22, 98); }
@@ -173,14 +176,14 @@ final class SpeedDial {
             radial(c, cx, cy, limitAng, radius - stroke / 2f, radius + stroke / 2f);
         }
 
-        // "EST." beside the power side while power is worked out from speed
+        // "EST." while power is worked out from speed: just outside the power line, on its zero
+        // tick, so it reads as that line's label (in-car, 16 Nov: it floated up and to the right)
         if (car.powerEstimated()) {
-            float k = big ? 1f : 0.55f;
-            Style.size(est, 16 * k);
+            Style.size(est, big ? 16 : 8);
             est.setColor(Style.MUTED);
             est.setAlpha(a);
-            double rad = Math.toRadians((POWER_FULL + POWER_ZERO) / 2f);
-            float er = radius + (big ? 46 : 22);
+            double rad = Math.toRadians(POWER_ZERO);
+            float er = radius + stroke * 0.75f + (big ? 10 : 3);
             float ex = cx + (float) Math.sin(rad) * er, ey = cy - (float) Math.cos(rad) * er;
             c.drawText("EST.", ex, ey - (est.ascent() + est.descent()) / 2f, est);
         }
@@ -205,12 +208,7 @@ final class SpeedDial {
         c.drawLine(cx + s * r0, cy + k * r0, cx + s * r1, cy + k * r1, tick);
     }
 
-    /**
-     * Power: amber at zero brightening to orange at full power (as the old power bar). Rainbow:
-     * the Rainbow road's hues round the speed arc. Rebuilt only when the centre or theme changes
-     * (a theme change rebuilds the whole activity, and with it this dial).
-     */
-    /** The red glow from the speed limit (60% red) to clear LIMIT_FADE degrees on. */
+    /** The red glow from the speed limit (30% red, owner 16 Nov: was 60%) to clear LIMIT_FADE degrees on. */
     private void ensureLimitShader(float cx, float cy, float ang) {
         if (limitShader != null && ang == limitShaderAng && cx == limitShaderCx && cy == limitShaderCy
                 && limitShaderBad == Style.BAD) return;
@@ -219,13 +217,18 @@ final class SpeedDial {
         limitShaderCy = cy;
         limitShaderBad = Style.BAD;
         int bad = Style.BAD & 0xffffff;
-        limitShader = new SweepGradient(cx, cy, new int[]{0x99000000 | bad, 0x00000000 | bad, 0x00000000 | bad},
+        limitShader = new SweepGradient(cx, cy, new int[]{0x4d000000 | bad, 0x00000000 | bad, 0x00000000 | bad},
                 new float[]{0f, LIMIT_FADE / 360f, 1f});
         matrix.reset();
         matrix.setRotate(ang - 90, cx, cy);
         limitShader.setLocalMatrix(matrix);
     }
 
+    /**
+     * Power: amber at zero brightening to orange at full power (as the old power bar). Rainbow:
+     * the Rainbow road's hues round the speed arc. Rebuilt only when the centre or theme changes
+     * (a theme change rebuilds the whole activity, and with it this dial).
+     */
     private void ensureShaders(float cx, float cy) {
         if (powerShader != null && cx == shaderCx && cy == shaderCy && shaderWarn == Style.WARN) return;
         shaderCx = cx;
