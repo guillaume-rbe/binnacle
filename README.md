@@ -6,10 +6,10 @@
 
 The shipped software is janky and the promised over-the-air updates never came. After trying to patch it, I replaced it instead, with the help of Claude. Binnacle uses the same car data (speed, battery %, gear, odometer, TPMS, lights, parking sensors, doors), hands off properly to wireless CarPlay and the forward camera, and is fully reversible.
 
-![Binnacle in the light theme](docs/images/20261106-120619.png)
-![Binnacle in the light theme](docs/images/20261106-120639.png)
+![Binnacle in the light theme](docs/images/20261117-104618.png)
+![Carplay](docs/images/20261106-120639.png)
 
-![Dark mode](docs/images/dash-dark.png)
+![Dark mode](docs/images/20261117-104000.png)
 
 *Parked, light and dark themes. The red "● REC" badge and eye show because the optional logger is installed and running.*
 
