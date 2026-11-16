@@ -190,7 +190,7 @@ class CarPlayController(
     private val lifecycleLock = Any()
     private val performanceLockLifecycle = Any()
     private val wirelessPerformanceLock = WirelessPerformanceLock(appContext) { debugLog(it) }
-    private val headUnitCallState = HeadUnitCallState(appContext) { debugLog(it) }
+    private val headUnitCallState = HeadUnitCallState(appContext, config.headUnitCallStateEnabled) { debugLog(it) }
     /** Calls shown when the phone last said it had no call; only these are ended by [stuckCallCheck]. */
     @Volatile
     private var stuckCallIds: Set<String> = emptySet()

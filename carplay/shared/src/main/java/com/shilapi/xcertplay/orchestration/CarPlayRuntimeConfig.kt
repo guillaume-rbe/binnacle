@@ -65,6 +65,8 @@ class CarPlayRuntimeConfig(
     val manualHotspotSecurity: ManualHotspotSecurity = ManualHotspotSecurity.WPA2,
     val locationReportingEnabled: Boolean = false,
     val wifiHighPerformanceEnabled: Boolean = true,
+    /** Tell the stock CAN app when a call starts (see HeadUnitCallState); OFF is always sent. */
+    val headUnitCallStateEnabled: Boolean = true,
 ) {
     init {
         require(iphoneDevices.all { it.vendorId == APPLE_VENDOR_ID }) {
