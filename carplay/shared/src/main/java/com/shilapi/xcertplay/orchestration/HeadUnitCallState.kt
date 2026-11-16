@@ -16,8 +16,9 @@ import com.shilapi.xcertplay.media.BluetoothCallRoute
  * mode is for the other, car-facing Bluetooth module.
  *
  * [tellCallOn] false (CarPlay setting, on by default): the CAN app is never told ON, only the OFF
- * that clears a stale call mode. On a Tesla A007 without the Bluetooth overlay the call mode it
- * sets mutes the car's audio for the whole call, so the driver hears nothing (16 Nov, issue #90).
+ * that clears a stale call mode. On some Tesla A007 dashes without the Bluetooth overlay the call
+ * mode it sets mutes the car's audio for the whole call, so the driver hears nothing (16 Nov,
+ * issue #90).
  */
 internal class HeadUnitCallState(
     context: Context,

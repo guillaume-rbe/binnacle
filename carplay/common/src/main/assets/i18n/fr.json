@@ -154,7 +154,7 @@
   "settings.audio.focus": "Focus audio",
   "settings.audio.focus.support": "Demande le focus audio du système à l’ouverture de l’hôte pour mettre en pause les autres apps ; désactivez pour mixer avec d’autres sons",
   "settings.audio.head_unit_call": "Signaler les appels à l’autoradio",
-  "settings.audio.head_unit_call.support": "Met l’unité en mode appel pendant les appels CarPlay, comme ZLink. Désactivez si la voiture est muette pendant les appels (Tesla A007 sans l’overlay Bluetooth). S’applique à la prochaine connexion",
+  "settings.audio.head_unit_call.support": "Désactivez si les appels sont muets dans la voiture. S’applique à la prochaine connexion",
   "settings.audio.microphone": "Microphone",
   "settings.audio.mic_gain": "Gain du microphone",
   "settings.audio.mic_gain.support": "0,5x à 10x",

@@ -144,7 +144,7 @@
   "settings.audio.focus": "Audio focus",
   "settings.audio.focus.support": "Request system audio focus while the host is open so other apps pause; turn off to mix with other audio",
   "settings.audio.head_unit_call": "Tell the head unit about calls",
-  "settings.audio.head_unit_call.support": "Puts the unit in call mode during CarPlay calls, as ZLink does. Turn off if the car is silent during calls (Tesla A007 without the Bluetooth overlay). Applies to the next connection",
+  "settings.audio.head_unit_call.support": "Turn off if calls are silent in the car. Applies to the next connection",
   "settings.audio.microphone": "Microphone",
   "settings.audio.mic_gain": "Microphone gain",
   "settings.audio.mic_gain.support": "0.5x to 10x",
