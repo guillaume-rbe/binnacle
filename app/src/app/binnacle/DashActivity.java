@@ -92,6 +92,8 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
             }
             @Override public void onCameraState(boolean on) {
                 if (right != null) right.setCameraOn(on);
+                // the camera over CarPlay: the right card goes back to its own page (sensors)
+                if (right != null) right.card.setCarPlayCentre(!on && carplayMode == CARPLAY_CENTRE);
                 if (left != null) left.setCentreCovered(on || carplayMode == CARPLAY_CENTRE);
                 if (centre != null) centre.setCameraUp(on);
                 // the Camera button keeps its highlight while the camera is up (no timeout), so OK
@@ -314,6 +316,7 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
         carplay.setVisibility(mode == CARPLAY_OFF ? View.GONE : View.VISIBLE);
         centre.setCovered(mode != CARPLAY_OFF);   // the scene under CarPlay stops drawing (audit D9)
         left.setCentreCovered(mode == CARPLAY_CENTRE || camera.isRunning());   // its Autopilot cue
+        right.card.setCarPlayCentre(mode == CARPLAY_CENTRE && !camera.isRunning());   // Now playing moves right
         carplay.setRounded(!full);
         centreFrame.requestLayout();
         if (mode != CARPLAY_OFF) {

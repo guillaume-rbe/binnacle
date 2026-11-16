@@ -46,6 +46,26 @@ public class LeftPanelView extends View {
     private long dialStepMs;
     /** A snap (CarPlay or the camera covering the centre) fades over at least this long (in-car, 15 Nov). */
     private static final float DIAL_FADE_S = 0.25f;
+    /**
+     * The card's own fade: in only once the gears and indicators have slid up, over CARD_FADE_S
+     * (in-car, 16 Nov: back from CarPlay it arrived all at once); out with the layout.
+     */
+    private float cardFade;
+    private long cardStepMs;
+    private static final float CARD_FADE_S = 0.6f;
+
+    private void stepCard(float d) {
+        long now = SystemClock.uptimeMillis();
+        if (d < 1 || cardFade >= 1) {
+            cardFade = Math.min(cardFade, d);
+            cardStepMs = 0;
+            return;
+        }
+        float dt = cardStepMs == 0 ? 1f / 60 : Math.min(0.1f, (now - cardStepMs) / 1000f);
+        cardStepMs = now;
+        cardFade = Math.min(1f, cardFade + dt / CARD_FADE_S);
+        if (cardFade < 1) postInvalidateOnAnimation();
+    }
 
     void onDialShown(float shown) {
         dialTarget = shown;
@@ -123,8 +143,10 @@ public class LeftPanelView extends View {
         drawTurn(c, cx - 52, turns, true, car.turnLeft);
         drawTurn(c, cx + 52, turns, false, car.turnRight);
         if (car.speedLimit > 0 && compact > 0) drawLimit(c, cx, LIMIT_Y, Units.speedLimit(app, car.speedLimit), compact);
-        if (d > 0) {
-            int layer = d < 1 ? c.saveLayerAlpha(0, 0, w, Style.DESIGN_H, Math.round(255 * d)) : -1;
+        stepCard(d);
+        float cf = cardFade;
+        if (cf > 0) {
+            int layer = cf < 1 ? c.saveLayerAlpha(0, 0, w, Style.DESIGN_H, Math.round(255 * cf)) : -1;
             c.save();
             c.translate(0, CARD_DY);
             card.draw(c);

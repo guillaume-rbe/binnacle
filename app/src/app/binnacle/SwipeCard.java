@@ -25,7 +25,8 @@ import java.util.Locale;
  * to Now playing, so switching between the two doesn't slide past the others). Automatic choice on
  * the right: sensors whenever the car isn't driving (below 10 km/h, or speed not known yet: the
  * dash nearly always starts parked, and tyre pressures only arrive once driving), tyres while
- * driving; on the left: Now playing while CarPlay plays, efficiency otherwise. A swipe moves one
+ * driving, or Now playing while CarPlay in the centre window plays something; on the left: Now
+ * playing while CarPlay plays, efficiency otherwise. A swipe moves one
  * page and holds until the car next drives off. Holding a finger on the card pins the page for
  * good instead, across drives and restarts, until it is held again (the owner, 3 Nov: the
  * switching can be distracting; no button, only a small pin while pinned). A swipe while pinned
@@ -108,6 +109,15 @@ final class SwipeCard {
         host.invalidate();
     }
 
+    /** CarPlay fills the centre window (DashActivity): the right card takes Now playing while it plays. */
+    private boolean carplayCentre;
+
+    void setCarPlayCentre(boolean on) {
+        if (on == carplayCentre) return;
+        carplayCentre = on;
+        host.invalidate();
+    }
+
     /** Pages there are now: Now playing only while CarPlay plays something. */
     private int pageCount() {
         return nowPlaying != null ? PAGES : PAGE_MEDIA;
@@ -119,6 +129,9 @@ final class SwipeCard {
         if (pinned >= 0 && pinned < count) return pinned;
         if (manual >= 0 && manual < count) return manual;
         if (left) return count > PAGE_MEDIA ? PAGE_MEDIA : PAGE_EFFICIENCY;
+        // CarPlay in the centre hides the left card, Now playing's home: the right card shows it
+        // meanwhile (in-car, 16 Nov: it was nowhere on the dash), and goes back when CarPlay does
+        if (carplayCentre && count > PAGE_MEDIA) return PAGE_MEDIA;
         return car.speedKmh() >= 10 ? PAGE_TYRES : PAGE_SENSORS;
     }
 
