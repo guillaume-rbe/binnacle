@@ -191,9 +191,12 @@ public class CentreView extends View {
     void setCameraUp(boolean on) {
         if (on == cameraUp) return;
         cameraUp = on;
+        // as for CarPlay: the camera closing in Park (the shift that closes it) must not bring back
+        // the Drive view for the hand-over's length, so take the gear's view at once
+        if (!on) blendStarted = false;
         invalidate();
         attentionOverlay.invalidate();
-        reportDial();
+        if (on) reportDial();         // up: no dial now; closed: the next frame reports, after the snap
     }
 
     /**
