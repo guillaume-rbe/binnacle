@@ -381,6 +381,7 @@ class CarPlayHostActivity : ComponentActivity() {
     private var advancedAudioChannelMappingSupported = false
     private var advancedAudioChannelMapping by mutableStateOf(false)
     private var audioFocusEnabled by mutableStateOf(true)
+    private var headUnitCallState by mutableStateOf(true)
     private var audioQuality by mutableStateOf(AudioQualitySettings())
     private var audioQualityOpen by mutableStateOf(false)
     private var audioQualityCapabilities by mutableStateOf<AudioQualityCapabilities.Result?>(null)
@@ -745,6 +746,7 @@ class CarPlayHostActivity : ComponentActivity() {
             advancedAudioChannelMappingSupported &&
                 AirPlayPersistence.loadAdvancedAudioChannelMapping(this)
         audioFocusEnabled = AirPlayPersistence.loadAudioFocusEnabled(this)
+        headUnitCallState = AirPlayPersistence.loadHeadUnitCallState(this)
         audioQuality = AirPlayPersistence.loadAudioQuality(this)
         mainMediaAudioBufferDurationMs =
             AirPlayPersistence.loadMainMediaAudioBufferDurationMs(this)
@@ -2991,6 +2993,14 @@ class CarPlayHostActivity : ComponentActivity() {
                     onCheckedChange = ::onAudioFocusEnabledChanged,
                 )
             }
+            row {
+                SwitchRow(
+                    title = tr("settings.audio.head_unit_call"),
+                    support = tr("settings.audio.head_unit_call.support"),
+                    checked = headUnitCallState,
+                    onCheckedChange = ::onHeadUnitCallStateChanged,
+                )
+            }
         }
 
         SectionHeader(tr("settings.audio.microphone"))
@@ -3651,6 +3661,13 @@ class CarPlayHostActivity : ComponentActivity() {
         advancedAudioChannelMapping = checked
         appendLog("Advanced audio channel mapping ${if (checked) "enabled" else "disabled"}; applies when settings close")
         updateResolutionMenu()
+    }
+
+    private fun onHeadUnitCallStateChanged(checked: Boolean) {
+        if (headUnitCallState == checked) return
+        headUnitCallState = checked
+        AirPlayPersistence.saveHeadUnitCallState(this, checked)
+        appendLog("Head-unit call mode ${if (checked) "enabled" else "disabled"}; applies to the next connection")
     }
 
     private fun onAudioFocusEnabledChanged(checked: Boolean) {

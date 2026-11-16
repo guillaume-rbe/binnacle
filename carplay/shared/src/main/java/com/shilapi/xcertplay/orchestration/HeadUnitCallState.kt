@@ -14,9 +14,14 @@ import com.shilapi.xcertplay.media.BluetoothCallRoute
  * When the car is connected to this unit's Android Bluetooth as a hands-free device, the call goes
  * to the car over that link instead ([BluetoothCallRoute]) and the CAN app isn't told: its call
  * mode is for the other, car-facing Bluetooth module.
+ *
+ * [tellCallOn] false (CarPlay setting, on by default): the CAN app is never told ON, only the OFF
+ * that clears a stale call mode. On a Tesla A007 without the Bluetooth overlay the call mode it
+ * sets mutes the car's audio for the whole call, so the driver hears nothing (16 Nov, issue #90).
  */
 internal class HeadUnitCallState(
     context: Context,
+    private val tellCallOn: Boolean,
     private val log: (String) -> Unit,
 ) {
     private val appContext = context.applicationContext
@@ -48,7 +53,7 @@ internal class HeadUnitCallState(
         callOn = on
         if (on) {
             if (BluetoothCallRoute.start(appContext, log, ::carRouteFailed)) return
-            send(true)
+            if (tellCallOn) send(true)
         } else {
             BluetoothCallRoute.stop()
             if (canAppOn) send(false)
@@ -58,7 +63,7 @@ internal class HeadUnitCallState(
     /** The car's audio link never came up or dropped: tell the CAN app after all. */
     @Synchronized
     private fun carRouteFailed() {
-        if (callOn && !canAppOn) send(true)
+        if (callOn && !canAppOn && tellCallOn) send(true)
     }
 
     private fun send(on: Boolean) {

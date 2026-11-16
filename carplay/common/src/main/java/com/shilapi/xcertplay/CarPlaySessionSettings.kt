@@ -46,6 +46,8 @@ internal data class CarPlaySessionSettings(
     val videoColourConversion: Boolean = true,
     val advancedAudioChannelMapping: Boolean,
     val audioFocusEnabled: Boolean,
+    /** Tell the head unit's CAN app when a CarPlay call starts (HeadUnitCallState). */
+    val headUnitCallState: Boolean = true,
     val audioQuality: AudioQualitySettings,
     val mainMediaAudioBufferDurationMs: Int,
     val microphoneGainPercent: Int,
@@ -123,6 +125,7 @@ internal data class CarPlaySessionSettings(
         manualHotspotChannel = manualHotspotChannel,
         manualHotspotSecurity = manualHotspotSecurity,
         locationReportingEnabled = locationReportingEnabled,
+        headUnitCallStateEnabled = headUnitCallState,
     )
 
     fun viewAreas(context: Context, size: DisplaySize, extraSizes: List<DisplaySize> = emptyList()): CarPlayViewAreas? {
@@ -246,6 +249,7 @@ internal data class CarPlaySessionSettings(
                     context.resources.getBoolean(R.bool.config_advanced_audio_channel_mapping) &&
                         AirPlayPersistence.loadAdvancedAudioChannelMapping(context),
                 audioFocusEnabled = AirPlayPersistence.loadAudioFocusEnabled(context),
+                headUnitCallState = AirPlayPersistence.loadHeadUnitCallState(context),
                 audioQuality = AirPlayPersistence.loadAudioQuality(context),
                 mainMediaAudioBufferDurationMs = AirPlayPersistence.loadMainMediaAudioBufferDurationMs(context),
                 microphoneGainPercent = AirPlayPersistence.loadMicrophoneGainPercent(context),

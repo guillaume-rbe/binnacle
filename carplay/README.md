@@ -36,6 +36,9 @@
 > - Steering-wheel keys sent to CarPlay as knob and media controls
 > - Car-maker tile labelled "Binnacle" that returns to the head unit's home screen while CarPlay
 >   keeps running
+> - Settings → Audio → *Tell the head unit about calls* (on by default): off, the CAN app is never
+>   told a call started (only the OFF that clears a stale call mode), for Tesla A007 dashes whose
+>   call mode mutes the car for the whole call
 > - Tells the head unit's CAN app about CarPlay phone calls (the broadcast the stock ZLink app
 >   sends, addressed to the CAN app only), so the car shows a phone call without the stock car
 >   service locking other apps; sends "call off" on start in case a previous run quit mid-call,
