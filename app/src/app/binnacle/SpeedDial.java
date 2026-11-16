@@ -208,11 +208,6 @@ final class SpeedDial {
         c.drawLine(cx + s * r0, cy + k * r0, cx + s * r1, cy + k * r1, tick);
     }
 
-    /**
-     * Power: amber at zero brightening to orange at full power (as the old power bar). Rainbow:
-     * the Rainbow road's hues round the speed arc. Rebuilt only when the centre or theme changes
-     * (a theme change rebuilds the whole activity, and with it this dial).
-     */
     /** The red glow from the speed limit (30% red, owner 16 Nov: was 60%) to clear LIMIT_FADE degrees on. */
     private void ensureLimitShader(float cx, float cy, float ang) {
         if (limitShader != null && ang == limitShaderAng && cx == limitShaderCx && cy == limitShaderCy
@@ -229,6 +224,11 @@ final class SpeedDial {
         limitShader.setLocalMatrix(matrix);
     }
 
+    /**
+     * Power: amber at zero brightening to orange at full power (as the old power bar). Rainbow:
+     * the Rainbow road's hues round the speed arc. Rebuilt only when the centre or theme changes
+     * (a theme change rebuilds the whole activity, and with it this dial).
+     */
     private void ensureShaders(float cx, float cy) {
         if (powerShader != null && cx == shaderCx && cy == shaderCy && shaderWarn == Style.WARN) return;
         shaderCx = cx;
