@@ -213,7 +213,7 @@ final class SpeedDial {
      * the Rainbow road's hues round the speed arc. Rebuilt only when the centre or theme changes
      * (a theme change rebuilds the whole activity, and with it this dial).
      */
-    /** The red glow from the speed limit (60% red) to clear LIMIT_FADE degrees on. */
+    /** The red glow from the speed limit (30% red, owner 16 Nov: was 60%) to clear LIMIT_FADE degrees on. */
     private void ensureLimitShader(float cx, float cy, float ang) {
         if (limitShader != null && ang == limitShaderAng && cx == limitShaderCx && cy == limitShaderCy
                 && limitShaderBad == Style.BAD) return;
@@ -222,7 +222,7 @@ final class SpeedDial {
         limitShaderCy = cy;
         limitShaderBad = Style.BAD;
         int bad = Style.BAD & 0xffffff;
-        limitShader = new SweepGradient(cx, cy, new int[]{0x99000000 | bad, 0x00000000 | bad, 0x00000000 | bad},
+        limitShader = new SweepGradient(cx, cy, new int[]{0x4d000000 | bad, 0x00000000 | bad, 0x00000000 | bad},
                 new float[]{0f, LIMIT_FADE / 360f, 1f});
         matrix.reset();
         matrix.setRotate(ang - 90, cx, cy);
