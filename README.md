@@ -17,6 +17,8 @@ The shipped software is janky and the promised over-the-air updates never came. 
 On a ship, the binnacle is the stand in front of the helm that holds the compass, lit so the helmsman can read it at a glance.
 
 ## Features
+Items marked *(root)* need a dash that gives root; see [Root](#root).
+
 - **Live car data, read only:** a speed dial with power and regen, gear, speed-limit sign, indicators and lights, tyre pressures (psi or bar), parking sensors, doors, boot and frunk, outside temperature, odometer.
 - **Your car in 3D:** Model 3 or Model Y, left- or right-hand drive, in the original dash's colours (extra colours download from this repo). Open doors, boot and frunk show on the car. In Drive it sits on a moving road with headlight glow, and the lane turns blue on Autopilot. When CarPlay or the camera covers the centre, a glow on the left panel keeps Autopilot in view.
 - **One speed on screen:** in Drive a large dial in the centre shows speed, power and regen, with the car under it; parked, or with CarPlay or the camera in the centre, a compact copy moves to the left panel.
@@ -27,7 +29,7 @@ On a ship, the binnacle is the stand in front of the helm that holds the compass
 - **Parking sensors you can read:** coloured arcs around the car, a STOP sign when you're close, and a sensor card that stays up while the camera is on.
 - **Forward camera in the dash,** with a smooth picture.
 - **Autopilot attention warning:** a red LED bar that pulses out from the centre, with a soft blue glow round the window.
-- **Wireless CarPlay on your terms:** starts when you tap CarPlay, shows in the centre or full screen, and one tap ends it and rejoins your home Wi-Fi. Optional auto-connect (Apps → Display → CarPlay auto-connect, off by default) looks for your iPhone when the car wakes, shows what CarPlay is doing on the centre window while it connects, and gives up quietly after 90 s.
+- **Wireless CarPlay on your terms** *(root)*: starts when you tap CarPlay, shows in the centre or full screen, and one tap ends it and rejoins your home Wi-Fi. While CarPlay is in the centre, the right card shows what's playing. Optional auto-connect (Apps → Display → CarPlay auto-connect, off by default) looks for your iPhone when the car wakes, shows what CarPlay is doing on the centre window while it connects, and gives up quietly after 90 s.
 - **Light, dark or Auto theme:** Auto follows the car's screen brightness, so it goes dark at night.
 - **Steering-wheel control.**
 - **Updates itself** from this repo's releases when you tap Check for updates.
@@ -39,7 +41,7 @@ On a ship, the binnacle is the stand in front of the helm that holds the compass
 - **Battery %:** on some cars (mine included) the stock battery level is stuck at 77%, and the stock dash shows another field as "km" when it isn't range at all. Binnacle decodes the real % from that field, checked across a full 13% to 100% charge, and switches to the car's own battery level on cars where it works. On some of those cars that same field is the car's real range, and Binnacle shows it.
 - **Camera:** the stock camera judders on the 56 Hz panel. Binnacle sets up the camera input itself, paces frames evenly and hides the start-up roll.
 - **CarPlay that doesn't hijack your phone:** the stock setup grabbed the phone and the unit's Wi-Fi whenever it could. Binnacle only connects when asked (or when you turn on auto-connect).
-- **Media and calls on the Tesla:** the stock setup showed only the Bluetooth device name, with no real media or call controls. Album art isn't possible on Android 10. You can now see track names, skip forward and back, and answer calls like a normal phone connection.
+- **Media and calls on the Tesla** *(root, manual)*: the stock setup showed only the Bluetooth device name, with no real media or call controls. Album art isn't possible on Android 10. You can now see track names, skip forward and back, and answer calls like a normal phone connection. This needs the Bluetooth overlay on the owner's unit, a manual change that also turns off dm-verity; setup doesn't make it and its source isn't published yet ([UNIT-CHANGES.md](docs/UNIT-CHANGES.md#calls-and-bluetooth-audio-through-carplay-owners-unit)).
 - **No stray pop-ups:** no more full-screen picture every time a door or the boot opens. Binnacle shows the doors on its own car instead.
 - **Warnings that clear on time:** the attention warning goes when the car clears it.
 - **A theme that doesn't flip-flop:** Auto waits for the car's light level to settle before switching.
@@ -55,17 +57,31 @@ On a ship, the binnacle is the stand in front of the helm that holds the compass
 **Will it work on my dash?** See [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md).
 
 No computer needed.
-1. Download `Binnacle.apk` and `BinnacleCarPlay.apk` from the latest [release](https://github.com/lotech/binnacle/releases/latest). CarPlay is optional; without it, the CarPlay button opens the stock ZLink.
+1. Download `Binnacle.apk` and `BinnacleCarPlay.apk` from the latest [release](https://github.com/lotech/binnacle/releases/latest). CarPlay is optional and needs root; without it, the CarPlay button opens the stock ZLink.
 2. Copy them to a USB stick, plug it into the unit, open each one in the unit's file manager and tap it. Android asks once to allow installs from the file manager.
 3. Open **Binnacle**. Setup asks about your car, offers to make Binnacle the Home app, asks for location (compass) and the camera, and then sets up the unit: a one-time unlock typed into the unit's EngineerMode (setup gives you Copy buttons), then one tap. Any step can be skipped; **Apps → Advanced → Run setup** shows it again.
 
-Setting up the unit hides the stock camera screen and pop-ups, turns on Android Bluetooth for wireless CarPlay and keeps CarPlay connecting after a restart. **End CarPlay** and **Bluetooth auto-connect** need it too. Each change can be undone under **Apps → Unit**, and all of them are listed in [docs/UNIT-CHANGES.md](docs/UNIT-CHANGES.md).
+Setting up the unit hides the stock camera screen and pop-ups, turns on Android Bluetooth for wireless CarPlay and keeps CarPlay connecting after a restart. **End CarPlay** and **Bluetooth auto-connect** need it too. Most of this needs root (see [Root](#root)). Each change can be undone under **Apps → Unit**, and all of them are listed in [docs/UNIT-CHANGES.md](docs/UNIT-CHANGES.md).
 
 **Update:** **Apps → Advanced → Updates → Check for updates** (0.8 and later), in Park, over Wi-Fi. It updates Binnacle and its CarPlay together, and keeps your settings. Android asks you to confirm, and the first time to allow Binnacle to install apps. If Play Protect warns, tap **Install anyway** or **Install without scanning**. Details: [docs/UPDATES.md](docs/UPDATES.md).
 
 **Check a download:** both APKs are signed with the same key. `apksigner verify --print-certs Binnacle.apk` should show the SHA-256 certificate digest `14ee8d96b1c63874f0767871f5346178d52fd8497cb813ce7ff5f9c507d4fa84`. Android also refuses an update signed with any other key.
 
 **Remove:** **Apps → Advanced → Remove Binnacle**. The stock dash was never removed and comes straight back.
+
+## Root
+Some dashes give root (`su`) and some don't ([COMPATIBILITY.md](docs/COMPATIBILITY.md)). **Apps → Unit** marks what yours can't do as "Needs root". The dash, car data, the camera in the dash and updates work either way.
+
+| Needs root | Without root |
+|---|---|
+| Binnacle's CarPlay (it needs Android Bluetooth) | Use the stock ZLink |
+| Calls, music and contacts to the car over Android Bluetooth (also a manual overlay) | The stock Bluetooth module, as before |
+| Keeping the unit unlocked after a restart | End CarPlay, Bluetooth auto-connect, the Wi-Fi scan pause and screenshots work until the next restart |
+| ADB off the Wi-Fi | ADB stays open to the Wi-Fi until the next restart |
+| Stock full-screen camera off | It can still open over the dash in Drive |
+| GPS crash dumps off, Bluetooth volume fix, CarPlay calls | Skipped |
+
+Some dashes without `su` still allow `adb root` from a computer until the next restart: see [Wireless CarPlay on a dash without su](docs/COMPATIBILITY.md#wireless-carplay-on-a-dash-without-su). On a dash without the Bluetooth overlay, if CarPlay calls are silent in the car, turn off the CarPlay app's **Settings → Audio → Tell the head unit about calls**.
 
 ## The hardware (what the listings don't tell you)
 Sold as an "Android 12" 10.25" cluster for the Model 3 and Model Y under several brands. Inside, it's a ZIQI "A007" board.
@@ -81,11 +97,11 @@ Sold as an "Android 12" 10.25" cluster for the Model 3 and Model Y under several
 | **Screen** | 1920 × 720 at 320 dpi. The panel runs at **56 Hz**, so 30 fps video judders unless it's paced (Binnacle paces the camera). |
 | **Car data** | Two MCUs: one decodes the Tesla CAN bus and sends it over serial to the stock CAN app (`com.xbs.canapp`), which any app can subscribe to. Brake lights and steering angle aren't in that feed, and on some cars nor is the true range. |
 | **Wi-Fi** | One radio. Wireless CarPlay turns it into a hotspot, so the unit drops off your home Wi-Fi while CarPlay is connected. |
-| **Bluetooth** | A separate Goodocom module handles calls and audio. Android's own Bluetooth is off as shipped (no Bluetooth LE, so apps such as S3XY Commander can't connect); setting up the unit turns it on for wireless CarPlay. |
+| **Bluetooth** | A separate Goodocom module handles calls and audio. Android's own Bluetooth is off as shipped (no Bluetooth LE, so apps such as S3XY Commander can't connect); setting up the unit turns it on for wireless CarPlay (root). |
 | **CarPlay** | Wireless only. ZLink comes preinstalled, and the unit rolls it back to that version at every restart. With `BinnacleCarPlay.apk` installed (built from [xcertplay](https://github.com/shilapi/xcertplay), see `carplay/`), Binnacle uses it instead, draws CarPlay in the dash and hides ZLink from its app list (ZLink stays installed). |
 | **Camera** | A TP9950 decoder. Only the TVI 1080p 30 fps input gives a clean picture with the supplied camera. |
-| **GPS** | Built in. Its daemon crashes often and, as shipped, writes a large crash dump each time (setting up the unit stops that). |
-| **USB-C** | Host only, so no ADB over USB. ADB works over Wi-Fi with no key ([docs/ADB-GUIDE.md](docs/ADB-GUIDE.md)); Binnacle keeps it off the Wi-Fi unless you turn on **Apps → Unit → Network ADB**. |
+| **GPS** | Built in. Its daemon crashes often and, as shipped, writes a large crash dump each time (setting up the unit stops that, with root). |
+| **USB-C** | Host only, so no ADB over USB. ADB works over Wi-Fi with no key ([docs/ADB-GUIDE.md](docs/ADB-GUIDE.md)); with root, Binnacle keeps it off the Wi-Fi unless you turn on **Apps → Unit → Network ADB**. |
 
 No stock apps were removed. Changes to the unit outside Binnacle, each with its undo, are in [docs/UNIT-CHANGES.md](docs/UNIT-CHANGES.md).
 
@@ -95,7 +111,7 @@ No stock apps were removed. Changes to the unit outside Binnacle, each with its 
 In daily use on my 2023 Model 3 since 27 Oct 2026, as the unit's Home app (the stock launcher stays installed as the fallback).
 - ✅ Reverse-engineered the stock CAN data and built a **field map** (`docs/FIELD_MAP.md`).
 - ✅ The **dash** (`app/`, see `app/README.md`) and an optional read-only **logger** (`capture/`).
-- ✅ Android Bluetooth on alongside the stock module, with echo cancellation for the poor microphone.
+- ✅ Android Bluetooth on alongside the stock module, with echo cancellation for the poor microphone (root).
 - ✅ Replaced ZLink with xcertplay for CarPlay, drawn in the dash (centre or full screen).
 - ✅ Setup that sets up the unit too, with no computer.
 - 🟡 Power and regen values broke with Tesla software 2026.38.6.1 (other tools such as S3XY Commander broke too).
@@ -133,7 +149,7 @@ CarPlay (`carplay/`) is its own Gradle build (Kotlin, Compose and a small native
 Every build runs the read-only guards and tests (`buildSrc/src/main/java/app/binnacle/gradle/Guards.java`): the iCloud-copy check, `tools/check_readonly.sh` and `tests/run.sh` before compiling, then `tools/check_bytecode.sh` on the compiled classes and the packed APK, and it refuses any library in the APK. Any failure stops the build and leaves no APK. Only release APKs are built (a debug variant splits the dex, which the guard refuses; app bundles aren't checked). Shared settings such as the signing key are in `buildSrc/src/main/java/app/binnacle/gradle/BinnacleApp.java`. `-Pbinnacle.appId=app.binnacle` builds the dash under another package name (see `app/README.md`). `app/build.sh` and `capture/build.sh` still build the same APKs without Gradle.
 
 ## Safety & reversibility
-- Binnacle installs as a normal app and is set as the default Home; the stock launcher stays installed as the fallback. No system-partition changes. Remove it from **Apps → Advanced**, or switch Home back with `adb shell su 0 cmd package set-home-activity com.xbs.launcher1/.MainActivity`.
+- Binnacle installs as a normal app and is set as the default Home; the stock launcher stays installed as the fallback. Binnacle makes no system-partition changes (the Bluetooth overlay above is a separate, manual one). Remove it from **Apps → Advanced**, or pick the stock dash as the Home app in Android settings (Default apps), or with root: `adb shell su 0 cmd package set-home-activity com.xbs.launcher1/.MainActivity`.
 - What it does on the unit itself is pinned by the guards: a fixed list of commands through the unit's own ADB (`LocalShell`: end CarPlay, Bluetooth auto-connect, Wi-Fi scans, screenshots, and the opt-in unit setup and ADB firewall, each with its undo), and the camera decoder's two input nodes in `/sys/ziqi/camera`. All are listed in [docs/UNIT-CHANGES.md](docs/UNIT-CHANGES.md).
 
 ## Credits
