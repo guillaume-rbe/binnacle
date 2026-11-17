@@ -97,8 +97,10 @@ for f in $(grep -rlwE 'AudioManager|AUDIO_SERVICE' src); do
 done
 # two calls: the music level, and unmuting music first (the CAN app mutes it when the car sleeps)
 [ "$(grep -cE 'set(Stream|Ringer|Mode)Volume|adjust(Stream|Suggested)?Volume|setRingerMode|setMicrophoneMute|setMasterMute|setStreamMute|setSpeakerphoneOn|setMode\(' "$VOL")" = 2 ] || bad "StartupVolume may change exactly the music level and its mute"
-grep -qxE '\s*audio\.setStreamVolume\(AudioManager\.STREAM_MUSIC, level, 0\);' "$VOL" || bad "StartupVolume may only set the music volume"
-grep -qxE '\s*if \(muted\) audio\.adjustStreamVolume\(AudioManager\.STREAM_MUSIC, AudioManager\.ADJUST_UNMUTE, 0\);' "$VOL" || bad "StartupVolume may only unmute music"
+grep -qxE '\s*audio\.setStreamVolume\(AudioManager\.STREAM_MUSIC, level, CAR_SERVICE_SET\);' "$VOL" || bad "StartupVolume may only set the music volume"
+grep -qxE '\s*if \(muted\) audio\.adjustStreamVolume\(AudioManager\.STREAM_MUSIC, AudioManager\.ADJUST_UNMUTE, CAR_SERVICE_SET\);' "$VOL" || bad "StartupVolume may only unmute music"
+# the ROM's car-service flag (owner OK 17 Nov, see CLAUDE.md "MCU writes"): exactly 0x2000, defined once
+[ "$(grep -c 'CAR_SERVICE_SET =' "$VOL")" = 1 ] && grep -qxE '\s*private static final int CAR_SERVICE_SET = 0x2000;' "$VOL" || bad "StartupVolume's volume flag must be the car-service flag 0x2000 only"
 
 # 1f. Intents delivered later or as another app: only Updater's one PendingIntent (the install
 #     result, back to its own Status receiver). No alarms, isolated services or intent senders.
