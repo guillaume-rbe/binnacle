@@ -89,6 +89,7 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
         camera = new CameraPane(this, new CameraPane.Listener() {
             @Override public void onCameraProblem(String problem) {
                 Toast.makeText(DashActivity.this, problem, Toast.LENGTH_LONG).show();
+                DashApp.get(DashActivity.this).dashCameraProblem(problem);
             }
             @Override public void onCameraState(boolean on) {
                 if (right != null) right.setCameraOn(on);

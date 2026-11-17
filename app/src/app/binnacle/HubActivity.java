@@ -1189,6 +1189,11 @@ public class HubActivity extends Activity {
             b.setOnClickListener(new View.OnClickListener() {
                 @Override public void onClick(View v) {
                     final boolean want = !b.isSelected();
+                    if (want && ch == UnitSetup.Change.STOCK_CAMERA && !UnitSetup.dashTakesOverCamera(HubActivity.this)) {
+                        // nothing would open a camera on Drive
+                        Toast.makeText(HubActivity.this, "Needs the dash camera on, Binnacle as Home and Display over other apps", Toast.LENGTH_LONG).show();
+                        return;
+                    }
                     b.setEnabled(false);
                     b.setText("Working…");
                     new Thread(new Runnable() {
