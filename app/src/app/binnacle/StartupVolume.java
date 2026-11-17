@@ -19,10 +19,12 @@ import android.util.Log;
  * on the unit too). It is not the car-setup speaker level. Like the CAN app's own volume slider,
  * each change that takes effect makes the dash's car service pass the level on to the MCU's main
  * volume (see CAR_SERVICE_SET); nothing goes onto the car's CAN bus. The volume keys still change it at any time; it is set again at the
- * next start, screen-on or Bluetooth audio connection, and whenever music is muted or jumps to 0
- * in one go while the screen is on (android.car.server and the CAN app do that on car wakes and
- * mutes; on 15 Nov it was 0 again on getting in, after the one-minute watch had ended). A level
- * turned down to 0 step by step with the wheel keys is left alone.
+ * next start, screen-on or Bluetooth audio connection while the screen is on. Whenever music is
+ * muted or jumps to 0 in one go while the screen is on (android.car.server and the CAN app do that
+ * on car wakes and mutes; on 15 Nov it was 0 again on getting in, after the one-minute watch had
+ * ended), it goes back to the level it had before, not to the start-up level; at most 5 times in
+ * 30 s, then not again until the next screen-on. A level turned down to 0 step by step with the
+ * wheel keys is left alone.
  */
 final class StartupVolume {
     static final String KEY = "startup_volume";
@@ -45,8 +47,9 @@ final class StartupVolume {
             EXTRA_MUTED = "android.media.EXTRA_STREAM_VOLUME_MUTED";
     /**
      * A reset seen while the screen is on is put back this long after it (a car going to sleep turns
-     * the screen off around its mute, which is then left), at most RESTORE_MAX times per
-     * RESTORE_WINDOW_MS, so it never fights something that keeps zeroing music.
+     * the screen off around its mute, which is then left), at most RESTORE_MAX times in
+     * RESTORE_WINDOW_MS; then not again until the next screen-on, so it never fights something that
+     * keeps zeroing music (17 Nov audit #6b).
      */
     private static final long RESTORE_DELAY_MS = 1500, RESTORE_WINDOW_MS = 30_000;
     private static final int RESTORE_MAX = 5;
@@ -59,6 +62,37 @@ final class StartupVolume {
      */
     static boolean zeroedInOneGo(int prev, int now) {
         return now == 0 && prev > 1;
+    }
+
+    /**
+     * How many restores may still go ahead: RESTORE_MAX in a window, and once a window is used up,
+     * none until reset() (the next screen-on).
+     */
+    static final class RestoreBudget {
+        private final int max;
+        private final long windowMs;
+        private boolean started, spent;
+        private long windowStart;
+        private int used;
+
+        RestoreBudget(int max, long windowMs) { this.max = max; this.windowMs = windowMs; }
+
+        /** True = this restore may go ahead. The first refusal ends restores until reset(). */
+        boolean take(long now) {
+            if (spent) return false;
+            if (!started || now - windowStart > windowMs) { started = true; windowStart = now; used = 0; }
+            if (++used > max) { spent = true; return false; }
+            return true;
+        }
+
+        boolean spent() { return spent; }
+
+        void reset() { started = false; spent = false; used = 0; }
+    }
+
+    /** The start-up level for `percent` of `max` (at least the lowest step). */
+    static int startupLevel(int max, int percent) {
+        return Math.max(1, Math.round(max * percent / 100f));
     }
 
     /**
@@ -113,20 +147,25 @@ final class StartupVolume {
         final Handler main = new Handler(Looper.getMainLooper());
         final android.os.PowerManager power = (android.os.PowerManager) context.getSystemService(Context.POWER_SERVICE);
         final long[] watchUntil = {0};
-        final long[] restores = {0, 0};   // start of the current window, restores in it
+        final RestoreBudget budget = new RestoreBudget(RESTORE_MAX, RESTORE_WINDOW_MS);
+        // the last music level above 0 seen while awake: what a mute or reset is put back to (audit #6a)
+        final int[] lastLevel = {0};
         final Resets resets = new Resets();
         final Runnable watch = new Runnable() {
             @Override public void run() {
                 if (android.os.SystemClock.uptimeMillis() >= watchUntil[0]) return;
                 // the car went to sleep: its mute then is deliberate (screen-off also stops this)
                 if (power != null && !power.isInteractive()) return;
-                if (silent(audio)) apply(audio, prefs, main);
+                // a 0 stepped down by hand stays (audit #6c)
+                if (silent(audio) && !resets.steppedToZero()) apply(audio, main, startupLevel(audio, prefs));
                 main.postDelayed(this, WATCH_STEP_MS);
             }
         };
         final Runnable apply = new Runnable() {
             @Override public void run() {
-                apply(audio, prefs, main);
+                // start or Bluetooth connect while the car sleeps: left for the next screen-on (audit #6d)
+                if (power != null && !power.isInteractive()) return;
+                apply(audio, main, startupLevel(audio, prefs));
                 watchUntil[0] = android.os.SystemClock.uptimeMillis() + WATCH_MS;
                 main.removeCallbacks(watch);
                 main.postDelayed(watch, WATCH_STEP_MS);
@@ -138,6 +177,7 @@ final class StartupVolume {
             @Override public void onAudioDevicesAdded(AudioDeviceInfo[] added) {
                 for (AudioDeviceInfo d : added) {
                     if (d.isSink() && d.getType() == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP) {
+                        if (power != null && !power.isInteractive()) return;   // set at the next screen-on
                         main.removeCallbacks(apply);
                         main.postDelayed(apply, SETTLE_MS);
                         return;
@@ -152,13 +192,13 @@ final class StartupVolume {
                 if (power != null && !power.isInteractive()) return;   // the car went to sleep meanwhile
                 if (!silent(audio)) return;                             // put back already (the CAN app)
                 if (resets.steppedToZero()) return;                     // turned down to 0 by hand
-                long now = android.os.SystemClock.uptimeMillis();
-                if (now - restores[0] > RESTORE_WINDOW_MS) { restores[0] = now; restores[1] = 0; }
-                if (++restores[1] > RESTORE_MAX) {                      // something keeps zeroing it: don't fight
-                    if (restores[1] == RESTORE_MAX + 1) Log.w(TAG, "start-up volume: music keeps going to 0, leaving it");
+                if (percent(prefs.getString(KEY, DEFAULT)) < 0) return;  // "Leave as is"
+                if (!budget.take(android.os.SystemClock.uptimeMillis())) {   // something keeps zeroing it: don't fight
+                    Log.w(TAG, "start-up volume: music keeps going to 0, leaving it until the next wake");
                     return;
                 }
-                apply(audio, prefs, main);
+                // back to the level it had, not the start-up level: a mute mid-drive never turns it up
+                apply(audio, main, lastLevel[0] > 0 ? lastLevel[0] : startupLevel(audio, prefs));
             }
         };
         android.content.IntentFilter change = new android.content.IntentFilter(VOLUME_CHANGED);
@@ -169,6 +209,12 @@ final class StartupVolume {
                 if (percent(prefs.getString(KEY, DEFAULT)) < 0) return;   // "Leave as is"
                 if (power != null && !power.isInteractive()) return;   // the car sleeping: its mute is deliberate
                 boolean muted = MUTE_CHANGED.equals(i.getAction());
+                // remember the level the driver (or a finished fade) left it at
+                if (!muted && fading == null) {
+                    int value = i.getIntExtra(EXTRA_VALUE, -1);
+                    if (value > 0) lastLevel[0] = value;
+                }
+                if (budget.spent()) return;
                 boolean reset = muted
                         ? resets.onMute(i.getBooleanExtra(EXTRA_MUTED, false))
                         : resets.onVolume(i.getIntExtra(EXTRA_PREV, -1), i.getIntExtra(EXTRA_VALUE, -1));
@@ -187,6 +233,7 @@ final class StartupVolume {
                 main.removeCallbacks(restore);
                 stopFade(main);
                 watchUntil[0] = 0;
+                budget.reset();
                 // the car sleeping: the CAN app mutes music on purpose, so leave it until the next wake
                 if (android.content.Intent.ACTION_SCREEN_OFF.equals(i.getAction())) return;
                 main.postDelayed(apply, SETTLE_MS);       // after the CAN app's own wake-up changes
@@ -236,11 +283,17 @@ final class StartupVolume {
     /** The fade in progress, or null. Main thread only. */
     private static Runnable fading;
 
-    private static void apply(AudioManager audio, SharedPreferences prefs, Handler main) {
+    /** The chosen start-up level on this unit; -1 = "Leave as is". */
+    private static int startupLevel(AudioManager audio, SharedPreferences prefs) {
         int p = percent(prefs.getString(KEY, DEFAULT));
-        if (p < 0) return;
+        return p < 0 ? -1 : startupLevel(audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC), p);
+    }
+
+    /** Sets music to `level` (-1: nothing), fading up from where it is. */
+    private static void apply(AudioManager audio, Handler main, int level) {
+        if (level < 0) return;
         int max = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
-        int level = Math.max(1, Math.round(max * p / 100f));
+        level = Math.min(level, max);
         boolean muted = android.os.Build.VERSION.SDK_INT >= 23 && audio.isStreamMute(AudioManager.STREAM_MUSIC);
         int now = muted ? 0 : audio.getStreamVolume(AudioManager.STREAM_MUSIC);
         if (!muted && now == level) return;
@@ -251,21 +304,22 @@ final class StartupVolume {
             } else {
                 // start from the quietest step: the CAN app mutes music (ADJUST_MUTE) as well as setting
                 // it to 0 when the car sleeps, a level set while muted stays silent, and an unmute alone
-                // would bring back the level it kept at once
-                if (now == 0) setLevel(audio, 1);
+                // would bring back the level it kept at once. That step is one of the FADE_STEPS.
+                int steps = FADE_STEPS;
+                if (now == 0) { setLevel(audio, 1); steps--; }
                 if (muted) audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_UNMUTE, CAR_SERVICE_SET);
-                fade(audio, main, Math.max(now, 1), level);
+                fade(audio, main, Math.max(now, 1), level, steps);
             }
-            Log.i(TAG, "start-up volume " + p + "% (" + now + " -> " + level + "/" + max + ")");
+            Log.i(TAG, "start-up volume: " + now + " -> " + level + "/" + max);
         } catch (SecurityException e) {
             Log.w(TAG, "start-up volume refused: " + e.getMessage());
         }
     }
 
-    /** Raises music from `from` to `to` in at most FADE_STEPS steps; stops if anything else changes it. */
-    private static void fade(final AudioManager audio, final Handler main, final int from, final int to) {
+    /** Raises music from `from` to `to` in at most `steps` steps; stops if anything else changes it. */
+    private static void fade(final AudioManager audio, final Handler main, final int from, final int to, int steps) {
         if (to <= from) return;
-        final int stride = fadeStride(from, to);
+        final int stride = fadeStride(from, to, steps);
         final long step = FADE_MS / ((to - from + stride - 1) / stride);
         fading = new Runnable() {
             private int at = from;
@@ -288,7 +342,12 @@ final class StartupVolume {
 
     /** Levels per fade step, so a fade from `from` to `to` takes at most FADE_STEPS steps. */
     static int fadeStride(int from, int to) {
-        return Math.max(1, (to - from + FADE_STEPS - 1) / FADE_STEPS);
+        return fadeStride(from, to, FADE_STEPS);
+    }
+
+    static int fadeStride(int from, int to, int steps) {
+        steps = Math.max(1, steps);
+        return Math.max(1, (to - from + steps - 1) / steps);
     }
 
     static void stopFade(Handler main) {

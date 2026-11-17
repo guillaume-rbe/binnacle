@@ -43,6 +43,28 @@ public class StartupVolumeTest {
         check("1 -> 8: one level a step", StartupVolume.fadeStride(1, 8) == 1, true);
         check("20 -> 40: stride 3", StartupVolume.fadeStride(20, 40) == 3, true);
         check("1 -> 40 in <= 8 steps", (39 + StartupVolume.fadeStride(1, 40) - 1) / StartupVolume.fadeStride(1, 40) <= 8, true);
+        // from 0: the step to 1 counts, so the fade after it gets 7 (at most 8 level changes in all)
+        int stride = StartupVolume.fadeStride(1, 40, 7);
+        check("0 -> 40: step to 1 + fade <= 8 changes", 1 + (39 + stride - 1) / stride <= 8, true);
+        check("steps below 1 count as 1", StartupVolume.fadeStride(1, 5, 0) == 4, true);
+
+        check("start-up 100% of 40", StartupVolume.startupLevel(40, 100) == 40, true);
+        check("start-up 1% is still the lowest step", StartupVolume.startupLevel(40, 1) == 1, true);
+
+        // at most 5 restores in 30 s; once used up, none until the next screen-on (audit #6b)
+        StartupVolume.RestoreBudget b = new StartupVolume.RestoreBudget(5, 30_000);
+        boolean all = true;
+        for (int i = 0; i < 5; i++) all &= b.take(1000 + i);
+        check("five restores allowed", all, true);
+        check("sixth refused", b.take(2000), false);
+        check("used up", b.spent(), true);
+        check("still refused after the window", b.take(100_000), false);
+        b.reset();
+        check("screen-on: allowed again", b.take(200_000), true);
+        b = new StartupVolume.RestoreBudget(5, 30_000);
+        for (int i = 0; i < 5; i++) b.take(i * 1000);
+        check("a new window after 30 s quiet", b.take(40_000), true);
+        check("not used up", b.spent(), false);
         if (fails > 0) { System.out.println(fails + " failed"); System.exit(1); }
     }
 }
