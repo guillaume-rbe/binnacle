@@ -1,205 +1,196 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 720" width="1000" height="720" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
-  <title>How the Binnacle dash connects to the car, the phone and Wi-Fi</title>
-  <desc>The Tesla CAN bus feeds the dash's MCUs, which pass car data over a serial link to the stock CAN app; Binnacle only reads that feed. The forward camera feeds a TP9950 decoder that Binnacle shows. Android's own Bluetooth carries music and calls to the Tesla; the stock BT1036 module is the original one-way music link. Wireless CarPlay uses Bluetooth to set up and Wi-Fi Direct for screen and sound, with an MFi chip for Apple authentication. The single Wi-Fi radio otherwise joins home Wi-Fi.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 800" width="1000" height="800" font-family="Roboto, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <title>This setup: how the dash connects with Binnacle</title>
+  <desc>With Binnacle: car data still only flows from the Tesla CAN bus through the MCUs and the stock CAN app to Binnacle, which reads it. The forward camera shows inside Binnacle. Android's own Bluetooth, turned on with root, carries music, calls, track names, controls and contacts to the Tesla through a manual root-only overlay; the BT1036 and Goodocom modules stand by. Binnacle's CarPlay app (built from xcertplay) uses Android Bluetooth, the Wi-Fi radio and the MFi chip, starts only when asked, and draws CarPlay inside Binnacle. With root, Binnacle keeps ADB off the Wi-Fi.</desc>
+
   <style>
-    .bg { fill: #ffffff; }
-    .title { fill: #1f2328; font-size: 22px; font-weight: 700; }
-    .sub { fill: #59636e; font-size: 13px; }
-    .col { fill: #59636e; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; }
-    .h { fill: #1f2328; font-size: 14px; font-weight: 600; }
-    .t { fill: #59636e; font-size: 11.5px; }
-    .lbl { fill: #1f2328; font-size: 11px; }
-    .lbl-red { fill: #b42318; font-size: 11px; font-weight: 700; }
-    .dash { fill: #f6f8fa; stroke: #8c959f; stroke-width: 1.5; }
-    .car { fill: #fdecec; stroke: #d1242f; stroke-width: 1.5; }
-    .hw { fill: #eef4ff; stroke: #0969da; stroke-width: 1.5; }
-    .sw { fill: #eafaf0; stroke: #1a7f37; stroke-width: 1.5; }
-    .bin { fill: #1a7f37; stroke: #116329; stroke-width: 1.5; }
-    .bin-h { fill: #ffffff; font-size: 16px; font-weight: 700; }
-    .bin-t { fill: #dafbe1; font-size: 11.5px; }
-    .ext { fill: #fff8e5; stroke: #bf8700; stroke-width: 1.5; }
-    .stock { fill: #f6f8fa; stroke: #8c959f; stroke-width: 1.5; stroke-dasharray: 5 4; }
-    .ln { stroke: #57606a; stroke-width: 2; fill: none; }
-    .ln-red { stroke: #d1242f; stroke-width: 2.5; fill: none; }
-    .ln-stock { stroke: #8c959f; stroke-width: 2; fill: none; stroke-dasharray: 6 5; }
-    .ah { fill: #57606a; }
-    .ah-red { fill: #d1242f; }
-    .ah-stock { fill: #8c959f; }
+    .bg { fill: #e6ebf1; }
+    .title { fill: #0d1520; font-size: 22px; font-weight: 700; }
+    .sub { fill: #5a6676; font-size: 13px; }
+    .col { fill: #5a6676; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; }
+    .h { fill: #0d1520; font-size: 14px; font-weight: 600; }
+    .t { fill: #5a6676; font-size: 11.5px; }
+    .lbl { fill: #0d1520; font-size: 11px; }
+    .lbl-red { fill: #c4281f; font-size: 11px; font-weight: 700; }
+    .encl { fill: #f5f7fa; stroke: #c9d2dd; stroke-width: 1.5; }
+    .car { fill: #fdeceb; stroke: #e5392f; stroke-width: 1.5; }
+    .hw { fill: #e3f2fb; stroke: #0a8fd8; stroke-width: 1.5; }
+    .sw { fill: #e2f5ee; stroke: #12a46e; stroke-width: 1.5; }
+    .main { fill: #12a46e; stroke: #0e8a5c; stroke-width: 1.5; }
+    .main-h { fill: #ffffff; font-size: 16px; font-weight: 700; }
+    .main-t { fill: #e2f5ee; font-size: 11.5px; }
+    .ext { fill: #ffffff; stroke: #b3bcc7; stroke-width: 1.5; }
+    .off { fill: #f5f7fa; stroke: #b3bcc7; stroke-width: 1.5; stroke-dasharray: 5 4; }
+    .root { fill: #e08a00; }
+    .root-t { fill: #ffffff; font-size: 10px; font-weight: 700; letter-spacing: 0.06em; }
+    .ln { stroke: #5a6676; stroke-width: 2; fill: none; }
+    .ln-red { stroke: #e5392f; stroke-width: 2.5; fill: none; }
+    .ln-off { stroke: #b3bcc7; stroke-width: 2; fill: none; stroke-dasharray: 6 5; }
+    .ln-mcu { stroke: #5a6676; stroke-width: 1.5; fill: none; stroke-dasharray: 2 3; }
+    .ah { fill: #5a6676; }
+    .ah-red { fill: #e5392f; }
+    .ah-off { fill: #b3bcc7; }
     @media (prefers-color-scheme: dark) {
-      .bg { fill: #0d1117; }
-      .title, .h, .lbl { fill: #e6edf3; }
-      .sub, .t, .col { fill: #9198a1; }
-      .lbl-red { fill: #ff7b72; }
-      .dash { fill: #151b23; stroke: #3d444d; }
-      .car { fill: #2d1517; stroke: #f85149; }
-      .hw { fill: #0c2d6b; stroke: #4493f8; }
-      .sw { fill: #0f2e1b; stroke: #3fb950; }
-      .bin { fill: #238636; stroke: #3fb950; }
-      .ext { fill: #2e2410; stroke: #d29922; }
-      .stock { fill: #151b23; stroke: #656c76; }
-      .ln { stroke: #9198a1; }
-      .ln-red { stroke: #f85149; }
-      .ln-stock { stroke: #656c76; }
-      .ah { fill: #9198a1; }
-      .ah-red { fill: #f85149; }
-      .ah-stock { fill: #656c76; }
+      .bg { fill: #07090d; }
+      .title, .h, .lbl { fill: #eef3f8; }
+      .sub, .t, .col { fill: #8793a4; }
+      .lbl-red { fill: #ff5a52; }
+      .encl { fill: #0e131b; stroke: #222c39; }
+      .car { fill: #2a1214; stroke: #ff5a52; }
+      .hw { fill: #0b2233; stroke: #36b9ff; }
+      .sw { fill: #0c241c; stroke: #37e0a0; }
+      .main { fill: #12805a; stroke: #37e0a0; }
+      .main-t { fill: #d6f7ea; }
+      .ext { fill: #141b25; stroke: #505b6a; }
+      .off { fill: #0e131b; stroke: #505b6a; }
+      .root { fill: #ffb84d; }
+      .root-t { fill: #07090d; }
+      .ln { stroke: #8793a4; }
+      .ln-red { stroke: #ff5a52; }
+      .ln-off { stroke: #505b6a; }
+      .ln-mcu { stroke: #8793a4; }
+      .ah { fill: #8793a4; }
+      .ah-red { fill: #ff5a52; }
+      .ah-off { fill: #505b6a; }
     }
   </style>
   <defs>
     <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ah"/></marker>
     <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ah-red"/></marker>
-    <marker id="as" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ah-stock"/></marker>
+    <marker id="ao" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ah-off"/></marker>
   </defs>
 
-  <rect class="bg" x="0" y="0" width="1000" height="720"/>
-
-  <text class="title" x="20" y="36">How the dash connects</text>
-  <text class="sub" x="20" y="58">The ZIQI "A007" cluster (sold as Carview / Hansshow) and what it talks to. Car data only ever flows towards the dash.</text>
-
-  <!-- column headings -->
+  <rect class="bg" x="0" y="0" width="1000" height="800"/>
+  <text class="title" x="20" y="36">This setup: how the dash connects with Binnacle</text>
+  <text class="sub" x="20" y="58">The owner's unit today. Orange marks the parts that need root once (su or adb root); see the README's Root section.</text>
   <text class="col" x="20" y="96">THE CAR</text>
   <text class="col" x="280" y="96">INSIDE THE DASH: CHIPS</text>
   <text class="col" x="540" y="96">INSIDE THE DASH: APPS</text>
   <text class="col" x="800" y="96">YOUR PHONE &amp; HOME</text>
-
-  <!-- dash enclosure -->
-  <rect class="dash" x="262" y="106" width="496" height="560" rx="14"/>
-
-  <!-- ===== THE CAR ===== -->
+  <rect class="encl" x="262" y="106" width="496" height="624" rx="14"/>
   <rect class="car" x="20" y="124" width="190" height="62" rx="8"/>
-  <text class="h" x="34" y="150">Tesla CAN bus</text>
-  <text class="t" x="34" y="170">The car's own data network</text>
-
-  <rect class="car" x="20" y="214" width="190" height="62" rx="8"/>
-  <text class="h" x="34" y="240">Forward camera</text>
-  <text class="t" x="34" y="260">Supplied analogue camera</text>
-
-  <rect class="car" x="20" y="314" width="190" height="150" rx="8"/>
-  <text class="h" x="34" y="340">Tesla's Bluetooth</text>
-  <text class="t" x="34" y="360">Plays the dash's music</text>
-  <text class="t" x="34" y="376">and CarPlay calls on the</text>
-  <text class="t" x="34" y="392">car's speakers and mic.</text>
-  <text class="t" x="34" y="414">The Tesla connects to</text>
-  <text class="t" x="34" y="430">one of the dash's two</text>
-  <text class="t" x="34" y="446">car-facing radios at a time.</text>
-
-  <!-- ===== CHIPS ===== -->
+  <text class="h" x="34" y="148">Tesla CAN bus</text>
+  <text class="t" x="34" y="167">The car's own data network</text>
+  <rect class="car" x="20" y="206" width="190" height="62" rx="8"/>
+  <text class="h" x="34" y="230">Forward camera</text>
+  <text class="t" x="34" y="249">Supplied analogue camera</text>
+  <rect class="car" x="20" y="288" width="190" height="242" rx="8"/>
+  <text class="h" x="34" y="312">Tesla's Bluetooth</text>
+  <text class="t" x="34" y="331">Music, calls with the car's</text>
+  <text class="t" x="34" y="346">own mic, track names, skip</text>
+  <text class="t" x="34" y="361">and answer buttons, and</text>
+  <text class="t" x="34" y="376">contacts.</text>
+  <text class="t" x="34" y="397">Connects to Android</text>
+  <text class="t" x="34" y="412">Bluetooth now. The BT1036</text>
+  <text class="t" x="34" y="427">is still paired as a</text>
+  <text class="t" x="34" y="442">fallback.</text>
+  <text class="t" x="34" y="463">Calls, contacts and controls</text>
+  <text class="t" x="34" y="478">need the manual Bluetooth</text>
+  <text class="t" x="34" y="493">overlay on the dash:</text>
   <rect class="hw" x="280" y="124" width="200" height="62" rx="8"/>
   <text class="h" x="294" y="148">Two MCUs</text>
-  <text class="t" x="294" y="166">MCU0 decodes CAN; MCU1</text>
-  <text class="t" x="294" y="180">handles power and sleep</text>
-
-  <rect class="hw" x="280" y="214" width="200" height="62" rx="8"/>
-  <text class="h" x="294" y="240">TP9950 camera decoder</text>
-  <text class="t" x="294" y="260">TVI 1080p 30 fps input</text>
-
-  <rect class="stock" x="280" y="304" width="200" height="62" rx="8"/>
-  <text class="h" x="294" y="328">BT1036 module</text>
-  <text class="t" x="294" y="346">"Tesla-Screen-BT", behind the</text>
-  <text class="t" x="294" y="360">MCU. Stock, music only</text>
-
-  <rect class="hw" x="280" y="394" width="200" height="62" rx="8"/>
-  <text class="h" x="294" y="418">Android Bluetooth</text>
-  <text class="t" x="294" y="436">The unit's own radio, turned</text>
-  <text class="t" x="294" y="450">on for this project</text>
-
-  <rect class="hw" x="280" y="484" width="200" height="62" rx="8"/>
-  <text class="h" x="294" y="508">Wi-Fi radio</text>
-  <text class="t" x="294" y="526">Only one: home Wi-Fi or</text>
-  <text class="t" x="294" y="540">CarPlay, not both at once</text>
-
-  <rect class="hw" x="280" y="574" width="200" height="62" rx="8"/>
-  <text class="h" x="294" y="598">Apple MFi chip</text>
-  <text class="t" x="294" y="616">Proves to the iPhone that</text>
-  <text class="t" x="294" y="630">this is a CarPlay unit (I²C)</text>
-
-  <!-- ===== APPS ===== -->
+  <text class="t" x="294" y="167">MCU0 decodes CAN; MCU1</text>
+  <text class="t" x="294" y="182">handles power and sleep</text>
+  <rect class="hw" x="280" y="206" width="200" height="62" rx="8"/>
+  <text class="h" x="294" y="230">TP9950 camera decoder</text>
+  <text class="t" x="294" y="249">Binnacle sets its input</text>
+  <rect class="off" x="280" y="288" width="200" height="62" rx="8"/>
+  <text class="h" x="294" y="312">BT1036 module</text>
+  <text class="t" x="294" y="331">Stock link to the Tesla,</text>
+  <text class="t" x="294" y="346">standing by</text>
+  <rect class="off" x="280" y="370" width="200" height="62" rx="8"/>
+  <text class="h" x="294" y="394">Goodocom Bluetooth</text>
+  <text class="t" x="294" y="413">Stock phone link, still</text>
+  <text class="t" x="294" y="428">installed, not used</text>
+  <rect class="hw" x="280" y="452" width="200" height="78" rx="8"/>
+  <text class="h" x="294" y="476">Android Bluetooth</text>
+  <text class="t" x="294" y="495">Turned on by setup. To the</text>
+  <text class="t" x="294" y="510">car: an overlay adds calls,</text>
+  <text class="t" x="294" y="525">music and contacts</text>
+  <rect class="root" x="434" y="462" width="36" height="17" rx="8.5"/>
+  <text class="root-t" x="452.0" y="474.5" text-anchor="middle">ROOT</text>
+  <rect class="hw" x="280" y="552" width="200" height="62" rx="8"/>
+  <text class="h" x="294" y="576">Wi-Fi radio</text>
+  <text class="t" x="294" y="595">Home Wi-Fi or CarPlay, one</text>
+  <text class="t" x="294" y="610">at a time. ADB kept off it</text>
+  <rect class="root" x="434" y="562" width="36" height="17" rx="8.5"/>
+  <text class="root-t" x="452.0" y="574.5" text-anchor="middle">ROOT</text>
+  <rect class="hw" x="280" y="634" width="200" height="62" rx="8"/>
+  <text class="h" x="294" y="658">Apple MFi chip</text>
+  <text class="t" x="294" y="677">Proves to the iPhone that</text>
+  <text class="t" x="294" y="692">this is a CarPlay unit (I²C)</text>
   <rect class="sw" x="540" y="124" width="200" height="62" rx="8"/>
-  <text class="h" x="554" y="148">Stock CAN app</text>
-  <text class="t" x="554" y="166">com.xbs.canapp shares the</text>
-  <text class="t" x="554" y="180">car data with other apps</text>
-
-  <rect class="bin" x="540" y="214" width="200" height="152" rx="10"/>
-  <text class="bin-h" x="556" y="244">Binnacle</text>
-  <text class="bin-t" x="556" y="266">The dash you see: speed,</text>
-  <text class="bin-t" x="556" y="282">gear, battery, tyres, doors,</text>
-  <text class="bin-t" x="556" y="298">parking sensors, camera.</text>
-  <text class="bin-t" x="556" y="322">Reads only. It never sends</text>
-  <text class="bin-t" x="556" y="338">anything to the car.</text>
-
-  <rect class="sw" x="540" y="404" width="200" height="232" rx="8"/>
-  <text class="h" x="554" y="430">CarPlay app</text>
-  <text class="t" x="554" y="450">xcertplay (or the stock</text>
-  <text class="t" x="554" y="464">ZLink). Starts only when</text>
-  <text class="t" x="554" y="478">you tap CarPlay.</text>
-  <text class="t" x="554" y="500">Uses Bluetooth to set up,</text>
-  <text class="t" x="554" y="514">Wi-Fi to carry the screen</text>
-  <text class="t" x="554" y="528">and sound, and the MFi</text>
-  <text class="t" x="554" y="542">chip to authenticate.</text>
-  <text class="t" x="554" y="564">Sends music and calls to the</text>
-  <text class="t" x="554" y="578">Tesla over Android Bluetooth.</text>
-
-  <!-- ===== PHONE & HOME ===== -->
-  <rect class="ext" x="800" y="404" width="180" height="110" rx="8"/>
-  <text class="h" x="814" y="430">iPhone</text>
-  <text class="t" x="814" y="450">Wireless CarPlay.</text>
-  <text class="t" x="814" y="466">Bluetooth to pair, then</text>
-  <text class="t" x="814" y="482">Wi-Fi Direct for the</text>
-  <text class="t" x="814" y="498">screen, touch and sound</text>
-
-  <rect class="ext" x="800" y="574" width="180" height="62" rx="8"/>
-  <text class="h" x="814" y="598">Home Wi-Fi</text>
-  <text class="t" x="814" y="618">Internet and network ADB</text>
-
-  <!-- ===== CONNECTIONS ===== -->
-  <!-- CAN bus -> MCUs (one way) -->
+  <text class="h" x="554" y="148">Stock car services</text>
+  <text class="t" x="554" y="167">CAN app and car service share</text>
+  <text class="t" x="554" y="182">the car data with other apps</text>
+  <rect class="main" x="540" y="206" width="200" height="170" rx="10"/>
+  <text class="main-h" x="554" y="230">Binnacle</text>
+  <text class="main-t" x="554" y="249">The dash you see: speed, gear,</text>
+  <text class="main-t" x="554" y="264">battery, tyres, doors, sensors,</text>
+  <text class="main-t" x="554" y="279">camera, and CarPlay in the</text>
+  <text class="main-t" x="554" y="294">centre or full screen.</text>
+  <text class="main-t" x="554" y="315">Reads car data only. Keeps</text>
+  <text class="main-t" x="554" y="330">music at full volume through</text>
+  <text class="main-t" x="554" y="345">the car service.</text>
+  <rect class="sw" x="540" y="452" width="200" height="244" rx="8"/>
+  <text class="h" x="554" y="476">Binnacle's CarPlay</text>
+  <text class="t" x="554" y="495">Built from xcertplay. Starts</text>
+  <text class="t" x="554" y="510">only when you tap CarPlay</text>
+  <text class="t" x="554" y="525">(or auto-connect is on).</text>
+  <text class="t" x="554" y="546">Uses Android Bluetooth to</text>
+  <text class="t" x="554" y="561">set up, Wi-Fi Direct for</text>
+  <text class="t" x="554" y="576">screen and sound, and the</text>
+  <text class="t" x="554" y="591">MFi chip to authenticate.</text>
+  <text class="t" x="554" y="612">Calls go through the iPhone</text>
+  <text class="t" x="554" y="627">and the Tesla. Tells the</text>
+  <text class="t" x="554" y="642">CAN app about calls, as</text>
+  <text class="t" x="554" y="657">ZLink did.</text>
+  <rect class="root" x="694" y="462" width="36" height="17" rx="8.5"/>
+  <text class="root-t" x="712.0" y="474.5" text-anchor="middle">ROOT</text>
+  <rect class="ext" x="800" y="452" width="180" height="110" rx="8"/>
+  <text class="h" x="814" y="476">iPhone</text>
+  <text class="t" x="814" y="495">Wireless CarPlay.</text>
+  <text class="t" x="814" y="510">Bluetooth to pair, then</text>
+  <text class="t" x="814" y="525">Wi-Fi Direct for the</text>
+  <text class="t" x="814" y="540">screen, touch and sound</text>
+  <rect class="ext" x="800" y="634" width="180" height="62" rx="8"/>
+  <text class="h" x="814" y="658">Home Wi-Fi</text>
+  <text class="t" x="814" y="677">Internet and updates</text>
   <path class="ln-red" d="M210,155 L276,155" marker-end="url(#ar)"/>
   <text class="lbl-red" x="214" y="146">reads</text>
-  <!-- MCUs -> CAN app (serial) -->
-  <path class="ln" d="M480,155 L536,155" marker-end="url(#a)"/>
-  <text class="lbl" x="489" y="146">serial</text>
-  <!-- CAN app -> Binnacle -->
-  <path class="ln" d="M640,186 L640,210" marker-end="url(#a)"/>
-  <text class="lbl" x="648" y="203">subscribes</text>
-
-  <!-- camera -> decoder -> Binnacle -->
-  <path class="ln" d="M210,245 L276,245" marker-end="url(#a)"/>
-  <text class="lbl" x="220" y="236">video</text>
-  <path class="ln" d="M480,245 L536,245" marker-end="url(#a)"/>
-  <text class="lbl" x="489" y="236">picture</text>
-
-  <!-- BT1036 -> Tesla (stock, dashed) -->
-  <path class="ln-stock" d="M280,335 L214,335" marker-end="url(#as)"/>
-  <text class="lbl" x="220" y="327">music</text>
-
-  <!-- Android BT <-> Tesla -->
-  <path class="ln" d="M280,425 L214,425" marker-start="url(#a)" marker-end="url(#a)"/>
-  <text class="lbl" x="222" y="404">music</text><text class="lbl" x="222" y="417">+ calls</text>
-
-  <!-- Binnacle -> CarPlay app -->
-  <path class="ln" d="M640,366 L640,400" marker-end="url(#a)"/>
-  <text class="lbl" x="648" y="388">opens on tap</text>
-
-  <!-- chips -> CarPlay app -->
-  <path class="ln" d="M480,425 L536,425" marker-start="url(#a)" marker-end="url(#a)"/>
-  <path class="ln" d="M480,515 L536,515" marker-start="url(#a)" marker-end="url(#a)"/>
-  <path class="ln" d="M480,605 L536,605" marker-start="url(#a)" marker-end="url(#a)"/>
-
-  <!-- CarPlay app <-> iPhone -->
-  <path class="ln" d="M740,459 L796,459" marker-start="url(#a)" marker-end="url(#a)"/>
-
-  <!-- Wi-Fi radio -> home Wi-Fi (routed below the apps) -->
-  <path class="ln" d="M480,538 L506,538 L506,652 L770,652 L770,605 L796,605" marker-end="url(#a)"/>
-  <text class="lbl" x="560" y="648">when CarPlay is off</text>
-
-  <!-- legend -->
-  <g transform="translate(20,690)">
-    <path class="ln-red" d="M0,0 L34,0" marker-end="url(#ar)"/>
-    <text class="lbl" x="44" y="4">Car data: read only, nothing goes back</text>
-    <path class="ln" d="M300,0 L334,0" marker-end="url(#a)"/>
-    <text class="lbl" x="344" y="4">In use</text>
-    <path class="ln-stock" d="M420,0 L454,0" marker-end="url(#as)"/>
-    <text class="lbl" x="464" y="4">Stock link, still there as a fallback</text>
-    <text class="lbl" x="730" y="4">The stock phone Bluetooth chip is not shown.</text>
-  </g>
+  <path class="ln" d="M480,150 L536,150" marker-end="url(#a)"/>
+  <text class="lbl" x="489" y="142">serial</text>
+  <path class="ln-mcu" d="M540,170 L484,170" marker-end="url(#a)"/>
+  <text class="lbl" x="532" y="200" text-anchor="end">volume, call mode</text>
+  <path class="ln" d="M210,237 L276,237" marker-end="url(#a)"/>
+  <text class="lbl" x="220" y="228">video</text>
+  <path class="ln" d="M480,237 L536,237" marker-end="url(#a)"/>
+  <text class="lbl" x="489" y="228">picture</text>
+  <path class="ln" d="M640,186 L640,202" marker-end="url(#a)"/>
+  <text class="lbl" x="648" y="199">subscribes</text>
+  <path class="ln-off" d="M280,319 L214,319" marker-end="url(#ao)"/>
+  <text class="lbl" x="220" y="310">fallback</text>
+  <path class="ln" d="M280,491 L214,491" marker-start="url(#a)" marker-end="url(#a)"/>
+  <text class="lbl" x="222" y="470">music,</text>
+  <text class="lbl" x="222" y="483">calls</text>
+  <rect class="root" x="35" y="506" width="99" height="17" rx="8.5"/>
+  <text class="root-t" x="84.5" y="518.5" text-anchor="middle">ROOT · MANUAL</text>
+  <path class="ln" d="M640,376 L640,448" marker-start="url(#a)" marker-end="url(#a)"/>
+  <text class="lbl" x="648" y="405">starts it;</text>
+  <text class="lbl" x="648" y="418">CarPlay shows</text>
+  <text class="lbl" x="648" y="431">in Binnacle</text>
+  <path class="ln" d="M480,491 L536,491" marker-start="url(#a)" marker-end="url(#a)"/>
+  <path class="ln" d="M480,583 L536,583" marker-start="url(#a)" marker-end="url(#a)"/>
+  <path class="ln" d="M480,665 L536,665" marker-start="url(#a)" marker-end="url(#a)"/>
+  <path class="ln" d="M740,507 L796,507" marker-start="url(#a)" marker-end="url(#a)"/>
+  <path class="ln" d="M480,600 L500,600 L500,708 L770,708 L770,665 L796,665" marker-end="url(#a)"/>
+  <text class="lbl" x="560" y="722">when CarPlay is off</text>
+  <path class="ln-red" d="M20,760 L54,760" marker-end="url(#ar)"/>
+  <text class="lbl" x="64" y="764">Car data: read only, nothing goes back</text>
+  <path class="ln" d="M290,760 L324,760" marker-end="url(#a)"/>
+  <text class="lbl" x="334" y="764">In use</text>
+  <path class="ln-off" d="M400,760 L434,760" marker-end="url(#ao)"/>
+  <text class="lbl" x="444" y="764">Not used</text>
+  <path class="ln-mcu" d="M520,760 L554,760" marker-end="url(#a)"/>
+  <text class="lbl" x="564" y="764">To the dash's own MCU, as the stock apps do</text>
+  <text class="t" x="20" y="788">The stock dash, ZLink and both stock Bluetooth modules stay installed as fallbacks. Nothing is ever sent onto the CAN bus.</text>
 </svg>

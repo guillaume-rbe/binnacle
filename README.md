@@ -88,7 +88,15 @@ Until the unit is unlocked again after a restart, End CarPlay, Bluetooth auto-co
 ## The hardware (what the listings don't tell you)
 Sold as an "Android 12" 10.25" cluster for the Model 3 and Model Y under several brands. Inside, it's a ZIQI "A007" board.
 
-![How the dash connects: the Tesla CAN bus feeds the dash's MCUs, which pass car data over serial to the stock CAN app that Binnacle reads; the forward camera goes through a TP9950 decoder; Android's own Bluetooth carries music and calls to the Tesla, with the stock BT1036 module as the old music-only link; wireless CarPlay uses Bluetooth, the single Wi-Fi radio and an Apple MFi chip to reach the iPhone; otherwise the Wi-Fi radio joins home Wi-Fi](docs/images/how-it-connects.svg)
+### Stock, as shipped
+
+![Stock: the Tesla CAN bus feeds the dash's two MCUs, which pass car data over serial to the stock car services and the stock dash; the camera opens in its own full-screen app; the Tesla pairs with the BT1036 module behind the MCU, which plays the dash's sound as music only; the phone pairs with the Goodocom Bluetooth module; ZLink runs wireless CarPlay over the Goodocom module, the single Wi-Fi radio and the MFi chip; Android's own Bluetooth is off](docs/images/how-it-connects-stock.svg)
+
+### With Binnacle (the owner's unit)
+
+Parts marked **ROOT** need root once (see [Root](#root)).
+
+![With Binnacle: car data still only flows from the CAN bus through the MCUs and the stock car services to Binnacle, which reads it; the camera shows inside Binnacle; Android Bluetooth, turned on with root, carries music, calls, track names, controls and contacts to the Tesla through a manual root-only overlay, with the BT1036 and Goodocom modules standing by; Binnacle's CarPlay (built from xcertplay, needs root once) uses Android Bluetooth, the Wi-Fi radio and the MFi chip and shows CarPlay inside Binnacle; with root, ADB is kept off the Wi-Fi](docs/images/how-it-connects.svg)
 
 | | |
 |---|---|
@@ -99,7 +107,7 @@ Sold as an "Android 12" 10.25" cluster for the Model 3 and Model Y under several
 | **Screen** | 1920 × 720 at 320 dpi. The panel runs at **56 Hz**, so 30 fps video judders unless it's paced (Binnacle paces the camera). |
 | **Car data** | Two MCUs: one decodes the Tesla CAN bus and sends it over serial to the stock CAN app (`com.xbs.canapp`), which any app can subscribe to. Brake lights and steering angle aren't in that feed, and on some cars nor is the true range. |
 | **Wi-Fi** | One radio. Wireless CarPlay turns it into a hotspot, so the unit drops off your home Wi-Fi while CarPlay is connected. |
-| **Bluetooth** | A separate Goodocom module handles calls and audio. Android's own Bluetooth is off as shipped (no Bluetooth LE, so apps such as S3XY Commander can't connect); setting up the unit turns it on for wireless CarPlay (root). |
+| **Bluetooth** | Two stock modules: the phone pairs with a Goodocom module (hands-free and CarPlay set-up), and the Tesla pairs with a BT1036 module behind the MCU, which plays the dash's sound as music only. Android's own Bluetooth is off as shipped (no Bluetooth LE, so apps such as S3XY Commander can't connect); setting up the unit turns it on for wireless CarPlay (root). |
 | **CarPlay** | Wireless only. ZLink comes preinstalled, and the unit rolls it back to that version at every restart. With `BinnacleCarPlay.apk` installed (built from [xcertplay](https://github.com/shilapi/xcertplay), see `carplay/`), Binnacle uses it instead, draws CarPlay in the dash and hides ZLink from its app list (ZLink stays installed). |
 | **Camera** | A TP9950 decoder. Only the TVI 1080p 30 fps input gives a clean picture with the supplied camera. |
 | **GPS** | Built in. Its daemon crashes often and, as shipped, writes a large crash dump each time (setting up the unit stops that, with root). |
