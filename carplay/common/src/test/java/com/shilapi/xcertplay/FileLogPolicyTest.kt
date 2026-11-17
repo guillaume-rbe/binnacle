@@ -29,6 +29,15 @@ class FileLogPolicyTest {
             FileLogPolicy.forFile("wireless RFCOMM connected address=12:34:56:78:9A:01", debugLogs = false))
     }
 
+    @Test fun bluetoothDeviceNamesAreHidden() {
+        assertEquals("wireless Bluetooth bonded name=(hidden) address=xx:xx:xx:xx:xx:01 class=5a020c",
+            FileLogPolicy.forFile("wireless Bluetooth bonded name=Alex's iPhone address=12:34:56:78:9A:01 class=5a020c", debugLogs = false))
+        assertEquals("wireless RFCOMM attempt=1/1 name=(hidden) address=xx:xx:xx:xx:xx:01 uuid=x",
+            FileLogPolicy.forFile("wireless RFCOMM attempt=1/1 name=unknown address=12:34:56:78:9A:01 uuid=x", debugLogs = false))
+        assertEquals("video decoder configured name=c2.hevc mime=video/hevc",
+            FileLogPolicy.forFile("video decoder configured name=c2.hevc mime=video/hevc", debugLogs = false))
+    }
+
     @Test fun otherLinesAreUnchanged() {
         assertEquals("AirPlay session active", FileLogPolicy.forFile("AirPlay session active", debugLogs = false))
         assertEquals("ipv6 fe80::2:3:4:5:6:7", FileLogPolicy.forFile("ipv6 fe80::2:3:4:5:6:7", debugLogs = false))
