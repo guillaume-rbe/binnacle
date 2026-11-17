@@ -661,6 +661,8 @@ public class DashApp extends Application implements Feed.Sink, SharedPreferences
         // CAMERA_OFF_KMH or Park (DashActivity.followFrontCam), so a failure then still needs one (Codex)
         if (otherApp || demo || !(lastFrontCam || auto)) return;
         stockFallbackOpen = true;
+        // a close still waiting out the debounce (an earlier fallback's) must not close this one (Codex)
+        if (cameraPending && !cameraWanted) { main.removeCallbacks(cameraAction); cameraPending = false; }
         if (UnitSetup.stockCameraOff(this)) restoreStockCamera(true);
         else Launch.camera(this);
     }
