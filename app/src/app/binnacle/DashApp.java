@@ -29,8 +29,9 @@ public class DashApp extends Application implements Feed.Sink, SharedPreferences
      * 28-31 Oct (~45,600 speed messages in D/R while moving): gap between any two messages median
      * 0.14 s, p99.9 0.98 s, longest 2.6 s (speed alone pauses up to ~3 s cruising, ~6 s crawling,
      * so it re-arms on any code), so 8 s is ~3x the worst real gap. Armed whenever the speed is
-     * above 0, whatever the gear (the gear is unknown for a while after a reset). Stopped, the car
-     * may legitimately have nothing new to say: then the GPS tells (gpsMotion).
+     * above 0 outside Park: in D/R as measured, and also while the gear is still unknown after a
+     * reset (until the next code 11). Stopped, the car may legitimately have nothing new to say:
+     * then the GPS tells (gpsMotion).
      */
     static final long STALE_MS = 8000;
     static final String STALE_PROBLEM = "No car data, reconnecting";
@@ -223,18 +224,29 @@ public class DashApp extends Application implements Feed.Sink, SharedPreferences
         @Override public void onHeading() {
             for (Listener l : listeners) l.onCarChanged(HEADING_CHANGED);
         }
-        @Override public void onFix(float speedMs) {
-            long now = android.os.SystemClock.elapsedRealtime();
-            gpsMotion.fix(now, speedMs);
+        @Override public void onFix(long atMs, float speedMs) {
+            gpsMotion.fix(atMs, speedMs);
             // the feed went quiet while stopped (red light, Park, a wake) and the car now drives off:
-            // GPS says driving for a few seconds and no car message for STALE_MS (17 Nov audit #7)
-            if (!demo && feed instanceof CanFeed && !staleRecovering && car.lastUpdateMs > 0
-                    && now - car.lastUpdateMs >= STALE_MS && gpsMotion.moving(now)) {
-                onStale("GPS says driving");
+            // GPS says driving for a few seconds, the screen is on (not a sleeping car on a ferry or a
+            // trailer) and no car message came for STALE_MS (17 Nov audit #7)
+            long now = android.os.SystemClock.elapsedRealtime();
+            if (liveFeed() && !staleRecovering && now - lastMessageMs >= STALE_MS && gpsMotion.moving(now)
+                    && screenOn()) {
+                onStale("with the GPS saying driving");
             }
         }
     });
     private final GpsMotion gpsMotion = new GpsMotion();
+    /** When the CAN feed last sent anything (or was started), elapsed ms. Main thread. */
+    private long lastMessageMs = android.os.SystemClock.elapsedRealtime();
+
+    /** The live CAN feed is in use (not the demo). */
+    private boolean liveFeed() { return !demo && feed instanceof CanFeed; }
+
+    private boolean screenOn() {
+        android.os.PowerManager pm = (android.os.PowerManager) getSystemService(POWER_SERVICE);
+        return pm == null || pm.isInteractive();
+    }
 
     /** GPS heading for the compass; starts once location is granted (also retried from the dash). */
     public Compass compass() { return compass; }
@@ -246,6 +258,7 @@ public class DashApp extends Application implements Feed.Sink, SharedPreferences
         // app installed it is always the live feed, which retries until the service answers.
         demo = prefs.getBoolean("demo", false) || !CanFeed.installed(this);
         feed = demo ? new DemoFeed(this) : new CanFeed(this, this);
+        lastMessageMs = android.os.SystemClock.elapsedRealtime();   // give a new feed STALE_MS to speak
         // Never let values from the previous feed (e.g. simulated ones) pass as live readings.
         car.reset();
         efficiency.reset();                    // demo kilometres never count towards the real drive
@@ -266,8 +279,9 @@ public class DashApp extends Application implements Feed.Sink, SharedPreferences
     }
 
     /**
-     * Fires STALE_MS after the last live message while the car was moving (re-armed by every
-     * message in onData). Clears the screen like a lost feed, then subscribes afresh: the old
+     * Fires STALE_MS after the last live message while the speed was above 0 outside Park (re-armed
+     * by every message in onData); the GPS check (Compass sink) does the same for a feed that went
+     * quiet while stopped. Clears the screen like a lost feed, then subscribes afresh: the old
      * registration is dropped (unregister) and a new one made (register), the same two calls as
      * always. The watchdog itself re-arms only once data with the car moving comes back; until any
      * data comes back, staleRetry subscribes again with a growing pause (audit D5: one retry, then
@@ -275,7 +289,7 @@ public class DashApp extends Application implements Feed.Sink, SharedPreferences
      */
     private final Runnable stalled = new Runnable() {
         @Override public void run() {
-            if (demo || !(feed instanceof CanFeed) || car.speed <= 0) return;
+            if (!liveFeed() || car.speed <= 0 || car.gear == CarState.GEAR_P) return;
             onStale("while moving");
         }
     };
@@ -304,7 +318,7 @@ public class DashApp extends Application implements Feed.Sink, SharedPreferences
     /** Still no data since the watchdog fired: subscribe again, waiting twice as long each time. */
     private final Runnable staleRetry = new Runnable() {
         @Override public void run() {
-            if (demo || !(feed instanceof CanFeed) || !staleRecovering) return;
+            if (!liveFeed() || !staleRecovering) return;
             android.util.Log.w("binnacle", "still no CAN data: subscribing again");
             resubscribe();
             staleRetryMs = Math.min(staleRetryMs * 2, STALE_RETRY_MAX_MS);
@@ -422,10 +436,11 @@ public class DashApp extends Application implements Feed.Sink, SharedPreferences
             return;
         } finally {
             // feed watchdog: any message, even one that fails to decode, shows the feed is alive.
-            // Armed while the speed is above 0, in any gear (the timer checks again when it fires).
+            // Armed while the speed is above 0 outside Park (the timer checks again when it fires).
             if (!demo) {
+                lastMessageMs = android.os.SystemClock.elapsedRealtime();
                 main.removeCallbacks(stalled);
-                if (car.speed > 0) main.postDelayed(stalled, STALE_MS);
+                if (car.speed > 0 && car.gear != CarState.GEAR_P) main.postDelayed(stalled, STALE_MS);
             }
         }
         if (code == 18) updateTheme(false);        // screen brightness: Auto theme follows the car's display
