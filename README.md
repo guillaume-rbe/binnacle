@@ -79,7 +79,8 @@ Some dashes give root (`su`) and some don't ([COMPATIBILITY.md](docs/COMPATIBILI
 | Unit kept unlocked after a restart | Setup | By hand once, but ADB is then open to the Wi-Fi | Unlock again after each restart |
 | ADB off the Wi-Fi | Automatic | Not possible | Not possible |
 | Stock full-screen camera off | Setup | By hand once | Can open over the dash in Drive |
-| GPS crash dumps off, Bluetooth volume fix, CarPlay calls | Setup | By hand once | Skipped |
+| GPS crash dumps off, Bluetooth volume fix | Setup | By hand once | Skipped |
+| CarPlay calls | Setup | Leave off on Dash 3 ([why](docs/COMPATIBILITY.md#known-problems-on-dash-3)) | Skipped |
 
 Until the unit is unlocked again after a restart, End CarPlay, Bluetooth auto-connect, the Wi-Fi scan pause and screenshots don't work. The commands for doing things by hand are in [UNIT-CHANGES.md](docs/UNIT-CHANGES.md): run `adb root` first, then each command without `su 0`. On a dash without the Bluetooth overlay, if CarPlay calls are silent in the car, turn off the CarPlay app's **Settings → Audio → Tell the head unit about calls**.
 
