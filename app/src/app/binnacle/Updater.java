@@ -65,6 +65,8 @@ final class Updater {
     interface Progress {
         /** Bytes downloaded so far (called on the download thread). */
         void onProgress(long bytes);
+        /** The download is checked and about to go to Android (download thread, before the commit). */
+        void written();
     }
 
     private Updater() {}
@@ -136,11 +138,13 @@ final class Updater {
                             shown = now;
                             show("Downloading " + name + step, now);
                         }
+                        @Override public void written() {
+                            // before the commit, so Android's answer (or a failed commit) comes after it
+                            saveNext(app, dashNext ? r : null);
+                            if (!carplay) prefs(app).edit().putBoolean(DASH_UPDATING, true).apply();
+                            show("Installing " + name + step, -1);   // Android's screen (and maybe Play Protect) next
+                        }
                     });
-                    // saved once this download is in Android's hands (before its answer can come)
-                    saveNext(app, dashNext ? r : null);
-                    if (!carplay) prefs(app).edit().putBoolean(DASH_UPDATING, true).apply();
-                    show("Installing " + name + step, -1);   // Android's screen (and maybe Play Protect) next
                 } catch (Busy e) {
                     // another download is running; leave its stage and hand-off alone
                 } catch (Exception e) {
@@ -331,6 +335,7 @@ final class Updater {
                 if (!written) session.abandon();   // never leave a half-written session behind
                 session.close();
             }
+            if (progress != null) progress.written();
             Status.ready(c.getApplicationContext(), id);
         } finally {
             end();
