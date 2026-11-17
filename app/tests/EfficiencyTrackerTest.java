@@ -76,6 +76,16 @@ public class EfficiencyTrackerTest {
         o.reset();
         check("reset clears the drive", o.tripKm() == 0 && Float.isNaN(o.recentWhPerKm()) && o.graph(3_600_000, g2) == 0);
 
+        // #91: once any power this drive was estimated, it stays flagged until a reset
+        EfficiencyTracker e = new EfficiencyTracker();
+        e.feed(0, 10f, 50f, false);
+        check("car's own power is not flagged", !e.estimatedThisDrive());
+        e.feed(100, 10f, 50f, true);
+        e.feed(200, 10f, 50f, false);
+        check("an estimated reading flags the drive", e.estimatedThisDrive());
+        e.reset();
+        check("reset clears the flag", !e.estimatedThisDrive());
+
         if (failures > 0) {
             System.out.println(failures + " efficiency checks FAILED");
             System.exit(1);

@@ -433,7 +433,7 @@ public class DashApp extends Application implements Feed.Sink, SharedPreferences
             car.apply(code, data);
             if (code == 10) {
                 efficiency.feed(android.os.SystemClock.elapsedRealtime(),
-                        car.regen ? -car.power : car.power, car.speedKmh());
+                        car.regen ? -car.power : car.power, car.speedKmh(), car.powerEstimated());
                 if (car.powerEstimated() != powerEstimatedSaved && !demo) {
                     // remembered so a restart doesn't flash the bad reading before it is spotted again
                     powerEstimatedSaved = car.powerEstimated();

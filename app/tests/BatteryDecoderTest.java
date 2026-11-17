@@ -79,6 +79,31 @@ public class BatteryDecoderTest {
                 }
             }
         }
+        // seeRange(): jhmail a range that fits batterylevel for 10 s means the % field is live (#91)
+        BatteryDecoder.LevelWatch r = new BatteryDecoder.LevelWatch();
+        boolean once = r.seeRange(342, 79, false, 0);
+        boolean short9 = r.seeRange(343, 79, false, 9_000);
+        boolean held = r.seeRange(344, 79, false, 10_000);
+        if (once || short9 || !held) { System.out.println("FAIL 342 km at 79 % held 10 s should count, not sooner"); fails++; }
+        else System.out.println("ok   342 km at 79 % held 10 s counts");
+        BatteryDecoder.LevelWatch brk = new BatteryDecoder.LevelWatch();
+        brk.seeRange(342, 79, false, 0); brk.seeRange(40000, 79, false, 5_000);
+        if (brk.seeRange(342, 79, false, 12_000)) { System.out.println("FAIL a break in the fit should restart the hold"); fails++; }
+        else System.out.println("ok   a break in the fit restarts the hold");
+        // never for a % code, whatever batterylevel reads (stuck at 77 on the owner's car, or 100 or
+        // 5 at a wake-up), in km or miles
+        for (int v = 0; v < 1000; v++) {
+            if (BatteryDecoder.percent(v) < 0) continue;
+            for (int level = 1; level <= 100; level++) {
+                for (int miles = 0; miles <= 1; miles++) {
+                    BatteryDecoder.LevelWatch code = new BatteryDecoder.LevelWatch();
+                    code.seeRange(v, level, miles == 1, 0);
+                    if (code.seeRange(v, level, miles == 1, 60_000)) {
+                        System.out.println("FAIL % code " + v + " taken as a range at " + level + " %"); fails++;
+                    }
+                }
+            }
+        }
         // once a range, kept near empty (0 km) and in the cold; never without batterylevel working
         int[][] kept = {{0, 1, 0}, {5, 1, 5}, {120, 1, 120}, {1000, 1, -1}, {-1, 1, -1}, {120, 0, -1}};
         for (int[] k : kept) {

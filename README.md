@@ -24,7 +24,7 @@ Items marked *(root)* need root once, from `su` or `adb root`; see [Root](#root)
 - **One speed on screen:** in Drive a large dial in the centre shows speed, power and regen, with the car under it; parked, or with CarPlay or the camera in the centre, a compact copy moves to the left panel.
 - **Laid out for your side:** graphics match your side of the road, with touch targets closer to your free hand.
 - **Real battery %:** with the car's own range where it sends one (otherwise an estimate).
-- **Efficiency:** Wh/km over the last 5 km, a 15-minute power and regen graph, and this drive's totals.
+- **Efficiency:** Wh/km over the last 5 km, a 15-minute power and regen graph, and this drive's totals (no Wh/km while the car sends no usable power reading, see the Tesla update note).
 - **GPS compass.**
 - **Parking sensors you can read:** coloured arcs around the car, a STOP sign when you're close, and a sensor card that stays up while the camera is on.
 - **Forward camera in the dash,** with a smooth picture.

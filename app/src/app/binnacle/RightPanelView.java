@@ -216,7 +216,9 @@ public class RightPanelView extends View {
             levelChecked = true;
         }
         if (levelWatch.moved || app.isDemo()) return levelWatch.moved;
-        if (levelWatch.see(car.soc, android.os.SystemClock.elapsedRealtime())) {
+        // the field seen to change, or jhmail a range that fits it for 10 s (issue #91, 17 Nov)
+        long now = android.os.SystemClock.elapsedRealtime();
+        if (levelWatch.seeRange(car.jhmail, car.soc, Units.carMiles(car), now) || levelWatch.see(car.soc, now)) {
             app.prefs().edit().putBoolean(SOC_FIELD_MOVES, true).apply();
         }
         return levelWatch.moved;
