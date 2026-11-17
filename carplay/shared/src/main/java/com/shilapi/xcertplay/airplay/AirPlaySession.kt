@@ -2,6 +2,7 @@ package com.shilapi.xcertplay.airplay
 
 import android.util.Log
 import com.shilapi.xcertplay.mfi.MfiAuthenticator
+import com.shilapi.xcertplay.network.PeerAddress
 import com.shilapi.xcertplay.transport.BlockingDuplexByteStream
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
@@ -62,6 +63,8 @@ class AirPlaySession(
     private val media: AirPlayMediaHandler,
     /** Serve only pairing and /info until pair-verify completes (wireless; audit 5 Nov, X1). */
     private val requirePairVerify: Boolean = false,
+    /** Wireless: side connections (events, screen, iAP tunnel) only from peers on this interface. */
+    private val allowedInterface: String? = null,
 ) : Closeable {
     internal val pairSetup = PairSetup(identity, pairings)
     internal val pairVerify = PairVerify(identity, pairings)
@@ -353,7 +356,7 @@ class AirPlaySession(
             "TEARDOWN" -> return handleTeardown(request)
         }
 
-        val path = request.path.lowercase()
+        val path = airPlayRoutePath(request.path)
         return when {
             path.endsWith("/pair-setup") -> RtspMessage.Response(
                 headers = mapOf("Content-Type" to PAIRING_CONTENT_TYPE),
@@ -412,7 +415,7 @@ class AirPlaySession(
     private fun allowedBeforePairVerify(request: RtspMessage.Request): Boolean {
         if (request.method == "SETUP" || request.method == "RECORD" || request.method == "TEARDOWN") return false
         if (request.method == "OPTIONS") return true
-        val path = request.path.lowercase().substringBefore('?')
+        val path = airPlayRoutePath(request.path)
         return path.endsWith("/pair-setup") || path.endsWith("/pair-verify") ||
             path.endsWith("/auth-setup") || path.endsWith("/info")
     }
@@ -648,9 +651,20 @@ class AirPlaySession(
         eventThreads.clear()
     }
 
+    /** A side connection's peer is on the CarPlay hotspot (always true when wired). */
+    internal fun acceptsPeer(socket: Socket): Boolean {
+        if (PeerAddress.onInterface(socket.inetAddress, allowedInterface)) return true
+        Log.w(TAG, "airplay side connection from ${socket.remoteSocketAddress} refused: not on the CarPlay hotspot")
+        return false
+    }
+
     private fun acceptEvent(server: ServerSocket) {
         try {
-            val socket = server.accept()
+            var socket = server.accept()
+            while (!acceptsPeer(socket)) {
+                safeClose(socket)
+                socket = server.accept()
+            }
             socket.setSoLinger(true, 0)
             debugLog("airplay event connection accepted from ${socket.remoteSocketAddress}")
             eventSocket = socket
@@ -788,3 +802,10 @@ private fun asMap(value: Any?): Map<String, Any?>? {
 private fun string(value: Any?): String = value as? String ?: ""
 
 private fun long(value: Any?): Long? = (value as? Number)?.toLong()
+
+/**
+ * The path both the pairing gate and the router judge a request by: lower case, without a query
+ * or fragment. One place, so the gate can never let through what the router reads differently.
+ */
+internal fun airPlayRoutePath(raw: String): String =
+    raw.lowercase().substringBefore('?').substringBefore('#')

@@ -49,6 +49,7 @@ internal class AirPlayIapTunnelStream(
                 if (shouldCloseSession) session.close()
             }
         },
+        accepts = { session.acceptsPeer(it) },
     )
 
     override fun send(data: ByteArray) {

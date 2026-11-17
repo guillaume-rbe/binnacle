@@ -47,9 +47,12 @@ class ScreenStream(private val key: ByteArray) : Closeable {
     private var socket: Socket? = null
     private var thread: Thread? = null
     @Volatile private var listener: Listener = object : Listener {}
+    @Volatile private var accepts: (Socket) -> Boolean = { true }
 
-    fun listen(listener: Listener): Int {
+    /** [accepts] picks the peer: any other connection is closed and the next one awaited. */
+    fun listen(listener: Listener, accepts: (Socket) -> Boolean = { true }): Int {
         this.listener = listener
+        this.accepts = accepts
         val bound = ServerSocket()
         bound.reuseAddress = true
         bound.bind(InetSocketAddress(InetAddress.getByName("::"), 0))
@@ -67,7 +70,11 @@ class ScreenStream(private val key: ByteArray) : Closeable {
 
     private fun accept(bound: ServerSocket) {
         try {
-            val accepted = bound.accept()
+            var accepted = bound.accept()
+            while (!accepts(accepted)) {
+                safeClose(accepted)
+                accepted = bound.accept()
+            }
             socket = accepted
             run(accepted)
         } catch (error: Exception) {

@@ -38,9 +38,12 @@ class IapTunnel(
     private val threads = mutableListOf<Thread>()
     private val peerConnected = CountDownLatch(1)
     @Volatile private var listener: Listener = object : Listener {}
+    @Volatile private var accepts: (Socket) -> Boolean = { true }
 
-    fun listen(listener: Listener): Int {
+    /** [accepts] picks the peer: any other connection is closed and the next one awaited. */
+    fun listen(listener: Listener, accepts: (Socket) -> Boolean = { true }): Int {
         this.listener = listener
+        this.accepts = accepts
         val bound = bindAny()
         servers += bound
         listener.onDebug("AirPlay iAP tunnel listener bound=${bound.localSocketAddress}")
@@ -120,6 +123,10 @@ class IapTunnel(
             if (closed.get()) {
                 safeClose(accepted)
                 return
+            }
+            if (!accepts(accepted)) {
+                safeClose(accepted)
+                continue
             }
             accepted.setSoLinger(true, 0)
             socket = accepted
