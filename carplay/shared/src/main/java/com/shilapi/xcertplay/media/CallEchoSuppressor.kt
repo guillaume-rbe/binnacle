@@ -59,6 +59,28 @@ internal object FarEndActivity {
 }
 
 /**
+ * User choices for [CallEchoSuppressor] (CarPlay settings → Audio → Microphone, issue #175): how
+ * much the microphone is turned down while the far end talks, and how loud the far end must be
+ * to count as talking. Stored as slider steps; the defaults are the values the suppressor always
+ * used, so nothing changes for anyone who doesn't touch them. A noisy line can sit above the
+ * -55 dB threshold even when nobody talks, which holds the microphone down (16 Nov, cellular).
+ */
+object CallEchoSettings {
+    /** Attenuation per step: Off, Light, Normal. */
+    val STRENGTH_DB = doubleArrayOf(0.0, -20.0, -45.0)
+    const val DEFAULT_STRENGTH = 2
+
+    /** Far-end level that counts as talking, per step. */
+    val THRESHOLD_DB = doubleArrayOf(-55.0, -45.0, -35.0)
+    const val DEFAULT_THRESHOLD = 0
+
+    fun strength(step: Int): Int = step.coerceIn(0, STRENGTH_DB.size - 1)
+    fun threshold(step: Int): Int = step.coerceIn(0, THRESHOLD_DB.size - 1)
+    fun suppressDb(strengthStep: Int): Double = STRENGTH_DB[strength(strengthStep)]
+    fun farActiveDb(thresholdStep: Int): Double = THRESHOLD_DB[threshold(thresholdStep)]
+}
+
+/**
  * Echo suppressor for call microphone audio (16-bit mono PCM, processed in place).
  *
  * Half-duplex: while the far end is playing (any playback above [farActiveDb] in the last

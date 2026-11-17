@@ -113,4 +113,36 @@ class CallEchoSuppressorTest {
         s.process(block, block.size)
         assertEquals(before, rmsDb(block), 0.01)
     }
+
+    @Test
+    fun settingsDefaultsAreTheOldFixedValues() {
+        assertEquals(-45.0, CallEchoSettings.suppressDb(CallEchoSettings.DEFAULT_STRENGTH), 0.0)
+        assertEquals(-55.0, CallEchoSettings.farActiveDb(CallEchoSettings.DEFAULT_THRESHOLD), 0.0)
+        // out-of-range steps (an old or hand-edited preference) fall back to the nearest valid one
+        assertEquals(-45.0, CallEchoSettings.suppressDb(9), 0.0)
+        assertEquals(0.0, CallEchoSettings.suppressDb(-1), 0.0)
+        assertEquals(-35.0, CallEchoSettings.farActiveDb(9), 0.0)
+    }
+
+    @Test
+    fun offNeverTurnsTheMicrophoneDown() {
+        val s = CallEchoSuppressor(farEndLevel = { -12.0 }, suppressDb = CallEchoSettings.suppressDb(0))
+        val echo = tone(0.025)
+        val before = rmsDb(echo)
+        repeat(20) { s.process(echo, echo.size) }
+        assertFalse(s.suppressing)
+        assertEquals(before, rmsDb(echo), 0.5)
+    }
+
+    @Test
+    fun higherThresholdIgnoresLineNoise() {
+        // far end at -50 dBFS (line noise): talking at the -55 default, not at -45
+        val quiet = tone(0.002) // about -57 dBFS at the mic, under the far end
+        val atDefault = CallEchoSuppressor(farEndLevel = { -50.0 }, farActiveDb = CallEchoSettings.farActiveDb(0))
+        repeat(20) { atDefault.process(quiet.copyOf(), quiet.size) }
+        assertTrue(atDefault.suppressing)
+        val raised = CallEchoSuppressor(farEndLevel = { -50.0 }, farActiveDb = CallEchoSettings.farActiveDb(1))
+        repeat(20) { raised.process(quiet.copyOf(), quiet.size) }
+        assertFalse(raised.suppressing)
+    }
 }

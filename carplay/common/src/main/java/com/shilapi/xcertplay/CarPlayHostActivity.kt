@@ -167,6 +167,7 @@ import com.shilapi.xcertplay.media.AndroidMediaSink
 import com.shilapi.xcertplay.media.CarPlayTouchMapper
 import com.shilapi.xcertplay.media.MainMediaAudioBuffer
 import com.shilapi.xcertplay.media.MediaMetricsMonitor
+import com.shilapi.xcertplay.media.CallEchoSettings
 import com.shilapi.xcertplay.media.MicrophoneGain
 import com.shilapi.xcertplay.media.MicrophoneLevelMonitor
 import com.shilapi.xcertplay.mfi.RemoteMfiAuthenticationClient
@@ -382,6 +383,8 @@ class CarPlayHostActivity : ComponentActivity() {
     private var advancedAudioChannelMapping by mutableStateOf(false)
     private var audioFocusEnabled by mutableStateOf(true)
     private var headUnitCallState by mutableStateOf(true)
+    private var callEchoStrength by mutableIntStateOf(CallEchoSettings.DEFAULT_STRENGTH)
+    private var callEchoThreshold by mutableIntStateOf(CallEchoSettings.DEFAULT_THRESHOLD)
     private var audioQuality by mutableStateOf(AudioQualitySettings())
     private var audioQualityOpen by mutableStateOf(false)
     private var audioQualityCapabilities by mutableStateOf<AudioQualityCapabilities.Result?>(null)
@@ -747,6 +750,8 @@ class CarPlayHostActivity : ComponentActivity() {
                 AirPlayPersistence.loadAdvancedAudioChannelMapping(this)
         audioFocusEnabled = AirPlayPersistence.loadAudioFocusEnabled(this)
         headUnitCallState = AirPlayPersistence.loadHeadUnitCallState(this)
+        callEchoStrength = AirPlayPersistence.loadCallEchoStrength(this)
+        callEchoThreshold = AirPlayPersistence.loadCallEchoThreshold(this)
         audioQuality = AirPlayPersistence.loadAudioQuality(this)
         mainMediaAudioBufferDurationMs =
             AirPlayPersistence.loadMainMediaAudioBufferDurationMs(this)
@@ -3015,6 +3020,28 @@ class CarPlayHostActivity : ComponentActivity() {
                     onIndexChange = { microphoneGainPercent = MicrophoneGain.percentForStep(it) },
                 )
             }
+            row {
+                SliderRow(
+                    title = tr("settings.audio.echo"),
+                    support = tr("settings.audio.echo.support"),
+                    valueLabel = callEchoStrengthLabel(callEchoStrength),
+                    index = callEchoStrength,
+                    count = CallEchoSettings.STRENGTH_DB.size,
+                    onIndexChange = ::onCallEchoStrengthChanged,
+                )
+            }
+            if (callEchoStrength > 0) {
+                row {
+                    SliderRow(
+                        title = tr("settings.audio.echo_threshold"),
+                        support = tr("settings.audio.echo_threshold.support"),
+                        valueLabel = "%.0f dB".format(CallEchoSettings.farActiveDb(callEchoThreshold)),
+                        index = callEchoThreshold,
+                        count = CallEchoSettings.THRESHOLD_DB.size,
+                        onIndexChange = ::onCallEchoThresholdChanged,
+                    )
+                }
+            }
             row { MicrophoneTestRow() }
         }
     }
@@ -3661,6 +3688,28 @@ class CarPlayHostActivity : ComponentActivity() {
         advancedAudioChannelMapping = checked
         appendLog("Advanced audio channel mapping ${if (checked) "enabled" else "disabled"}; applies when settings close")
         updateResolutionMenu()
+    }
+
+    private fun callEchoStrengthLabel(step: Int): String = when (CallEchoSettings.strength(step)) {
+        0 -> tr("settings.audio.echo.off")
+        1 -> tr("settings.audio.echo.light")
+        else -> tr("settings.audio.echo.normal")
+    }
+
+    private fun onCallEchoStrengthChanged(step: Int) {
+        val next = CallEchoSettings.strength(step)
+        if (callEchoStrength == next) return
+        callEchoStrength = next
+        AirPlayPersistence.saveCallEchoStrength(this, next)
+        appendLog("Call echo suppression ${CallEchoSettings.suppressDb(next).toInt()} dB; applies to the next connection")
+    }
+
+    private fun onCallEchoThresholdChanged(step: Int) {
+        val next = CallEchoSettings.threshold(step)
+        if (callEchoThreshold == next) return
+        callEchoThreshold = next
+        AirPlayPersistence.saveCallEchoThreshold(this, next)
+        appendLog("Call echo threshold ${CallEchoSettings.farActiveDb(next).toInt()} dB; applies to the next connection")
     }
 
     private fun onHeadUnitCallStateChanged(checked: Boolean) {

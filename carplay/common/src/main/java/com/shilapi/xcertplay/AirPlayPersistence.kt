@@ -13,6 +13,7 @@ import com.shilapi.xcertplay.airplay.AudioQualityProfiles
 import com.shilapi.xcertplay.airplay.PairingStore
 import com.shilapi.xcertplay.airplay.SafeAreaCodec
 import com.shilapi.xcertplay.airplay.SafeAreaRect
+import com.shilapi.xcertplay.media.CallEchoSettings
 import com.shilapi.xcertplay.media.MainMediaAudioBuffer
 import com.shilapi.xcertplay.media.MicrophoneGain
 import com.shilapi.xcertplay.orchestration.ManualHotspotBand
@@ -49,6 +50,8 @@ object AirPlayPersistence {
     private const val KEY_HEAD_UNIT_CALL_STATE = "head_unit_call_state"
     private const val KEY_MAIN_MEDIA_AUDIO_BUFFER_DURATION_MS = "main_media_audio_buffer_duration_ms"
     private const val KEY_MICROPHONE_GAIN_PERCENT = "microphone_gain_percent"
+    private const val KEY_CALL_ECHO_STRENGTH = "call_echo_strength"
+    private const val KEY_CALL_ECHO_THRESHOLD = "call_echo_threshold"
     private const val KEY_WIRELESS_ENABLED = "wireless_enabled"
     private const val KEY_WIFI_HIGH_PERFORMANCE_ENABLED = "wifi_high_performance_enabled"
     private const val KEY_WIRELESS_HOTSPOT_MODE = "wireless_hotspot_mode"
@@ -247,6 +250,32 @@ object AirPlayPersistence {
     fun saveMicrophoneGainPercent(context: Context, percent: Int) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
             .putInt(KEY_MICROPHONE_GAIN_PERCENT, MicrophoneGain.sanitize(percent))
+            .apply()
+    }
+
+    /** Call echo suppression strength step (Off / Light / Normal); Normal by default (issue #175). */
+    fun loadCallEchoStrength(context: Context): Int =
+        CallEchoSettings.strength(
+            context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                .getInt(KEY_CALL_ECHO_STRENGTH, CallEchoSettings.DEFAULT_STRENGTH),
+        )
+
+    fun saveCallEchoStrength(context: Context, step: Int) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putInt(KEY_CALL_ECHO_STRENGTH, CallEchoSettings.strength(step))
+            .apply()
+    }
+
+    /** Far-end level step that counts as talking (-55 / -45 / -35 dB); -55 dB by default. */
+    fun loadCallEchoThreshold(context: Context): Int =
+        CallEchoSettings.threshold(
+            context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                .getInt(KEY_CALL_ECHO_THRESHOLD, CallEchoSettings.DEFAULT_THRESHOLD),
+        )
+
+    fun saveCallEchoThreshold(context: Context, step: Int) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putInt(KEY_CALL_ECHO_THRESHOLD, CallEchoSettings.threshold(step))
             .apply()
     }
 

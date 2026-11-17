@@ -51,6 +51,9 @@ internal data class CarPlaySessionSettings(
     val audioQuality: AudioQualitySettings,
     val mainMediaAudioBufferDurationMs: Int,
     val microphoneGainPercent: Int,
+    /** Call echo suppression ([com.shilapi.xcertplay.media.CallEchoSettings] steps). */
+    val callEchoStrength: Int = com.shilapi.xcertplay.media.CallEchoSettings.DEFAULT_STRENGTH,
+    val callEchoThreshold: Int = com.shilapi.xcertplay.media.CallEchoSettings.DEFAULT_THRESHOLD,
     val debugLogsEnabled: Boolean,
     val audioPacketCaptureEnabled: Boolean,
     val manufacturer: String,
@@ -253,6 +256,8 @@ internal data class CarPlaySessionSettings(
                 audioQuality = AirPlayPersistence.loadAudioQuality(context),
                 mainMediaAudioBufferDurationMs = AirPlayPersistence.loadMainMediaAudioBufferDurationMs(context),
                 microphoneGainPercent = AirPlayPersistence.loadMicrophoneGainPercent(context),
+                callEchoStrength = AirPlayPersistence.loadCallEchoStrength(context),
+                callEchoThreshold = AirPlayPersistence.loadCallEchoThreshold(context),
                 debugLogsEnabled = AirPlayPersistence.loadDebugLogsEnabled(context),
                 audioPacketCaptureEnabled = AirPlayPersistence.loadAudioPacketCaptureEnabled(context),
                 manufacturer = AirPlayPersistence.loadManufacturer(context),

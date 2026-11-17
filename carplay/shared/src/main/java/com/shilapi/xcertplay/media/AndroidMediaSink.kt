@@ -63,6 +63,9 @@ class AndroidMediaSink(
     private val callMicCaptureDirectory: java.io.File? = null,
     /** App debug log (the session log file) for call-audio diagnostics. */
     private val debugLog: (String) -> Unit = {},
+    /** Call echo suppression, as [CallEchoSettings] steps. */
+    private val callEchoStrength: Int = CallEchoSettings.DEFAULT_STRENGTH,
+    private val callEchoThreshold: Int = CallEchoSettings.DEFAULT_THRESHOLD,
 ) : MediaSink {
     private val closed = java.util.concurrent.atomic.AtomicBoolean(false)
     private val defaultSurface = surface
@@ -189,7 +192,10 @@ class AndroidMediaSink(
 
     override fun onMicrophoneStarted(id: AudioStreamId, config: MicrophoneConfig) {
         val uplink = microphoneUplinks.computeIfAbsent(id) {
-            MicrophoneUplink(context, config, microphoneGainPercent, callMicCaptureDirectory, debugLog)
+            MicrophoneUplink(
+                context, config, microphoneGainPercent, callMicCaptureDirectory, debugLog,
+                echoStrength = callEchoStrength, echoThreshold = callEchoThreshold,
+            )
         }
         if (!uplink.start()) microphoneUplinks.remove(id, uplink)
     }
