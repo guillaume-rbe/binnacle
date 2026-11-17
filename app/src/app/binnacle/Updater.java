@@ -77,6 +77,148 @@ final class Updater {
 
     static synchronized boolean installing() { return busy; }
 
+    /**
+     * What the update is doing now, for the Updates card: null when idle, otherwise e.g.
+     * "Downloading CarPlay · 1 of 2". Main thread only. stageProgress is 0..1000 while
+     * downloading, or -1 while Android (or Play Protect) has the install screen up.
+     */
+    static String stage;
+    static int stageProgress;
+    /** The Updates card on screen, if any: redraws itself from stage (main thread). */
+    static Runnable onStage;
+
+    private static Handler mainHandler;
+
+    /** The main thread's Handler, made on first use (plain-JVM tests load this class without one). */
+    private static synchronized Handler main() {
+        if (mainHandler == null) mainHandler = new Handler(Looper.getMainLooper());
+        return mainHandler;
+    }
+
+    /** Sets the stage from any thread; the card on screen redraws. */
+    static void show(final String text, final int progress) {
+        main().post(new Runnable() {
+            @Override public void run() {
+                stage = text;
+                stageProgress = progress;
+                if (onStage != null) onStage.run();
+            }
+        });
+    }
+
+    /** install() refused because a download is already running: that one carries on. */
+    static final class Busy extends IOException {
+        Busy() { super("already updating"); }
+    }
+
+    /**
+     * Runs one part of the release (the CarPlay app or the dash) in the background: downloads it
+     * into Android's installer with progress on the stage, then waits for Android's answer
+     * (Status). With dashNext (CarPlay first, the dash after it) the dash's part is saved, so
+     * Status starts it as soon as Android reports CarPlay installed, even if the settings screen
+     * closed or the dash restarted meanwhile (owner, 17 Nov: the hand-off got lost behind Play
+     * Protect's prompt). secondStep: this is that dash part ("2 of 2").
+     */
+    static void start(Context c, final Release r, final boolean carplay, final boolean dashNext, boolean secondStep) {
+        final Context app = c.getApplicationContext();
+        final String step = dashNext ? " · 1 of 2" : secondStep ? " · 2 of 2" : "";
+        final String name = carplay ? "CarPlay" : "Binnacle";
+        final long total = Math.max(1, (carplay ? r.carplay : r).size);
+        show("Downloading " + name + step, 0);
+        new Thread(new Runnable() {
+            @Override public void run() {
+                try {
+                    install(app, r, carplay, new Progress() {
+                        int shown = -1;
+                        @Override public void onProgress(long bytes) {
+                            int now = (int) Math.min(1000, bytes * 1000 / total);
+                            if (now / 5 == shown / 5) return;   // every half percent is plenty
+                            shown = now;
+                            show("Downloading " + name + step, now);
+                        }
+                    });
+                    // saved once this download is in Android's hands (before its answer can come)
+                    saveNext(app, dashNext ? r : null);
+                    if (!carplay) prefs(app).edit().putBoolean(DASH_UPDATING, true).apply();
+                    show("Installing " + name + step, -1);   // Android's screen (and maybe Play Protect) next
+                } catch (Busy e) {
+                    // another download is running; leave its stage and hand-off alone
+                } catch (Exception e) {
+                    finished(app);
+                    Status.toast(app, "Couldn't update: " + e.getMessage());
+                }
+            }
+        }, "update").start();
+    }
+
+    /** The dash's part to run after CarPlay ("code name size sha"), and whether CarPlay is done. */
+    private static final String NEXT = "next_dash", NEXT_READY = "next_dash_ready";
+    /** Set when the dash's own install goes to Android, for Relaunch's "Binnacle updated". */
+    private static final String DASH_UPDATING = "dash_updating";
+
+    private static android.content.SharedPreferences prefs(Context c) {
+        return c.getSharedPreferences(Status.PREFS, Context.MODE_PRIVATE);
+    }
+
+    /** Saves (or clears, with null) the dash's part to run after CarPlay. */
+    private static void saveNext(Context c, Release r) {
+        prefs(c).edit()
+                .putString(NEXT, r == null ? null : r.versionCode + " " + r.versionName + " " + r.size + " " + r.sha256)
+                .putBoolean(NEXT_READY, false)
+                .apply();
+    }
+
+    /** The dash's part saved by start(), or null; clears it. */
+    private static Release takeNext(Context c) {
+        String s = prefs(c).getString(NEXT, null);
+        prefs(c).edit().remove(NEXT).remove(NEXT_READY).apply();
+        if (s == null) return null;
+        String[] f = s.split(" ");
+        if (f.length != 4) return null;
+        try {
+            return part(f[0], f[1], f[2], f[3], null);
+        } catch (IOException e) {
+            return null;
+        }
+    }
+
+    /** CarPlay installed: the dash's part now in Park, else at the next Park (Status.gear). */
+    private static void carplayDone(Context c, boolean park) {
+        if (prefs(c).getString(NEXT, null) == null) {
+            finished(c);
+            Status.toast(c, "CarPlay updated");
+        } else if (park) {
+            Release next = takeNext(c);
+            Status.toast(c, "CarPlay updated. Now Binnacle…");
+            if (next != null) start(c, next, false, false, true);
+        } else {
+            prefs(c).edit().putBoolean(NEXT_READY, true).apply();
+            show("Binnacle next, in Park · 2 of 2", -1);
+            Status.toast(c, "CarPlay updated. Binnacle updates in Park");
+        }
+    }
+
+    /** In Park: the dash's part, if CarPlay installed while the car was out of Park. */
+    private static void nextInPark(Context c) {
+        if (!prefs(c).getBoolean(NEXT_READY, false)) return;
+        Release next = takeNext(c);
+        if (next != null) start(c, next, false, false, true);
+    }
+
+    /** True once after an in-app update of the dash itself (Relaunch says it finished). */
+    static boolean takeDashUpdated(Context c) {
+        boolean was = prefs(c).getBoolean(DASH_UPDATING, false);
+        if (was) prefs(c).edit().remove(DASH_UPDATING).apply();
+        return was;
+    }
+
+    /** An install ended (failed, cancelled or done): nothing follows. */
+    private static void finished(Context c) {
+        saveNext(c, null);
+        prefs(c).edit().remove(DASH_UPDATING).apply();
+        show(null, 0);
+    }
+
     /** The installed version code (0 if Android can't say). */
     static int installedCode(Context c) {
         return installedCode(c, false);
@@ -173,7 +315,7 @@ final class Updater {
             throw new IOException("installed CarPlay support isn't signed with Binnacle's key");
         }
         if (part.versionCode <= installed) throw new IOException("already up to date");
-        if (!begin()) throw new IOException("already updating");
+        if (!begin()) throw new Busy();
         try {
             PackageInstaller pi = c.getPackageManager().getPackageInstaller();
             PackageInstaller.SessionParams params = new PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL);
@@ -267,15 +409,14 @@ final class Updater {
 
     /**
      * Android's answer to the commit: first "needs the user" with its confirm screen, which this
-     * opens; then a failure (shown as a toast), or nothing at all on success because installing
-     * replaces this app and restarts it.
+     * opens; then a failure (shown as a toast), CarPlay installed (the dash's part next, if
+     * saved), or nothing at all for the dash because installing replaces this app and restarts it.
      */
-    /** Runs once on the main thread when CarPlay support has installed (set by HubActivity: the dash next). */
-    static Runnable afterCarPlay;
-
     public static final class Status extends BroadcastReceiver {
-        private static final String PREFS = "updater";
+        static final String PREFS = "updater";
         private static final String PENDING = "pending_session";
+        /** The session whose answer the stage waits for; an older one's answer changes nothing. */
+        private static final String CURRENT = "current_session";
         private static final int UNKNOWN = -2;
         /**
          * A downloaded update not yet committed because the car wasn't in Park (audit D7). Its id is
@@ -297,11 +438,15 @@ final class Updater {
             synchronized (Status.class) {
                 int old = load(c);
                 if (old >= 0 && old != id) abandon(c, old);   // a newer download replaces it
+                // and one whose install screen was left unanswered (Home pressed, then tapped again)
+                int shown = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getInt(CURRENT, -1);
+                if (shown >= 0 && shown != id && shown != old) abandon(c, shown);
+                c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putInt(CURRENT, id).apply();
                 now = inPark;
                 save(c, now ? -1 : id);
             }
             if (now) {
-                if (!commit(c, id)) toast(c, "Update failed: the download was lost, check again");
+                if (!commit(c, id)) lost(c);
             } else {
                 toast(c, "Update ready: it installs when the car is in Park");
             }
@@ -325,12 +470,15 @@ final class Updater {
             if (status == PackageInstaller.STATUS_SUCCESS) {
                 // a dash update restarts the dash, so only the CarPlay app's success is seen here
                 if (CARPLAY_PACKAGE.equals(intent.getStringExtra(PackageInstaller.EXTRA_PACKAGE_NAME))) {
-                    Runnable next = afterCarPlay;   // the dash's part next, if the release has one (HubActivity)
-                    afterCarPlay = null;
-                    if (next != null) next.run();
+                    carplayDone(c, inPark);   // the dash's part next, if this release has one
                 }
                 return;
             }
+            // an older session's answer (replaced by a newer download) leaves the current one alone
+            int id = intent.getIntExtra(PackageInstaller.EXTRA_SESSION_ID, -1);
+            int current = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getInt(CURRENT, -1);
+            if (id >= 0 && current >= 0 && id != current) return;
+            finished(c);
             Toast.makeText(c, reason(status, intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE)), Toast.LENGTH_LONG).show();
         }
 
@@ -343,7 +491,8 @@ final class Updater {
                 id = load(c);
                 if (id >= 0) save(c, -1);
             }
-            if (id >= 0 && !commit(c, id)) toast(c, "Update failed: the download was lost, check again");
+            if (id >= 0 && !commit(c, id)) lost(c);
+            nextInPark(c);
             Intent confirm = waitingForPark;
             if (confirm == null) return;
             waitingForPark = null;
@@ -370,8 +519,14 @@ final class Updater {
             }
         }
 
-        private static void toast(final Context c, final String text) {
-            new Handler(Looper.getMainLooper()).post(new Runnable() {
+        /** A held or written session is gone: the update stops. */
+        private static void lost(Context c) {
+            finished(c);
+            toast(c, "Update failed: the download was lost, check again");
+        }
+
+        static void toast(final Context c, final String text) {
+            main().post(new Runnable() {
                 @Override public void run() { Toast.makeText(c, text, Toast.LENGTH_LONG).show(); }
             });
         }
