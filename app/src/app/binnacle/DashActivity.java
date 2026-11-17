@@ -87,9 +87,9 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
         root.setBackgroundColor(Style.BG);
         root.addView(left, new LinearLayout.LayoutParams(0, -1, Style.SIDE_W));
         camera = new CameraPane(this, new CameraPane.Listener() {
-            @Override public void onCameraProblem(String problem) {
+            @Override public void onCameraProblem(String problem, boolean otherApp) {
                 Toast.makeText(DashActivity.this, problem, Toast.LENGTH_LONG).show();
-                DashApp.get(DashActivity.this).dashCameraProblem(problem);
+                DashApp.get(DashActivity.this).dashCameraProblem(otherApp);
             }
             @Override public void onCameraState(boolean on) {
                 if (right != null) right.setCameraOn(on);

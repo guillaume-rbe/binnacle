@@ -45,7 +45,8 @@ import java.util.Collections;
 public class CameraPane extends TextureView implements TextureView.SurfaceTextureListener {
 
     interface Listener {
-        void onCameraProblem(String problem);
+        /** [otherApp]: another app took the camera (the stock camera screen, say), not a fault. */
+        void onCameraProblem(String problem, boolean otherApp);
         /** Open (or opening) / closed, for the dock's Camera button. */
         void onCameraState(boolean on);
     }
@@ -118,7 +119,7 @@ public class CameraPane extends TextureView implements TextureView.SurfaceTextur
     private void post(final SurfaceTexture st) {
         if (st == null) return;
         if (Build.VERSION.SDK_INT >= 23 && getContext().checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
-            report(gen, "Camera permission not granted");
+            report(gen, "Camera permission not granted", false);
             return;
         }
         ensureThread();
@@ -185,7 +186,7 @@ public class CameraPane extends TextureView implements TextureView.SurfaceTextur
             CameraManager cm = (CameraManager) getContext().getSystemService(Context.CAMERA_SERVICE);
             if (cameraId == null) {
                 String[] ids = cm.getCameraIdList();
-                if (ids.length == 0) { report(g, "No camera found"); return; }
+                if (ids.length == 0) { report(g, "No camera found", false); return; }
                 CameraCharacteristics ch = cm.getCameraCharacteristics(ids[0]);
                 chars = ch;              // publish the cache only once both are known, so a
                 cameraId = ids[0];       // failed lookup is simply retried on the next start
@@ -213,12 +214,12 @@ public class CameraPane extends TextureView implements TextureView.SurfaceTextur
                 @Override public void onDisconnected(CameraDevice d) {
                     d.close();
                     settled();
-                    if (g == liveGen) { device = null; report(g, "Camera taken by another app"); }
+                    if (g == liveGen) { device = null; report(g, "Camera taken by another app", true); }
                 }
                 @Override public void onError(CameraDevice d, int error) {
                     d.close();
                     settled();
-                    if (g == liveGen) { device = null; report(g, "Camera error " + error); }
+                    if (g == liveGen) { device = null; report(g, "Camera error " + error, false); }
                 }
             }, cb);
             } catch (Throwable e) {
@@ -227,7 +228,7 @@ public class CameraPane extends TextureView implements TextureView.SurfaceTextur
                 throw e;
             }
         } catch (Throwable e) {
-            report(g, "Camera unavailable: " + e.getMessage());
+            report(g, "Camera unavailable: " + e.getMessage(), false);
         }
     }
 
@@ -247,15 +248,15 @@ public class CameraPane extends TextureView implements TextureView.SurfaceTextur
                         cs.setRepeatingRequest(b.build(), null, bg);
                         Log.i(TAG, "dash camera " + previewSize + " fps " + range + " sensor " + sensorOrientation);
                     } catch (Throwable e) {
-                        report(g, "Camera preview failed: " + e.getMessage());
+                        report(g, "Camera preview failed: " + e.getMessage(), false);
                     }
                 }
                 @Override public void onConfigureFailed(CameraCaptureSession cs) {
-                    report(g, "Camera session failed");
+                    report(g, "Camera session failed", false);
                 }
             }, bg);
         } catch (Throwable e) {
-            report(g, "Camera session failed: " + e.getMessage());
+            report(g, "Camera session failed: " + e.getMessage(), false);
         }
     }
 
@@ -281,13 +282,13 @@ public class CameraPane extends TextureView implements TextureView.SurfaceTextur
     }
 
     /** Report a problem from the current generation only (stale callbacks are ignored). */
-    private void report(final int g, final String p) {
+    private void report(final int g, final String p, final boolean otherApp) {
         Log.w(TAG, "dash camera: " + p);
         main.post(new Runnable() {
             @Override public void run() {
                 if (g != gen) return;
                 stop();
-                listener.onCameraProblem(p);
+                listener.onCameraProblem(p, otherApp);
             }
         });
     }

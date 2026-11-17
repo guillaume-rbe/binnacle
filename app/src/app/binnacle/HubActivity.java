@@ -238,6 +238,7 @@ public class HubActivity extends Activity {
 
     @Override protected void onResume() {
         super.onResume();
+        DashApp.get(this).stockCameraFallback();   // back from Android's Home or overlay screens
         if (textScaleBuilt != Style.textScale) { recreate(); return; }   // text size changed: rebuild at the new size
         if (lightBuilt != Style.light) { recreate(); return; }           // theme changed meanwhile (Auto)
         if (tab == 1 || tab == 2 || tab == CAR_TAB) showTab(tab);   // 2: back from the over-apps switch                      // CarPlay layout / Home app may have changed meanwhile
