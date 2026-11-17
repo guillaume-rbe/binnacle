@@ -1359,10 +1359,9 @@ public class HubActivity extends Activity {
                 + "If Google Play Protect asks, tap Install anyway.");
         final TextView b = chip("Check for updates");
         b.setOnClickListener(new View.OnClickListener() {
-            @Override public void onClick(View v) {
-                if (offered != null && needsUpdate(offered)) offerUpdate(offered);
-                else check(b);
-            }
+            // every tap reads the release info again: a release published since the last check
+            // would otherwise fail its checksum on every retry
+            @Override public void onClick(View v) { check(b); }
         });
         card.addView(b, new LinearLayout.LayoutParams(dp(340), dp(BUTTON_DP)));
         // download progress (owner, 8 Nov: a counting number alone was hard to read)
