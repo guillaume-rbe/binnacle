@@ -2,6 +2,7 @@ package com.shilapi.xcertplay.airplay
 
 import android.util.Log
 import com.shilapi.xcertplay.media.MediaCodecSupport
+import com.shilapi.xcertplay.network.acceptMatching
 import java.io.Closeable
 import java.io.InputStream
 import java.net.InetAddress
@@ -47,9 +48,18 @@ class ScreenStream(private val key: ByteArray) : Closeable {
     private var socket: Socket? = null
     private var thread: Thread? = null
     @Volatile private var listener: Listener = object : Listener {}
+    @Volatile private var accepts: (Socket) -> Boolean = { true }
+    @Volatile private var onRefused: (Socket) -> Unit = {}
 
-    fun listen(listener: Listener): Int {
+    /** [accepts] picks the peer: any other connection is closed and the next one awaited. */
+    fun listen(
+        listener: Listener,
+        accepts: (Socket) -> Boolean = { true },
+        onRefused: (Socket) -> Unit = {},
+    ): Int {
         this.listener = listener
+        this.accepts = accepts
+        this.onRefused = onRefused
         val bound = ServerSocket()
         bound.reuseAddress = true
         bound.bind(InetSocketAddress(InetAddress.getByName("::"), 0))
@@ -67,7 +77,7 @@ class ScreenStream(private val key: ByteArray) : Closeable {
 
     private fun accept(bound: ServerSocket) {
         try {
-            val accepted = bound.accept()
+            val accepted = bound.acceptMatching(accepts, onRefused)
             socket = accepted
             run(accepted)
         } catch (error: Exception) {

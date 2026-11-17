@@ -80,6 +80,10 @@
 > - Malformed control messages can't crash the app: the binary-plist reader refuses cycles, deep
 >   nesting, exponential expansion and sizes past the end of the data, the control channel caps
 >   header and body sizes, and a failing request costs one error reply instead of the process
+> - Network hardening: wireless CarPlay takes connections (control and each stream) and timing
+>   packets only from devices on its own hotspot, judged by the device's own address; it checks
+>   and routes a request by the same path, and reads at most a short, time-limited reply when
+>   probing a discovered service
 > - Smaller hardening: no Android backups of the app (its keys and pairings stay on the unit), call
 >   keypad digits are no longer written to the session log, a Remote MFI token is only sent over
 >   https (or to a server on the unit itself), and the car-app service only binds known car hosts

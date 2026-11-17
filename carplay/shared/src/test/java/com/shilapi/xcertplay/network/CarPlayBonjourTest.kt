@@ -3,7 +3,11 @@ package com.shilapi.xcertplay.network
 import com.shilapi.xcertplay.airplay.AirPlayConfig
 import com.shilapi.xcertplay.airplay.AirPlayDisplayConfig
 import com.shilapi.xcertplay.airplay.AirPlayIdentity
+import java.io.ByteArrayInputStream
+import java.io.IOException
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Test
 
 class CarPlayBonjourTest {
@@ -86,4 +90,29 @@ class CarPlayBonjourTest {
         ).split("\r\n")
             .single { it.startsWith("AirPlay-Receiver-Device-ID: ") }
             .substringAfter(": ")
+
+    @Test
+    fun statusLineIsReadWithoutItsEnding() {
+        val input = ByteArrayInputStream("HTTP/1.1 200 OK\r\nServer: x\r\n".toByteArray())
+        assertEquals("HTTP/1.1 200 OK", CarPlayBonjourProtocol.readStatusLine(input))
+    }
+
+    @Test
+    fun endlessLineIsRefusedAtTheCap() {
+        val input = ByteArrayInputStream(ByteArray(10_000) { 'a'.code.toByte() })
+        assertThrows(IOException::class.java) { CarPlayBonjourProtocol.readStatusLine(input, maxBytes = 512) }
+    }
+
+    @Test
+    fun emptyStreamHasNoStatusLine() {
+        assertNull(CarPlayBonjourProtocol.readStatusLine(ByteArrayInputStream(ByteArray(0))))
+    }
+
+    @Test
+    fun deadlineCheckRunsBeforeEachRead() {
+        var reads = 0
+        val input = ByteArrayInputStream("abc\n".toByteArray())
+        CarPlayBonjourProtocol.readStatusLine(input) { reads++ }
+        assertEquals(4, reads)
+    }
 }
