@@ -350,7 +350,7 @@ class CarPlayController(
 
         override fun onDeviceInfo(session: AirPlaySession, info: AirPlayDeviceInfo) {
             debugLog(
-                "AirPlay device info name=${info.name} deviceId=${info.deviceId} " +
+                "AirPlay device info named=${info.name.isNotEmpty()} deviceId=${info.deviceId} " +
                     "wifiMac=${info.wifiMac} model=${info.model}",
             )
             uiListener?.onDeviceInfo(session, info)

@@ -84,6 +84,9 @@
 >   packets only from devices on its own hotspot, judged by the device's own address; it checks
 >   and routes a request by the same path, and reads at most a short, time-limited reply when
 >   probing a discovered service
+> - With Debug logs off, the saved session log keeps no personal data: iAP2 messages keep only
+>   their header line (no callers, contacts, now playing, Bluetooth devices or location) and
+>   hardware addresses keep only their last byte
 > - Smaller hardening: no Android backups of the app (its keys and pairings stay on the unit), call
 >   keypad digits are no longer written to the session log, a Remote MFI token is only sent over
 >   https (or to a server on the unit itself), and the car-app service only binds known car hosts
@@ -196,7 +199,8 @@ Direct link stall while the unit is also on home Wi-Fi; away from home it was st
 
 It works 👍. It has been tested on car head units and phones. If you encounter
 an incompatible car head unit, please open an issue and attach your log from
-`/sdcard/Android/data/com.shilapi.xcertplay/files/logs/xcertplay.log`.
+`/sdcard/Android/data/com.shilapi.xcertplay/files/logs/xcertplay.log`. Leave Debug logs off
+when recording a log to share: with it on, the log also holds calls, contacts and device details.
 
 Adapter board: [CH341-to-MFI](https://github.com/shilapi/ch341-to-mfi-chip)
 
