@@ -17,13 +17,15 @@ final class CanAppCheck {
     /** The one CAN app version the user allowed (Settings), or absent. */
     static final String ALLOWED_KEY = "canapp_allowed";
     static final String PROBLEM = "CAN app not tested: allow it in Apps → Unit";
+    /** The stock CAN app (CanFeed.SVC_PKG; repeated here so this class stands alone in the tests). */
+    private static final String PKG = "com.xbs.canapp";
 
     private CanAppCheck() {}
 
     /** The installed CAN app's version name, or null if it isn't installed or has none. */
     static String version(Context c) {
         try {
-            return c.getPackageManager().getPackageInfo(CanFeed.SVC_PKG, 0).versionName;
+            return c.getPackageManager().getPackageInfo(PKG, 0).versionName;
         } catch (Throwable t) {
             return null;
         }

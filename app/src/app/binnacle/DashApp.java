@@ -158,7 +158,12 @@ public class DashApp extends Application implements Feed.Sink, SharedPreferences
         pkgs.addAction(android.content.Intent.ACTION_PACKAGE_REPLACED);
         pkgs.addDataScheme("package");
         registerReceiver(new android.content.BroadcastReceiver() {
-            @Override public void onReceive(android.content.Context c, android.content.Intent i) { checkLogger(); }
+            @Override public void onReceive(android.content.Context c, android.content.Intent i) {
+                checkLogger();
+                // the CAN app installed, updated or removed: pick the feed again (CanAppCheck)
+                android.net.Uri u = i.getData();
+                if (u != null && CanFeed.SVC_PKG.equals(u.getSchemeSpecificPart())) startFeed();
+            }
         }, pkgs);
         // only the logger (same signing key) can send its state
         registerReceiver(new android.content.BroadcastReceiver() {
@@ -602,7 +607,7 @@ public class DashApp extends Application implements Feed.Sink, SharedPreferences
     @Override public void onSharedPreferenceChanged(SharedPreferences sp, String key) {
         if (RUNTIME_KEYS.contains(key)) return;
         readDrawPrefs();
-        if ("demo".equals(key) || CanAppCheck.ALLOWED_KEY.equals(key)) startFeed();
+        if ("demo".equals(key) || (CanAppCheck.ALLOWED_KEY.equals(key) && !demo)) startFeed();
         if ("text_size".equals(key)) applyTextSize();
         if ("autopilot_rainbow".equals(key)) rainbowRoad = prefs.getBoolean(key, false);
         if ("theme".equals(key)) updateTheme(true);

@@ -206,6 +206,14 @@ final class CanFeed implements Feed {
     // ---- worker thread only ----
 
     private void register() {
+        // transactions 1 and 2 are regPropIdList and unregPropIdList only on tested CAN app builds
+        // (CanAppCheck): checked here, before every registration, so a CAN app updated under a
+        // running feed is caught on its rebind too
+        if (!CanAppCheck.allowed(ctx, android.preference.PreferenceManager.getDefaultSharedPreferences(ctx))) {
+            registered = false;
+            status(CanAppCheck.PROBLEM);
+            return;
+        }
         Parcel d = Parcel.obtain();
         try {
             d.writeInterfaceToken(DESCRIPTOR);

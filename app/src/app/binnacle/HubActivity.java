@@ -1226,13 +1226,15 @@ public class HubActivity extends Activity {
         if (CanAppCheck.allowed(this, prefs)) {
             return infoCard("CAN app", version + (CanAppCheck.known(version) ? " · tested" : " · allowed by you"));
         }
-        LinearLayout card = card("CAN app", version + " · not tested yet. Car data starts once allowed.");
+        final LinearLayout card = card("CAN app", version + " · not tested yet. Car data starts once allowed.");
         final TextView b = chip("Allow");
         b.setOnClickListener(new View.OnClickListener() {
             @Override public void onClick(View v) {
                 prefs.edit().putString(CanAppCheck.ALLOWED_KEY, version).apply();   // DashApp subscribes
                 b.setEnabled(false);
                 b.setText("Allowed");
+                View summary = card.getChildAt(1);
+                if (summary instanceof TextView) ((TextView) summary).setText(version + " · allowed by you");
             }
         });
         card.addView(b, new LinearLayout.LayoutParams(dp(150), dp(BUTTON_DP)));
