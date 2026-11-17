@@ -151,13 +151,30 @@ final class StartupVolume {
         // the last music level above 0 seen while awake: what a mute or reset is put back to (audit #6a)
         final int[] lastLevel = {0};
         final Resets resets = new Resets();
+        // Puts music back after a mute or a one-go 0 while the screen is on: to the level it had, not the
+        // start-up level, so a mute mid-drive never turns it up (audit #6a); never a 0 stepped down by
+        // hand (#6c); within the budget, then not until the next screen-on (#6b). Used by the minute's
+        // watch and by the volume broadcasts (the watch missed a later reset on 15 Nov).
+        final Runnable restore = new Runnable() {
+            @Override public void run() {
+                if (power != null && !power.isInteractive()) return;   // the car went to sleep meanwhile
+                if (!silent(audio)) return;                             // put back already (the CAN app)
+                if (resets.steppedToZero()) return;                     // turned down to 0 by hand
+                int startup = startupLevel(audio, prefs);
+                if (startup < 0) return;                                 // "Leave as is"
+                if (!budget.take(android.os.SystemClock.uptimeMillis())) {   // something keeps zeroing it: don't fight
+                    Log.w(TAG, "start-up volume: music keeps going to 0, leaving it until the next wake");
+                    return;
+                }
+                apply(audio, main, lastLevel[0] > 0 ? lastLevel[0] : startup);
+            }
+        };
         final Runnable watch = new Runnable() {
             @Override public void run() {
                 if (android.os.SystemClock.uptimeMillis() >= watchUntil[0]) return;
                 // the car went to sleep: its mute then is deliberate (screen-off also stops this)
                 if (power != null && !power.isInteractive()) return;
-                // a 0 stepped down by hand stays (audit #6c)
-                if (silent(audio) && !resets.steppedToZero()) apply(audio, main, startupLevel(audio, prefs));
+                if (silent(audio)) restore.run();
                 main.postDelayed(this, WATCH_STEP_MS);
             }
         };
@@ -177,7 +194,7 @@ final class StartupVolume {
             @Override public void onAudioDevicesAdded(AudioDeviceInfo[] added) {
                 for (AudioDeviceInfo d : added) {
                     if (d.isSink() && d.getType() == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP) {
-                        if (power != null && !power.isInteractive()) return;   // set at the next screen-on
+                        lastLevel[0] = 0;   // a new output, with its own level: start-up level first
                         main.removeCallbacks(apply);
                         main.postDelayed(apply, SETTLE_MS);
                         return;
@@ -185,22 +202,6 @@ final class StartupVolume {
                 }
             }
         }, main);
-        // React to music being zeroed or muted while the screen is on, whenever it happens (the minute's
-        // watch above missed a later reset on 15 Nov). Android's own volume broadcasts; read only.
-        final Runnable restore = new Runnable() {
-            @Override public void run() {
-                if (power != null && !power.isInteractive()) return;   // the car went to sleep meanwhile
-                if (!silent(audio)) return;                             // put back already (the CAN app)
-                if (resets.steppedToZero()) return;                     // turned down to 0 by hand
-                if (percent(prefs.getString(KEY, DEFAULT)) < 0) return;  // "Leave as is"
-                if (!budget.take(android.os.SystemClock.uptimeMillis())) {   // something keeps zeroing it: don't fight
-                    Log.w(TAG, "start-up volume: music keeps going to 0, leaving it until the next wake");
-                    return;
-                }
-                // back to the level it had, not the start-up level: a mute mid-drive never turns it up
-                apply(audio, main, lastLevel[0] > 0 ? lastLevel[0] : startupLevel(audio, prefs));
-            }
-        };
         android.content.IntentFilter change = new android.content.IntentFilter(VOLUME_CHANGED);
         change.addAction(MUTE_CHANGED);
         context.getApplicationContext().registerReceiver(new android.content.BroadcastReceiver() {
@@ -209,16 +210,15 @@ final class StartupVolume {
                 if (percent(prefs.getString(KEY, DEFAULT)) < 0) return;   // "Leave as is"
                 if (power != null && !power.isInteractive()) return;   // the car sleeping: its mute is deliberate
                 boolean muted = MUTE_CHANGED.equals(i.getAction());
-                // remember the level the driver (or a finished fade) left it at
-                if (!muted && fading == null) {
+                // remember the level the driver (or a finished fade) left it at; a fade's own steps don't count
+                if (!muted) {
                     int value = i.getIntExtra(EXTRA_VALUE, -1);
-                    if (value > 0) lastLevel[0] = value;
+                    if (value > 0 && (fading == null || value != lastSet)) lastLevel[0] = value;
                 }
-                if (budget.spent()) return;
                 boolean reset = muted
                         ? resets.onMute(i.getBooleanExtra(EXTRA_MUTED, false))
                         : resets.onVolume(i.getIntExtra(EXTRA_PREV, -1), i.getIntExtra(EXTRA_VALUE, -1));
-                if (!reset) return;
+                if (!reset || budget.spent()) return;
                 Log.i(TAG, "start-up volume: music " + (muted ? "muted" : "set to 0") + " while awake");
                 main.removeCallbacks(restore);
                 main.postDelayed(restore, RESTORE_DELAY_MS);   // a screen-off that goes with it arrives first
@@ -340,11 +340,7 @@ final class StartupVolume {
         main.postDelayed(fading, step);
     }
 
-    /** Levels per fade step, so a fade from `from` to `to` takes at most FADE_STEPS steps. */
-    static int fadeStride(int from, int to) {
-        return fadeStride(from, to, FADE_STEPS);
-    }
-
+    /** Levels per fade step, so a fade from `from` to `to` takes at most `steps` steps. */
     static int fadeStride(int from, int to, int steps) {
         steps = Math.max(1, steps);
         return Math.max(1, (to - from + steps - 1) / steps);
@@ -355,7 +351,11 @@ final class StartupVolume {
         fading = null;
     }
 
+    /** The level setLevel last asked for (main thread), to tell a fade's own broadcasts apart. */
+    private static int lastSet = -1;
+
     private static void setLevel(AudioManager audio, int level) {
+        lastSet = level;
         audio.setStreamVolume(AudioManager.STREAM_MUSIC, level, CAR_SERVICE_SET);
     }
 }
