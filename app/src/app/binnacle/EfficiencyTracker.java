@@ -49,6 +49,23 @@ final class EfficiencyTracker {
         usedKwh = regenKwh = km = 0;
         segHead = segCount = 0;
         head = count = 0;
+        estimated = false;
+    }
+
+    /** Some of this drive's energy came from the speed-only estimate (PowerDecoder). */
+    private boolean estimated;
+
+    /**
+     * True once any reading since the reset was estimated: the Wh/km figures then mix in energy
+     * that can't see heating (issue #91), so they aren't shown, even after the car's reading
+     * comes back (they would still hold up to 5 km, or the whole drive, of estimate).
+     */
+    boolean estimatedThisDrive() { return estimated; }
+
+    /** One reading, flagged when the power is the speed-only estimate. */
+    void feed(long now, float kw, float kmh, boolean estimate) {
+        if (estimate) estimated = true;
+        feed(now, kw, kmh);
     }
 
     /** One reading: kw is signed (regen negative), kmh -1 when unknown. */

@@ -374,8 +374,9 @@ final class SwipeCard {
         // While the car's power reading is unusable the power comes from speed alone (PowerDecoder),
         // which can't see heating or the cabin: on a short winter drive that is most of the energy,
         // so the Wh/km came out at a quarter of the car's own figure (issue #91, 17 Nov: 103 vs 410).
-        // No Wh/km then rather than a wrong one; the graph and the distance stay.
-        boolean estimated = app.car.powerEstimated();
+        // No Wh/km then rather than a wrong one, for the rest of the drive once any of it was
+        // estimated; the graph and the distance stay.
+        boolean estimated = app.car.powerEstimated() || eff.estimatedThisDrive();
         float recent = estimated ? Float.NaN : eff.recentWhPerKm();
         Style.size(effBig, Style.T_BATTERY);
         c.drawText(Float.isNaN(recent) ? "--" : String.valueOf(Math.round(Units.perDistance(app, recent))), cx, CARD_TOP + 58, effBig);

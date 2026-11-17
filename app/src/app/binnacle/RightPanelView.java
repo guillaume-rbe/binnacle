@@ -216,13 +216,9 @@ public class RightPanelView extends View {
             levelChecked = true;
         }
         if (levelWatch.moved || app.isDemo()) return levelWatch.moved;
-        // jhmail is a range that fits batterylevel (2-8 km per %): the % field is live on this car,
-        // no need to wait to see it change, which can take a whole drive (issue #91, 17 Nov). Never
-        // true on the owner's car: its stuck 77 % would need a jhmail of 154-616, and no % code is
-        // in that range.
-        boolean rangeFits = BatteryDecoder.rangeFromCar(car.jhmail, car.soc, true, Units.carMiles(car)) > 0;
-        if (rangeFits) levelWatch.moved = true;
-        if (rangeFits || levelWatch.see(car.soc, android.os.SystemClock.elapsedRealtime())) {
+        // the field seen to change, or jhmail a range that fits it for 10 s (issue #91, 17 Nov)
+        long now = android.os.SystemClock.elapsedRealtime();
+        if (levelWatch.seeRange(car.jhmail, car.soc, Units.carMiles(car), now) || levelWatch.see(car.soc, now)) {
             app.prefs().edit().putBoolean(SOC_FIELD_MOVES, true).apply();
         }
         return levelWatch.moved;

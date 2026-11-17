@@ -75,8 +75,23 @@ final class BatteryDecoder {
     static final class LevelWatch {
         static final long HOLD_MS = 10_000;
         private int baseline = -1, current = -1;
-        private long currentSince;
+        private long currentSince, rangeSince = -1;
         boolean moved;
+
+        /**
+         * Where jhmail is the car's range (issue #91), a range that fits batterylevel (2-8 km per
+         * %, {@link #rangeFromCar}) for HOLD_MS also shows the % field is live, without waiting to
+         * see it change (which can take a whole drive). A jhmail that is a % code never counts, so
+         * a stuck batterylevel next to the owner's table (stuck at 77 % there) is never trusted.
+         */
+        boolean seeRange(int jhmail, int level, boolean carMiles, long nowMs) {
+            if (moved) return true;
+            boolean fits = rangeFromCar(jhmail, level, true, carMiles) > 0 && percent(jhmail) < 0;
+            if (!fits) { rangeSince = -1; return false; }
+            if (rangeSince < 0) { rangeSince = nowMs; return false; }
+            if (nowMs - rangeSince >= HOLD_MS) moved = true;
+            return moved;
+        }
 
         /** Feed every reading (with the time); returns true once the field has been seen to move. */
         boolean see(int level, long nowMs) {
