@@ -17,7 +17,7 @@ The shipped software is janky and the promised over-the-air updates never came. 
 On a ship, the binnacle is the stand in front of the helm that holds the compass, lit so the helmsman can read it at a glance.
 
 ## Features
-Items marked *(root)* need a dash that gives root; see [Root](#root).
+Items marked *(root)* need root once, from `su` or `adb root`; see [Root](#root).
 
 - **Live car data, read only:** a speed dial with power and regen, gear, speed-limit sign, indicators and lights, tyre pressures (psi or bar), parking sensors, doors, boot and frunk, outside temperature, odometer.
 - **Your car in 3D:** Model 3 or Model Y, left- or right-hand drive, in the original dash's colours (extra colours download from this repo). Open doors, boot and frunk show on the car. In Drive it sits on a moving road with headlight glow, and the lane turns blue on Autopilot. When CarPlay or the camera covers the centre, a glow on the left panel keeps Autopilot in view.
@@ -57,7 +57,7 @@ Items marked *(root)* need a dash that gives root; see [Root](#root).
 **Will it work on my dash?** See [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md).
 
 No computer needed.
-1. Download `Binnacle.apk` and `BinnacleCarPlay.apk` from the latest [release](https://github.com/lotech/binnacle/releases/latest). CarPlay is optional and needs root; without it, the CarPlay button opens the stock ZLink.
+1. Download `Binnacle.apk` and `BinnacleCarPlay.apk` from the latest [release](https://github.com/lotech/binnacle/releases/latest). CarPlay is optional and needs Android Bluetooth turned on once with root (see [Root](#root)); without it, the CarPlay button opens the stock ZLink.
 2. Copy them to a USB stick, plug it into the unit, open each one in the unit's file manager and tap it. Android asks once to allow installs from the file manager.
 3. Open **Binnacle**. Setup asks about your car, offers to make Binnacle the Home app, asks for location (compass) and the camera, and then sets up the unit: a one-time unlock typed into the unit's EngineerMode (setup gives you Copy buttons), then one tap. Any step can be skipped; **Apps → Advanced → Run setup** shows it again.
 
@@ -70,18 +70,18 @@ Setting up the unit hides the stock camera screen and pop-ups, turns on Android 
 **Remove:** **Apps → Advanced → Remove Binnacle**. The stock dash was never removed and comes straight back.
 
 ## Root
-Some dashes give root (`su`) and some don't ([COMPATIBILITY.md](docs/COMPATIBILITY.md)). **Apps → Unit** marks what yours can't do as "Needs root". The dash, car data, the camera in the dash and updates work either way.
+Some dashes give root (`su`) and some don't ([COMPATIBILITY.md](docs/COMPATIBILITY.md)). Some without `su` still allow `adb root` from a computer, until the next restart. **Apps → Unit** marks what yours can't do as "Needs root". The dash, car data, the camera in the dash and updates work on all of them.
 
-| Needs root | Without root |
-|---|---|
-| Binnacle's CarPlay (it needs Android Bluetooth) | Use the stock ZLink |
-| Calls, music and contacts to the car over Android Bluetooth (also a manual overlay) | The stock Bluetooth module, as before |
-| Keeping the unit unlocked after a restart | End CarPlay, Bluetooth auto-connect, the Wi-Fi scan pause and screenshots work until the next restart |
-| ADB off the Wi-Fi | ADB stays open to the Wi-Fi until the next restart |
-| Stock full-screen camera off | It can still open over the dash in Drive |
-| GPS crash dumps off, Bluetooth volume fix, CarPlay calls | Skipped |
+| | With `su` | `adb root` only | Neither |
+|---|---|---|---|
+| Binnacle's CarPlay (needs Android Bluetooth) | Setup turns it on | Turn it on by hand once ([steps](docs/COMPATIBILITY.md#wireless-carplay-on-a-dash-without-su)) | Use the stock ZLink |
+| Calls, music and contacts over Android Bluetooth | Manual overlay | Manual overlay | Stock Bluetooth module |
+| Unit kept unlocked after a restart | Setup | By hand once, but ADB is then open to the Wi-Fi | Unlock again after each restart |
+| ADB off the Wi-Fi | Automatic | Not possible | Not possible |
+| Stock full-screen camera off | Setup | By hand once | Can open over the dash in Drive |
+| GPS crash dumps off, Bluetooth volume fix, CarPlay calls | Setup | By hand once | Skipped |
 
-Some dashes without `su` still allow `adb root` from a computer until the next restart: see [Wireless CarPlay on a dash without su](docs/COMPATIBILITY.md#wireless-carplay-on-a-dash-without-su). On a dash without the Bluetooth overlay, if CarPlay calls are silent in the car, turn off the CarPlay app's **Settings → Audio → Tell the head unit about calls**.
+Until the unit is unlocked again after a restart, End CarPlay, Bluetooth auto-connect, the Wi-Fi scan pause and screenshots don't work. The commands for doing things by hand are in [UNIT-CHANGES.md](docs/UNIT-CHANGES.md): run `adb root` first, then each command without `su 0`. On a dash without the Bluetooth overlay, if CarPlay calls are silent in the car, turn off the CarPlay app's **Settings → Audio → Tell the head unit about calls**.
 
 ## The hardware (what the listings don't tell you)
 Sold as an "Android 12" 10.25" cluster for the Model 3 and Model Y under several brands. Inside, it's a ZIQI "A007" board.
