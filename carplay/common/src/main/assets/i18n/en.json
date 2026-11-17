@@ -243,7 +243,7 @@
   "settings.diagnostics.latency": "Media latency monitor",
   "settings.diagnostics.latency.support": "Shows live video latency, frame rate and audio latency",
   "settings.diagnostics.debug_logs": "Debug logs on screen",
-  "settings.diagnostics.debug_logs.support": "Adds a Debug tab to the home log and shows it over video",
+  "settings.diagnostics.debug_logs.support": "Adds a Debug tab and shows it over video. The saved log then includes calls, contacts and device details",
   "settings.diagnostics.capture": "Captures",
   "settings.diagnostics.audio_capture": "Audio diagnostic capture",
   "settings.diagnostics.audio_capture.support": "Saves encrypted UDP and decrypted RTP audio packets, and the first minute of call microphone audio (last 3 calls)",
