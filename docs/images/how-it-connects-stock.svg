@@ -106,7 +106,7 @@
   <text class="t" x="294" y="525">apps can't use Bluetooth</text>
   <rect class="hw" x="280" y="552" width="200" height="62" rx="8"/>
   <text class="h" x="294" y="576">Wi-Fi</text>
-  <text class="t" x="294" y="595">Home Wi-Fi or CarPlay,</text>
+  <text class="t" x="294" y="595">Internet or CarPlay,</text>
   <text class="t" x="294" y="610">one at a time</text>
   <rect class="hw" x="280" y="634" width="200" height="62" rx="8"/>
   <text class="h" x="294" y="658">CarPlay security chip</text>
@@ -145,9 +145,9 @@
   <text class="t" x="814" y="525">Wi-Fi Direct for the</text>
   <text class="t" x="814" y="540">screen, touch and sound</text>
   <rect class="ext" x="800" y="634" width="180" height="62" rx="8"/>
-  <text class="h" x="814" y="658">Home Wi-Fi</text>
-  <text class="t" x="814" y="677">Internet. ADB, once it's</text>
-  <text class="t" x="814" y="692">on, has no password</text>
+  <text class="h" x="814" y="658">4G SIM or Wi-Fi</text>
+  <text class="t" x="814" y="677">Internet, so Android apps</text>
+  <text class="t" x="814" y="692">install from the Play Store</text>
   <path class="ln-red" d="M210,155 L276,155" marker-end="url(#ar)"/>
   <text class="lbl-red" x="214" y="146">reads</text>
   <path class="ln" d="M480,150 L536,150" marker-end="url(#a)"/>
@@ -167,7 +167,7 @@
   <path class="ln" d="M480,665 L536,665" marker-start="url(#a)" marker-end="url(#a)"/>
   <path class="ln" d="M740,507 L796,507" marker-start="url(#a)" marker-end="url(#a)"/>
   <path class="ln" d="M480,600 L500,600 L500,708 L770,708 L770,665 L796,665" marker-end="url(#a)"/>
-  <text class="lbl" x="560" y="722">when CarPlay is off</text>
+  <text class="lbl" x="560" y="722">internet</text>
   <path class="ln-red" d="M20,760 L54,760" marker-end="url(#ar)"/>
   <text class="lbl" x="64" y="764">Car data: read only, nothing goes back</text>
   <path class="ln" d="M290,760 L324,760" marker-end="url(#a)"/>
