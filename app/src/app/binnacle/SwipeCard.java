@@ -371,13 +371,17 @@ final class SwipeCard {
         EfficiencyTracker eff = app.efficiency();
         float cx = (X0 + X1) / 2f;
         String per = "Wh/" + Units.distLabel(app);
-        float recent = eff.recentWhPerKm();
+        // While the car's power reading is unusable the power comes from speed alone (PowerDecoder),
+        // which can't see heating or the cabin: on a short winter drive that is most of the energy,
+        // so the Wh/km came out at a quarter of the car's own figure (issue #91, 17 Nov: 103 vs 410).
+        // No Wh/km then rather than a wrong one; the graph and the distance stay.
+        boolean estimated = app.car.powerEstimated();
+        float recent = estimated ? Float.NaN : eff.recentWhPerKm();
         Style.size(effBig, Style.T_BATTERY);
         c.drawText(Float.isNaN(recent) ? "--" : String.valueOf(Math.round(Units.perDistance(app, recent))), cx, CARD_TOP + 58, effBig);
         Style.size(centred, Style.T_SMALL);
         centred.setColor(Style.MUTED);
-        // "est." while the car's power reading is unusable and the numbers come from speed alone
-        c.drawText(app.car.powerEstimated() ? per + " · est." : per, cx, CARD_TOP + 84, centred);
+        c.drawText(estimated ? per + " · no data" : per, cx, CARD_TOP + 84, centred);
 
         // graph: zero line low in the middle, power up in amber, regen down in green, 15 min wide
         float gTop = CARD_TOP + 104, gBottom = CARD_TOP + 250, zero = gTop + (gBottom - gTop) * 0.62f;
@@ -403,6 +407,7 @@ final class SwipeCard {
         double km = eff.tripKm();
         float trip = eff.tripWhPerKm();
         String drive = km < 0.05 ? "--"
+                : estimated ? String.format(Locale.UK, "%.1f %s", Units.distance(app, km), Units.distLabel(app))
                 : String.format(Locale.UK, "%.1f %s · %s avg", Units.distance(app, km), Units.distLabel(app),
                         Float.isNaN(trip) ? "--" : Math.round(Units.perDistance(app, trip)) + " " + per);
         centred.setColor(Style.FG);

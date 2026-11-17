@@ -79,6 +79,13 @@ public class BatteryDecoderTest {
                 }
             }
         }
+        // the owner's car: batterylevel stuck at 77 and jhmail a % code. RightPanelView trusts
+        // batterylevel at once when jhmail is a range that fits it (#91), so no % code may fit 77
+        for (int v = 0; v <= 65535; v++) {
+            if (BatteryDecoder.percent(v) >= 0 && BatteryDecoder.rangeFromCar(v, 77, true, false) != -1) {
+                System.out.println("FAIL % code " + v + " fits a stuck 77 % as a range"); fails++;
+            }
+        }
         // once a range, kept near empty (0 km) and in the cold; never without batterylevel working
         int[][] kept = {{0, 1, 0}, {5, 1, 5}, {120, 1, 120}, {1000, 1, -1}, {-1, 1, -1}, {120, 0, -1}};
         for (int[] k : kept) {
