@@ -4,36 +4,37 @@
 
 <p align="center">A <strong>read-only</strong> replacement dash for the Carview / ZIQI "A007" 10.25" Tesla Model 3/Y Android cluster (also sold as Hansshow, Tesery, VJOYCAR and Satonic).</p>
 
-The shipped software is janky and the promised over-the-air updates never came. After trying to patch it, I replaced it instead, with the help of Claude. Binnacle uses the same car data (speed, battery %, gear, odometer, TPMS, lights, parking sensors, doors), hands off properly to wireless CarPlay and the forward camera, and is fully reversible.
-
 ![Binnacle in the light theme](docs/images/20261117-150754.png)
 ![Carplay](docs/images/20261117-150541.png)
-
 ![Dark mode](docs/images/20261117-152237.png)
-
 *Parked, light and dark themes. The red "● REC" badge and eye show because the optional logger is installed and running.*
 
 ## Why "Binnacle"?
 On a ship, the binnacle is the stand in front of the helm that holds the compass, lit so the helmsman can read it at a glance.
 
+The shipped software promised over-the-air updates that never came and was always janky. I tried to patch it to little success so with the help of Claude, we completely replaced it instead, . Binnacle uses the same car data from the MCU/CANBUS, and still has wireless CarPlay and the forward camera.
+During the work and thanks to other users, we have an idea of different units, all with the same hardware but different software versions. As such, not all functionality can be used, although anything the original dash app can do, Binnacle can too. If you do have a unit with root access, like mine, you can finally have a dash that you thought you had bought.
+
+
 ## Features
 Items marked *(root)* need root once, from `su` or `adb root`; see [Root](#root).
 
 - **Live car data, read only:** a speed dial with power and regen, gear, speed-limit sign, indicators and lights, tyre pressures (psi or bar), parking sensors, doors, boot and frunk, outside temperature, odometer.
-- **Your car in 3D:** Model 3 or Model Y, left- or right-hand drive, in the original dash's colours (extra colours download from this repo). Open doors, boot and frunk show on the car. In Drive it sits on a moving road with headlight glow, and the lane turns blue on Autopilot. When CarPlay or the camera covers the centre, a glow on the left panel keeps Autopilot in view.
+- **Your car in 3D:** Model 3 or Model Y, left- or right-hand drive, in the original dash's colours (extra colours download from this repo via the dash). Open doors, boot and frunk show on the car. In Drive it sits on a moving road with headlight glow, and the lane turns blue on Autopilot. When CarPlay or the camera covers the centre, a glow on the left panel keeps Autopilot in view.
 - **One speed on screen:** in Drive a large dial in the centre shows speed, power and regen, with the car under it; parked, or with CarPlay or the camera in the centre, a compact copy moves to the left panel.
 - **Laid out for your side:** graphics match your side of the road, with touch targets closer to your free hand.
-- **Real battery %:** with the car's own range where it sends one (otherwise an estimate) and a charging animation (see below).
+- **Real battery %:** with the car's own range where it sends one (otherwise an estimate).
 - **Efficiency:** Wh/km over the last 5 km, a 15-minute power and regen graph, and this drive's totals.
 - **GPS compass.**
 - **Parking sensors you can read:** coloured arcs around the car, a STOP sign when you're close, and a sensor card that stays up while the camera is on.
 - **Forward camera in the dash,** with a smooth picture.
 - **Autopilot attention warning:** a red LED bar that pulses out from the centre, with a soft blue glow round the window.
-- **Wireless CarPlay on your terms** *(root)*: starts when you tap CarPlay, shows in the centre or full screen, and one tap ends it and rejoins your home Wi-Fi. While CarPlay is in the centre, the right card shows what's playing. Optional auto-connect (Apps → Display → CarPlay auto-connect, off by default) looks for your iPhone when the car wakes, shows what CarPlay is doing on the centre window while it connects, and gives up quietly after 90 s.
+- **Wireless CarPlay on your terms** *(root)*: starts when you tap CarPlay, shows in the centre or full screen. While CarPlay is in the centre, a media card shows what's playing. Optional auto-connect (Apps → Display → CarPlay auto-connect, off by default) when the dash wakes.
 - **Light, dark or Auto theme:** Auto follows the car's screen brightness, so it goes dark at night.
 - **Steering-wheel control.**
-- **Updates itself** from this repo's releases when you tap Check for updates.
+- **Media and phone control from the Tesla screen.** *(root)*
 - **Rainbow road on Autopilot.** 'Nuf said.
+- **Actual OTA Updates** once installed, updates are pulled directly from this repo.
 
 ## What it fixes compared with the stock dash
 - **Model Y:** the stock dash only showed a Model 3.
@@ -45,13 +46,13 @@ Items marked *(root)* need root once, from `su` or `adb root`; see [Root](#root)
 - **No stray pop-ups:** no more full-screen picture every time a door or the boot opens. Binnacle shows the doors on its own car instead.
 - **Warnings that clear on time:** the attention warning goes when the car clears it.
 - **A theme that doesn't flip-flop:** Auto waits for the car's light level to settle before switching.
+- **Keeps Bluetooth to the Tesla at full volume:** Detects when the dash background services try to mute the Bluetooth audio volume, stops it.
 
 ## Planned
-- A much improved default dash design.
 - Use S3XY Commander for data alongside the built in CANBUS connection on the unit.
-- Android Auto again.
 - Other Android apps in the centre of the screen, such as [Horizon Maps](https://github.com/benbishop028-arch/Horizon-Maps).
 - A Tesla-style easter egg.
+- Android Auto again (maybe).
 
 ## Install
 **Will it work on my dash?** See [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md).
