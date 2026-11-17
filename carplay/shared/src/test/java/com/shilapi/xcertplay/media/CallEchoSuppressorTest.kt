@@ -145,4 +145,33 @@ class CallEchoSuppressorTest {
         repeat(20) { raised.process(quiet.copyOf(), quiet.size) }
         assertFalse(raised.suppressing)
     }
+
+    @Test
+    fun lightCutsByItsSettingOnTopOfTheGain() {
+        // 200% user gain (+6 dB); Light must sit 20 dB under what goes out unsuppressed, not 26
+        val echo = tone(0.01)
+        val plain = echo.copyOf()
+        applyCallGain(plain, plain.size, 200, null, null)
+        val s = CallEchoSuppressor(farEndLevel = { -12.0 }, suppressDb = CallEchoSettings.suppressDb(1))
+        assertFalse(s.skipsGain)
+        var last = 0.0
+        repeat(20) {
+            val block = echo.copyOf()
+            applyCallGain(block, block.size, 200, null, s)
+            last = rmsDb(block)
+        }
+        assertEquals(rmsDb(plain) - 20, last, 0.5)
+        assertTrue(CallEchoSuppressor(suppressDb = CallEchoSettings.suppressDb(2)).skipsGain)
+    }
+
+    @Test
+    fun dbLabelIgnoresTheLocale() {
+        val saved = java.util.Locale.getDefault()
+        try {
+            java.util.Locale.setDefault(java.util.Locale("ar", "EG"))
+            assertEquals("-45 dB", CallEchoSettings.dbLabel(-45.0))
+        } finally {
+            java.util.Locale.setDefault(saved)
+        }
+    }
 }

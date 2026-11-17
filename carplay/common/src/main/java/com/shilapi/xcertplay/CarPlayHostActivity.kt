@@ -3035,7 +3035,7 @@ class CarPlayHostActivity : ComponentActivity() {
                     SliderRow(
                         title = tr("settings.audio.echo_threshold"),
                         support = tr("settings.audio.echo_threshold.support"),
-                        valueLabel = "%.0f dB".format(CallEchoSettings.farActiveDb(callEchoThreshold)),
+                        valueLabel = CallEchoSettings.dbLabel(CallEchoSettings.farActiveDb(callEchoThreshold)),
                         index = callEchoThreshold,
                         count = CallEchoSettings.THRESHOLD_DB.size,
                         onIndexChange = ::onCallEchoThresholdChanged,
@@ -3690,10 +3690,11 @@ class CarPlayHostActivity : ComponentActivity() {
         updateResolutionMenu()
     }
 
-    private fun callEchoStrengthLabel(step: Int): String = when (CallEchoSettings.strength(step)) {
-        0 -> tr("settings.audio.echo.off")
-        1 -> tr("settings.audio.echo.light")
-        else -> tr("settings.audio.echo.normal")
+    private fun callEchoStrengthLabel(step: Int): String {
+        val s = CallEchoSettings.strength(step)
+        if (s == 0) return tr("settings.audio.echo.off")
+        val name = tr(if (s == 1) "settings.audio.echo.light" else "settings.audio.echo.normal")
+        return "$name (${CallEchoSettings.dbLabel(CallEchoSettings.suppressDb(s))})"
     }
 
     private fun onCallEchoStrengthChanged(step: Int) {
