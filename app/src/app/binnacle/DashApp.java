@@ -28,8 +28,9 @@ public class DashApp extends Application implements Feed.Sink, SharedPreferences
      * MCU reset), and the last speed and gear must not stay on screen as if live. Logger captures
      * 28-31 Oct (~45,600 speed messages in D/R while moving): gap between any two messages median
      * 0.14 s, p99.9 0.98 s, longest 2.6 s (speed alone pauses up to ~3 s cruising, ~6 s crawling,
-     * so it re-arms on any code), so 8 s is ~3x the worst real gap. Not checked while stopped,
-     * when the car may legitimately have nothing new to say.
+     * so it re-arms on any code), so 8 s is ~3x the worst real gap. Armed whenever the speed is
+     * above 0, whatever the gear (the gear is unknown for a while after a reset). Stopped, the car
+     * may legitimately have nothing new to say: then the GPS tells (gpsMotion).
      */
     static final long STALE_MS = 8000;
     static final String STALE_PROBLEM = "No car data, reconnecting";
@@ -222,7 +223,18 @@ public class DashApp extends Application implements Feed.Sink, SharedPreferences
         @Override public void onHeading() {
             for (Listener l : listeners) l.onCarChanged(HEADING_CHANGED);
         }
+        @Override public void onFix(float speedMs) {
+            long now = android.os.SystemClock.elapsedRealtime();
+            gpsMotion.fix(now, speedMs);
+            // the feed went quiet while stopped (red light, Park, a wake) and the car now drives off:
+            // GPS says driving for a few seconds and no car message for STALE_MS (17 Nov audit #7)
+            if (!demo && feed instanceof CanFeed && !staleRecovering && car.lastUpdateMs > 0
+                    && now - car.lastUpdateMs >= STALE_MS && gpsMotion.moving(now)) {
+                onStale("GPS says driving");
+            }
+        }
     });
+    private final GpsMotion gpsMotion = new GpsMotion();
 
     /** GPS heading for the compass; starts once location is granted (also retried from the dash). */
     public Compass compass() { return compass; }
@@ -263,16 +275,21 @@ public class DashApp extends Application implements Feed.Sink, SharedPreferences
      */
     private final Runnable stalled = new Runnable() {
         @Override public void run() {
-            if (demo || !(feed instanceof CanFeed) || !car.moving() || car.speed <= 0) return;
-            android.util.Log.w("binnacle", "no CAN data for " + STALE_MS + " ms while moving: subscribing again");
-            staleRecovering = true;
-            onStatus(STALE_PROBLEM);
-            resubscribe();
-            staleRetryMs = STALE_MS;
-            main.removeCallbacks(staleRetry);
-            main.postDelayed(staleRetry, staleRetryMs);
+            if (demo || !(feed instanceof CanFeed) || car.speed <= 0) return;
+            onStale("while moving");
         }
     };
+
+    /** The feed went silent: clear the screen, say so and subscribe again (with growing pauses). */
+    private void onStale(String why) {
+        android.util.Log.w("binnacle", "no CAN data for " + STALE_MS + " ms " + why + ": subscribing again");
+        staleRecovering = true;
+        onStatus(STALE_PROBLEM);
+        resubscribe();
+        staleRetryMs = STALE_MS;
+        main.removeCallbacks(staleRetry);
+        main.postDelayed(staleRetry, staleRetryMs);
+    }
 
     /** Longest pause between new subscriptions while the feed stays silent. */
     static final long STALE_RETRY_MAX_MS = 60_000;
@@ -405,10 +422,10 @@ public class DashApp extends Application implements Feed.Sink, SharedPreferences
             return;
         } finally {
             // feed watchdog: any message, even one that fails to decode, shows the feed is alive.
-            // Armed only while the car is moving in D/R (the timer checks again when it fires).
+            // Armed while the speed is above 0, in any gear (the timer checks again when it fires).
             if (!demo) {
                 main.removeCallbacks(stalled);
-                if (car.moving() && car.speed > 0) main.postDelayed(stalled, STALE_MS);
+                if (car.speed > 0) main.postDelayed(stalled, STALE_MS);
             }
         }
         if (code == 18) updateTheme(false);        // screen brightness: Auto theme follows the car's display

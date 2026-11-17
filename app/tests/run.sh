@@ -6,7 +6,7 @@ SDK="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
 JAR="$SDK/platforms/$(ls "$SDK/platforms" | sort -V | tail -1)/android.jar"
 OUT=build/tests
 rm -rf "$OUT" && mkdir -p "$OUT"
-javac -Xlint:-options -source 8 -target 8 -encoding UTF-8 -cp "$JAR" -d "$OUT" src/app/binnacle/CarState.java src/app/binnacle/BatteryDecoder.java src/app/binnacle/EfficiencyTracker.java src/app/binnacle/PowerDecoder.java src/app/binnacle/Updater.java src/app/binnacle/DriveWatch.java src/app/binnacle/StartupVolume.java tests/*.java
+javac -Xlint:-options -source 8 -target 8 -encoding UTF-8 -cp "$JAR" -d "$OUT" src/app/binnacle/CarState.java src/app/binnacle/BatteryDecoder.java src/app/binnacle/EfficiencyTracker.java src/app/binnacle/PowerDecoder.java src/app/binnacle/Updater.java src/app/binnacle/DriveWatch.java src/app/binnacle/StartupVolume.java src/app/binnacle/GpsMotion.java tests/*.java
 java -cp "$OUT:$JAR" TyreScaleTest
 java -cp "$OUT:$JAR" app.binnacle.BatteryDecoderTest
 java -cp "$OUT:$JAR" app.binnacle.EfficiencyTrackerTest
@@ -14,3 +14,4 @@ java -cp "$OUT:$JAR" app.binnacle.PowerDecoderTest
 java -cp "$OUT:$JAR" app.binnacle.UpdaterTest
 java -cp "$OUT:$JAR" app.binnacle.DriveWatchTest
 java -cp "$OUT:$JAR" app.binnacle.StartupVolumeTest
+java -cp "$OUT:$JAR" app.binnacle.GpsMotionTest

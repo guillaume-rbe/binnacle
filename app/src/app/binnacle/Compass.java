@@ -23,7 +23,11 @@ final class Compass implements LocationListener {
     /** A heading older than this is shown as stale (dimmed). */
     static final long FRESH_MS = 5_000;
 
-    interface Sink { void onHeading(); }
+    interface Sink {
+        void onHeading();
+        /** Every fix, any speed (NaN when it has none); read only. */
+        void onFix(float speedMs);
+    }
 
     private static final String[] POINTS = {"N", "NE", "E", "SE", "S", "SW", "W", "NW"};
 
@@ -104,6 +108,7 @@ final class Compass implements LocationListener {
         if (l != null) {
             fixMs = SystemClock.elapsedRealtime();
             fixAccuracy = l.hasAccuracy() ? l.getAccuracy() : Float.NaN;
+            sink.onFix(l.hasSpeed() ? l.getSpeed() : Float.NaN);
         }
         if (l == null || !l.hasBearing() || !l.hasSpeed() || l.getSpeed() < MIN_SPEED_MS) return;
         heading = l.getBearing();
