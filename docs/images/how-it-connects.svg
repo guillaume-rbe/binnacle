@@ -87,37 +87,38 @@
   <text class="t" x="34" y="478">need the manual Bluetooth</text>
   <text class="t" x="34" y="493">overlay on the dash:</text>
   <rect class="hw" x="280" y="124" width="200" height="62" rx="8"/>
-  <text class="h" x="294" y="148">Two MCUs</text>
-  <text class="t" x="294" y="167">MCU0 decodes CAN; MCU1</text>
-  <text class="t" x="294" y="182">handles power and sleep</text>
+  <text class="h" x="294" y="148">Car data chips</text>
+  <text class="t" x="294" y="167">Two MCUs: turn car messages</text>
+  <text class="t" x="294" y="182">into readings, handle sleep</text>
   <rect class="hw" x="280" y="206" width="200" height="62" rx="8"/>
-  <text class="h" x="294" y="230">TP9950 camera decoder</text>
-  <text class="t" x="294" y="249">Binnacle sets its input</text>
+  <text class="h" x="294" y="230">Camera input</text>
+  <text class="t" x="294" y="249">TP9950: turns the camera</text>
+  <text class="t" x="294" y="264">signal into a picture</text>
   <rect class="off" x="280" y="288" width="200" height="62" rx="8"/>
-  <text class="h" x="294" y="312">BT1036 module</text>
-  <text class="t" x="294" y="331">Stock link to the Tesla,</text>
-  <text class="t" x="294" y="346">standing by</text>
+  <text class="h" x="294" y="312">Old Tesla Bluetooth</text>
+  <text class="t" x="294" y="331">BT1036: still paired to</text>
+  <text class="t" x="294" y="346">the Tesla as a fallback</text>
   <rect class="off" x="280" y="370" width="200" height="62" rx="8"/>
-  <text class="h" x="294" y="394">Goodocom Bluetooth</text>
-  <text class="t" x="294" y="413">Stock phone link, still</text>
-  <text class="t" x="294" y="428">installed, not used</text>
+  <text class="h" x="294" y="394">Old phone Bluetooth</text>
+  <text class="t" x="294" y="413">Goodocom: still there,</text>
+  <text class="t" x="294" y="428">not used</text>
   <rect class="hw" x="280" y="452" width="200" height="78" rx="8"/>
   <text class="h" x="294" y="476">Android Bluetooth</text>
-  <text class="t" x="294" y="495">Turned on by setup. To the</text>
-  <text class="t" x="294" y="510">car: an overlay adds calls,</text>
-  <text class="t" x="294" y="525">music and contacts</text>
+  <text class="t" x="294" y="495">To the Tesla: music, calls,</text>
+  <text class="t" x="294" y="510">contacts. To the iPhone:</text>
+  <text class="t" x="294" y="525">starting CarPlay</text>
   <rect class="root" x="434" y="462" width="36" height="17" rx="8.5"/>
   <text class="root-t" x="452.0" y="474.5" text-anchor="middle">ROOT</text>
   <rect class="hw" x="280" y="552" width="200" height="62" rx="8"/>
-  <text class="h" x="294" y="576">Wi-Fi radio</text>
+  <text class="h" x="294" y="576">Wi-Fi</text>
   <text class="t" x="294" y="595">Home Wi-Fi or CarPlay, one</text>
   <text class="t" x="294" y="610">at a time. ADB kept off it</text>
   <rect class="root" x="434" y="562" width="36" height="17" rx="8.5"/>
   <text class="root-t" x="452.0" y="574.5" text-anchor="middle">ROOT</text>
   <rect class="hw" x="280" y="634" width="200" height="62" rx="8"/>
-  <text class="h" x="294" y="658">Apple MFi chip</text>
-  <text class="t" x="294" y="677">Proves to the iPhone that</text>
-  <text class="t" x="294" y="692">this is a CarPlay unit (I²C)</text>
+  <text class="h" x="294" y="658">CarPlay security chip</text>
+  <text class="t" x="294" y="677">Apple MFi: proves to the</text>
+  <text class="t" x="294" y="692">iPhone this is a CarPlay unit</text>
   <rect class="sw" x="540" y="124" width="200" height="62" rx="8"/>
   <text class="h" x="554" y="148">Stock car services</text>
   <text class="t" x="554" y="167">CAN app and car service share</text>

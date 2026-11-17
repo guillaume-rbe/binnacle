@@ -84,33 +84,34 @@
   <text class="t" x="34" y="433">Pairs only with the</text>
   <text class="t" x="34" y="448">BT1036 module.</text>
   <rect class="hw" x="280" y="124" width="200" height="62" rx="8"/>
-  <text class="h" x="294" y="148">Two MCUs</text>
-  <text class="t" x="294" y="167">MCU0 decodes CAN; MCU1</text>
-  <text class="t" x="294" y="182">handles power and sleep</text>
+  <text class="h" x="294" y="148">Car data chips</text>
+  <text class="t" x="294" y="167">Two MCUs: turn car messages</text>
+  <text class="t" x="294" y="182">into readings, handle sleep</text>
   <rect class="hw" x="280" y="206" width="200" height="62" rx="8"/>
-  <text class="h" x="294" y="230">TP9950 camera decoder</text>
-  <text class="t" x="294" y="249">Analogue camera input</text>
+  <text class="h" x="294" y="230">Camera input</text>
+  <text class="t" x="294" y="249">TP9950: turns the camera</text>
+  <text class="t" x="294" y="264">signal into a picture</text>
   <rect class="hw" x="280" y="288" width="200" height="62" rx="8"/>
-  <text class="h" x="294" y="312">BT1036 module</text>
-  <text class="t" x="294" y="331">"Tesla-Screen-BT", behind the</text>
-  <text class="t" x="294" y="346">MCU. Plays the dash's sound</text>
+  <text class="h" x="294" y="312">Bluetooth to the Tesla</text>
+  <text class="t" x="294" y="331">BT1036, behind the MCU:</text>
+  <text class="t" x="294" y="346">sends the dash's sound as music</text>
   <rect class="hw" x="280" y="370" width="200" height="62" rx="8"/>
-  <text class="h" x="294" y="394">Goodocom Bluetooth</text>
-  <text class="t" x="294" y="413">What the phone pairs with:</text>
-  <text class="t" x="294" y="428">hands-free and CarPlay set-up</text>
+  <text class="h" x="294" y="394">Bluetooth to the phone</text>
+  <text class="t" x="294" y="413">Goodocom: calls, and</text>
+  <text class="t" x="294" y="428">starting CarPlay</text>
   <rect class="off" x="280" y="452" width="200" height="78" rx="8"/>
   <text class="h" x="294" y="476">Android Bluetooth</text>
-  <text class="t" x="294" y="495">The unit's own radio.</text>
-  <text class="t" x="294" y="510">Off as shipped, so no</text>
-  <text class="t" x="294" y="525">Bluetooth LE for other apps</text>
+  <text class="t" x="294" y="495">The unit's own Bluetooth.</text>
+  <text class="t" x="294" y="510">Off as shipped, so other</text>
+  <text class="t" x="294" y="525">apps can't use Bluetooth</text>
   <rect class="hw" x="280" y="552" width="200" height="62" rx="8"/>
-  <text class="h" x="294" y="576">Wi-Fi radio</text>
-  <text class="t" x="294" y="595">Only one: home Wi-Fi or</text>
-  <text class="t" x="294" y="610">CarPlay, not both at once</text>
+  <text class="h" x="294" y="576">Wi-Fi</text>
+  <text class="t" x="294" y="595">Home Wi-Fi or CarPlay,</text>
+  <text class="t" x="294" y="610">one at a time</text>
   <rect class="hw" x="280" y="634" width="200" height="62" rx="8"/>
-  <text class="h" x="294" y="658">Apple MFi chip</text>
-  <text class="t" x="294" y="677">Proves to the iPhone that</text>
-  <text class="t" x="294" y="692">this is a CarPlay unit (I²C)</text>
+  <text class="h" x="294" y="658">CarPlay security chip</text>
+  <text class="t" x="294" y="677">Apple MFi: proves to the</text>
+  <text class="t" x="294" y="692">iPhone this is a CarPlay unit</text>
   <rect class="sw" x="540" y="124" width="200" height="62" rx="8"/>
   <text class="h" x="554" y="148">Stock car services</text>
   <text class="t" x="554" y="167">CAN app and car service share</text>
