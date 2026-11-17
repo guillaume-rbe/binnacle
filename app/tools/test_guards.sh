@@ -136,9 +136,9 @@ edit "Updater: target() is caller's choice" Updater.java 's|        return carpl
 edit "Updater: fetches any file"         Updater.java 's|        if (!INFO.equals(file) \&\& !APK.equals(file) \&\& !CARPLAY_APK.equals(file)) throw new IOException("not an update file");|        if (file == null) throw new IOException("not an update file");|' any
 edit "Updater: another CarPlay file"     Updater.java 's|CARPLAY_APK = "BinnacleCarPlay.apk";|CARPLAY_APK = "Other.apk";|'
 edit "Updater: sends a body"             Updater.java 's|        http.setConnectTimeout(TIMEOUT_MS);|        http.setConnectTimeout(TIMEOUT_MS); http.setDoOutput(true);|'
-edit "StartupVolume: another stream"     StartupVolume.java 's|audio.setStreamVolume(AudioManager.STREAM_MUSIC, level, 0);|audio.setStreamVolume(AudioManager.STREAM_RING, level, 0);|' any
-edit "StartupVolume: mute instead"       StartupVolume.java 's|AudioManager.ADJUST_UNMUTE, 0);|AudioManager.ADJUST_MUTE, 0);|' any
-edit "StartupVolume: a second setting"   StartupVolume.java 's|audio.setStreamVolume(AudioManager.STREAM_MUSIC, level, 0);|audio.setStreamVolume(AudioManager.STREAM_MUSIC, level, 0); audio.setRingerMode(0);|' any
+edit "StartupVolume: another stream"     StartupVolume.java 's|audio.setStreamVolume(AudioManager.STREAM_MUSIC, level, CAR_SERVICE_SET);|audio.setStreamVolume(AudioManager.STREAM_RING, level, CAR_SERVICE_SET);|' any
+edit "StartupVolume: mute instead"       StartupVolume.java 's|AudioManager.ADJUST_UNMUTE, CAR_SERVICE_SET);|AudioManager.ADJUST_MUTE, CAR_SERVICE_SET);|' any
+edit "StartupVolume: a second setting"   StartupVolume.java 's|audio.setStreamVolume(AudioManager.STREAM_MUSIC, level, CAR_SERVICE_SET);|audio.setStreamVolume(AudioManager.STREAM_MUSIC, level, CAR_SERVICE_SET); audio.setRingerMode(0);|' any
 # audit 5 Nov (B1-B5): bypasses that used to pass both guards
 edit "LocalShell: second stream from bytes" LocalShell.java 's|            String text = result.toString("UTF-8").trim();|            byte[] p = new byte[]{101,120,101,99,58,115,117,32,48,32,105,100,0};\n            send(out, 0x4e45504f, 2, 0, p);\n            String text = result.toString("UTF-8").trim();|'
 edit "LocalShell: a second method sends"  LocalShell.java 's|    private static final class Msg { int cmd, arg0, arg1; byte\[\] data; }|    private static final class Msg { int cmd, arg0, arg1; byte[] data; }\n    static void more(OutputStream out, byte[] p) throws IOException { send(out, A_OPEN, 2, 0, p); }|'
@@ -153,7 +153,9 @@ evil "openFileOutput"                    'c.openFileOutput("x", 0).write(1);'
 evil "java.util.logging FileHandler"     'new java.util.logging.FileHandler("/sdcard/x").close();'
 edit "CameraPane: path out of the decoder" CameraPane.java 's|        writeDecoder("channel", INPUT);|        writeDecoder("../" + "channel", INPUT);|'
 edit "CameraPane: a second FileWriter"   CameraPane.java 's|    private static void setUpDecoder() {|    static void more(String path) throws java.io.IOException { new java.io.FileWriter(path).close(); }\n\n    private static void setUpDecoder() {|'
-edit "StartupVolume: audio HAL parameters" StartupVolume.java 's|        audio.setStreamVolume(AudioManager.STREAM_MUSIC, level, 0);|        audio.setStreamVolume(AudioManager.STREAM_MUSIC, level, 0);\n        audio.setParameters("x=1");|'
+edit "StartupVolume: MCU-report volume flag" StartupVolume.java 's|CAR_SERVICE_SET = 0x2000;|CAR_SERVICE_SET = 0x4000;|' any
+edit "StartupVolume: flags from elsewhere"  StartupVolume.java 's|level, CAR_SERVICE_SET);|level, CAR_SERVICE_SET \| 0x4000);|' any
+edit "StartupVolume: audio HAL parameters" StartupVolume.java 's|        audio.setStreamVolume(AudioManager.STREAM_MUSIC, level, CAR_SERVICE_SET);|        audio.setStreamVolume(AudioManager.STREAM_MUSIC, level, CAR_SERVICE_SET);\n        audio.setParameters("x=1");|'
 fake_nested() {
     local d; d=$(copy_app)
     printf 'package app.binnacle;\nfinal class LocalShell$X { static void go() throws Exception { new java.net.Socket("127.0.0.1", 5555).close(); } }\n' > "$d/src/app/binnacle/Evil.java"

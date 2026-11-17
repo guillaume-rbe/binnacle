@@ -37,6 +37,12 @@ public class StartupVolumeTest {
         check("then sets 0 from 20", r.onVolume(20, 0), true);
         r = new StartupVolume.Resets();
         check("mute while at a level", r.onMute(true), true);
+
+        // fades take at most 8 steps (each change makes the car service send the MCU its main volume)
+        check("1 -> 40: stride 5", StartupVolume.fadeStride(1, 40) == 5, true);
+        check("1 -> 8: one level a step", StartupVolume.fadeStride(1, 8) == 1, true);
+        check("20 -> 40: stride 3", StartupVolume.fadeStride(20, 40) == 3, true);
+        check("1 -> 40 in <= 8 steps", (39 + StartupVolume.fadeStride(1, 40) - 1) / StartupVolume.fadeStride(1, 40) <= 8, true);
         if (fails > 0) { System.out.println(fails + " failed"); System.exit(1); }
     }
 }

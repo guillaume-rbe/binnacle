@@ -16,8 +16,9 @@ import android.util.Log;
  * CarPlay, music and Bluetooth audio quieter than the car's own sources.
  *
  * This is Android's own music volume, the one the wheel's volume keys change (the CAN app sets it
- * on the unit too). It is not the car-setup speaker level, which goes to the MCU. Nothing here
- * reaches the car or the MCU. The volume keys still change it at any time; it is set again at the
+ * on the unit too). It is not the car-setup speaker level. Like the CAN app's own volume slider,
+ * each change that takes effect makes the dash's car service pass the level on to the MCU's main
+ * volume (see CAR_SERVICE_SET); nothing goes onto the car's CAN bus. The volume keys still change it at any time; it is set again at the
  * next start, screen-on or Bluetooth audio connection, and whenever music is muted or jumps to 0
  * in one go while the screen is on (android.car.server and the CAN app do that on car wakes and
  * mutes; on 15 Nov it was 0 again on getting in, after the one-minute watch had ended). A level
@@ -217,7 +218,21 @@ final class StartupVolume {
      * Music fades up to the level over about this long (owner, 15 Nov: quick, but not a sudden jump
      * into a car whose own volume expects full from the dash).
      */
-    private static final long FADE_MS = 1000, FADE_STEP_MIN_MS = 15;
+    private static final long FADE_MS = 1000;
+    /**
+     * At most this many steps per fade: every music level change that takes effect makes the dash's
+     * car service send the MCU its main-volume command, as the CAN app's slider does for each step.
+     */
+    private static final int FADE_STEPS = 8;
+    /**
+     * The ROM's "set by the car service" volume flag (AudioManager has no name for it). The ZIQI ROM's
+     * CarAudioPatch.checkCarOpAllowed silently drops every music level or mute change from an ordinary
+     * app unless the flags carry it (17 Nov: without it none of this ever changed the volume; the CAN
+     * app, a system app, was what put it back). It does nothing else: the car service tests only 0x4000
+     * (the MCU's own report), so a change made with it is passed on to the MCU's main volume exactly
+     * like the CAN app's slider and car-on restore (owner OK 17 Nov, CLAUDE.md "MCU writes").
+     */
+    private static final int CAR_SERVICE_SET = 0x2000;
     /** The fade in progress, or null. Main thread only. */
     private static Runnable fading;
 
@@ -238,7 +253,7 @@ final class StartupVolume {
                 // it to 0 when the car sleeps, a level set while muted stays silent, and an unmute alone
                 // would bring back the level it kept at once
                 if (now == 0) setLevel(audio, 1);
-                if (muted) audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_UNMUTE, 0);
+                if (muted) audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_UNMUTE, CAR_SERVICE_SET);
                 fade(audio, main, Math.max(now, 1), level);
             }
             Log.i(TAG, "start-up volume " + p + "% (" + now + " -> " + level + "/" + max + ")");
@@ -247,10 +262,11 @@ final class StartupVolume {
         }
     }
 
-    /** Raises music one step at a time from `from` to `to`; stops if anything else changes it. */
+    /** Raises music from `from` to `to` in at most FADE_STEPS steps; stops if anything else changes it. */
     private static void fade(final AudioManager audio, final Handler main, final int from, final int to) {
         if (to <= from) return;
-        final long step = Math.max(FADE_STEP_MIN_MS, FADE_MS / (to - from));
+        final int stride = fadeStride(from, to);
+        final long step = FADE_MS / ((to - from + stride - 1) / stride);
         fading = new Runnable() {
             private int at = from;
             @Override public void run() {
@@ -258,7 +274,8 @@ final class StartupVolume {
                 // turned by hand, zeroed or muted again: stop (a reset is picked up and faded again)
                 if (audio.getStreamVolume(AudioManager.STREAM_MUSIC) != at) { fading = null; return; }
                 try {
-                    setLevel(audio, ++at);
+                    at = Math.min(to, at + stride);
+                    setLevel(audio, at);
                 } catch (SecurityException e) {
                     fading = null;
                     return;
@@ -269,12 +286,17 @@ final class StartupVolume {
         main.postDelayed(fading, step);
     }
 
+    /** Levels per fade step, so a fade from `from` to `to` takes at most FADE_STEPS steps. */
+    static int fadeStride(int from, int to) {
+        return Math.max(1, (to - from + FADE_STEPS - 1) / FADE_STEPS);
+    }
+
     static void stopFade(Handler main) {
         if (fading != null) main.removeCallbacks(fading);
         fading = null;
     }
 
     private static void setLevel(AudioManager audio, int level) {
-        audio.setStreamVolume(AudioManager.STREAM_MUSIC, level, 0);
+        audio.setStreamVolume(AudioManager.STREAM_MUSIC, level, CAR_SERVICE_SET);
     }
 }
