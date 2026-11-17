@@ -397,6 +397,8 @@ public class DashApp extends Application implements Feed.Sink, SharedPreferences
                 }
             }
             if (code == 16) onFrontCam(car.frontCamRequest);
+            if (stockFallbackOpen && !lastFrontCam && !demo
+                    && (car.speedKmh() > CAMERA_OFF_KMH || car.gear == CarState.GEAR_P)) closeStockFallback();
             if (!demo) Updater.Status.gear(this, car.gear == CarState.GEAR_P);   // opens a held install screen in Park
             if (code == 9 && !demo) saveLights(data);
             if (staleRecovering) {                 // live data again after a stall
@@ -615,6 +617,9 @@ public class DashApp extends Application implements Feed.Sink, SharedPreferences
         if (want == lastFrontCam) return;
         lastFrontCam = want;
         if (demo) return;
+        // the stock camera this Drive opened after the in-dash camera failed: the flag's drop closes it,
+        // as on the stock-camera path (Codex)
+        if (!want && stockFallbackOpen) { closeStockFallback(); return; }
         // another Home (the stock dash) opens the stock camera itself: it only has to be switched on
         if (!Launch.isDefaultHome(this)) { stockCameraFallback(); return; }
         // the in-dash camera (DashActivity) owns the flag when it is on. With another screen in front
@@ -651,10 +656,31 @@ public class DashApp extends Application implements Feed.Sink, SharedPreferences
      * so the next Drive has a camera even if the dash's fails again; the in-dash camera is still
      * tried first then.
      */
-    void dashCameraProblem(boolean otherApp) {
-        if (otherApp || demo || !lastFrontCam) return;
+    void dashCameraProblem(boolean otherApp, boolean auto) {
+        // [auto]: the camera the Drive flag opened, which stays up after the flag drops until
+        // CAMERA_OFF_KMH or Park (DashActivity.followFrontCam), so a failure then still needs one (Codex)
+        if (otherApp || demo || !(lastFrontCam || auto)) return;
+        stockFallbackOpen = true;
         if (UnitSetup.stockCameraOff(this)) restoreStockCamera(true);
         else Launch.camera(this);
+    }
+
+    /** Speed past which, or Park, the automatic camera closes (DashActivity, and the stock fallback). */
+    static final int CAMERA_OFF_KMH = 15;
+
+    /**
+     * The stock camera screen is open in place of the failed in-dash one, so it gets the in-dash
+     * camera's close: the Drive flag dropping, or once the flag is down, CAMERA_OFF_KMH or Park.
+     */
+    private boolean stockFallbackOpen;
+
+    private void closeStockFallback() {
+        stockFallbackOpen = false;
+        long since = SystemClock.elapsedRealtime() - lastCameraActionMs;
+        cameraWanted = false;
+        main.removeCallbacks(cameraAction);
+        main.postDelayed(cameraAction, since >= CAMERA_DEBOUNCE_MS ? 0 : CAMERA_DEBOUNCE_MS - since);
+        cameraPending = true;
     }
 
     /** Android lets Binnacle use the camera (the in-dash camera needs it). */
@@ -692,7 +718,8 @@ public class DashApp extends Application implements Feed.Sink, SharedPreferences
                             android.util.Log.w("binnacle", "the dash can't show the camera and the stock camera is still off");
                             return;
                         }
-                        if (lastFrontCam && !demo && (anyway || !UnitSetup.dashTakesOverCamera(DashApp.this))) Launch.camera(DashApp.this);
+                        if (demo) return;
+                        if (anyway ? stockFallbackOpen : lastFrontCam && !UnitSetup.dashTakesOverCamera(DashApp.this)) Launch.camera(DashApp.this);
                     }
                 });
             }

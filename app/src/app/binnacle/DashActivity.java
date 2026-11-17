@@ -89,7 +89,7 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
         camera = new CameraPane(this, new CameraPane.Listener() {
             @Override public void onCameraProblem(String problem, boolean otherApp) {
                 Toast.makeText(DashActivity.this, problem, Toast.LENGTH_LONG).show();
-                DashApp.get(DashActivity.this).dashCameraProblem(otherApp);
+                DashApp.get(DashActivity.this).dashCameraProblem(otherApp, cameraAuto);
             }
             @Override public void onCameraState(boolean on) {
                 if (right != null) right.setCameraOn(on);
@@ -497,7 +497,7 @@ public class DashActivity extends Activity implements DashApp.Listener, RightPan
     }
 
     /** The in-dash camera closes itself above this speed (the owner, 29 Oct), or with the Camera button. */
-    private static final int CAMERA_OFF_KMH = 15;
+    private static final int CAMERA_OFF_KMH = DashApp.CAMERA_OFF_KMH;
     /** Opened by the car's flag (closes itself); false when opened from the dock (stays until closed). */
     private boolean cameraAuto;
     private int lastGear = CarState.GEAR_UNKNOWN;
