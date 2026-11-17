@@ -49,9 +49,10 @@ object CarPlayBonjourProtocol {
     const val MAX_STATUS_LINE_BYTES = 512
 
     /**
-     * Reads one status line from a probed service: at most [maxBytes] bytes, ASCII, without its
-     * line ending; null when the stream ends first. [beforeRead] runs before each read (the caller
-     * sets the socket's time left there, so the whole line has one deadline, not one per read).
+     * Reads one status line from a probed service: at most [maxBytes] bytes before the line feed
+     * (a carriage return counts), ASCII, returned without its line ending; null when the stream ends
+     * first. [beforeRead] runs before each byte (the caller sets the socket's time left there when it
+     * would have to wait, so the whole line has one deadline, not one per read).
      */
     fun readStatusLine(
         input: InputStream,
@@ -471,6 +472,7 @@ class CarPlayBonjour(
             val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(READ_TIMEOUT_MILLIS.toLong())
             val input = BufferedInputStream(socket.getInputStream(), CarPlayBonjourProtocol.MAX_STATUS_LINE_BYTES)
             return CarPlayBonjourProtocol.readStatusLine(input) {
+                if (input.available() > 0) return@readStatusLine   // already here: no wait, no syscall
                 val left = TimeUnit.NANOSECONDS.toMillis(deadline - System.nanoTime())
                 if (left <= 0) throw SocketTimeoutException("AirPlay control probe timed out")
                 socket.soTimeout = left.toInt()

@@ -50,6 +50,7 @@ internal class AirPlayIapTunnelStream(
             }
         },
         accepts = { session.acceptsPeer(it) },
+        onRefused = { session.refusedPeer(it) },
     )
 
     override fun send(data: ByteArray) {

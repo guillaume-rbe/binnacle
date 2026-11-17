@@ -124,6 +124,7 @@ class CarPlayMediaEngine(
                 }
             },
             accepts = { session.acceptsPeer(it) },
+            onRefused = { session.refusedPeer(it) },
         )
         streams.put(streamKey, screen)?.close()
         sink.onScreenStreamActive(type, true)
@@ -248,6 +249,7 @@ class CarPlayMediaEngine(
                         }
                     },
                     accepts = { session.acceptsPeer(it) },
+                    onRefused = { session.refusedPeer(it) },
                 )
             }
         } catch (error: Throwable) {

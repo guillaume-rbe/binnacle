@@ -3,6 +3,7 @@ package com.shilapi.xcertplay.airplay
 import android.util.Log
 import com.shilapi.xcertplay.mfi.MfiAuthenticator
 import com.shilapi.xcertplay.network.PeerAddress
+import com.shilapi.xcertplay.network.acceptMatching
 import com.shilapi.xcertplay.transport.BlockingDuplexByteStream
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
@@ -82,7 +83,7 @@ class AirPlaySession(
     private var pendingNightMode: Boolean? = null
     private val firstTouchSendLogged = AtomicBoolean(false)
     private val touchSendFailureLogged = AtomicBoolean(false)
-    private val ntp = NtpClock()
+    private val ntp = NtpClock { PeerAddress.onInterface(it, allowedInterface) }
     private var keepAliveSocket: DatagramSocket? = null
     private var keepAliveThread: Thread? = null
     private val eventWriteLock = Any()
@@ -651,20 +652,17 @@ class AirPlaySession(
         eventThreads.clear()
     }
 
-    /** A side connection's peer is on the CarPlay hotspot (always true when wired). */
-    internal fun acceptsPeer(socket: Socket): Boolean {
-        if (PeerAddress.onInterface(socket.inetAddress, allowedInterface)) return true
+    /** A side connection came from a device on the CarPlay hotspot (always true when wired). */
+    internal fun acceptsPeer(socket: Socket): Boolean = PeerAddress.accepts(socket, allowedInterface)
+
+    /** Logs the first side connection a listener refused. */
+    internal fun refusedPeer(socket: Socket) {
         Log.w(TAG, "airplay side connection from ${socket.remoteSocketAddress} refused: not on the CarPlay hotspot")
-        return false
     }
 
     private fun acceptEvent(server: ServerSocket) {
         try {
-            var socket = server.accept()
-            while (!acceptsPeer(socket)) {
-                safeClose(socket)
-                socket = server.accept()
-            }
+            val socket = server.acceptMatching({ acceptsPeer(it) }, { refusedPeer(it) })
             socket.setSoLinger(true, 0)
             debugLog("airplay event connection accepted from ${socket.remoteSocketAddress}")
             eventSocket = socket

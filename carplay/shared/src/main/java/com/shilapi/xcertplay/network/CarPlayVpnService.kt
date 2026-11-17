@@ -225,9 +225,7 @@ class CarPlayVpnService : VpnService() {
                         socket.close()
                         return
                     }
-                    if (!arrivedOnAllowedInterface(socket, current.allowedInterface) ||
-                        !PeerAddress.onInterface(socket.inetAddress, current.allowedInterface)
-                    ) {
+                    if (!PeerAddress.accepts(socket, current.allowedInterface)) {
                         Log.w(
                             TAG,
                             "airplay connection from ${socket.remoteSocketAddress} refused: " +
@@ -260,18 +258,6 @@ class CarPlayVpnService : VpnService() {
                 attachment?.listener?.let { onTransportError(generation, it, error) }
             }
         }
-    }
-
-    /**
-     * The peer connected to one of [allowed]'s own addresses (no limit when null). Not enough on its
-     * own: Linux takes a connection to any of the unit's addresses on any interface, so the peer's
-     * own address is checked too ([PeerAddress.onInterface]).
-     */
-    private fun arrivedOnAllowedInterface(socket: Socket, allowed: String?): Boolean {
-        if (allowed == null) return true
-        val local = socket.localAddress ?: return false
-        val iface = runCatching { java.net.NetworkInterface.getByName(allowed) }.getOrNull() ?: return false
-        return iface.inetAddresses.toList().any { it.address.contentEquals(local.address) }
     }
 
     private fun addSession(session: AirPlaySession) {

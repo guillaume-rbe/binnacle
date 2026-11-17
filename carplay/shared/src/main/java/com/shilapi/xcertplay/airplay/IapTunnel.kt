@@ -1,5 +1,6 @@
 package com.shilapi.xcertplay.airplay
 
+import com.shilapi.xcertplay.network.acceptMatching
 import java.io.Closeable
 import java.io.InputStream
 import java.net.Inet4Address
@@ -39,11 +40,17 @@ class IapTunnel(
     private val peerConnected = CountDownLatch(1)
     @Volatile private var listener: Listener = object : Listener {}
     @Volatile private var accepts: (Socket) -> Boolean = { true }
+    @Volatile private var onRefused: (Socket) -> Unit = {}
 
     /** [accepts] picks the peer: any other connection is closed and the next one awaited. */
-    fun listen(listener: Listener, accepts: (Socket) -> Boolean = { true }): Int {
+    fun listen(
+        listener: Listener,
+        accepts: (Socket) -> Boolean = { true },
+        onRefused: (Socket) -> Unit = {},
+    ): Int {
         this.listener = listener
         this.accepts = accepts
+        this.onRefused = onRefused
         val bound = bindAny()
         servers += bound
         listener.onDebug("AirPlay iAP tunnel listener bound=${bound.localSocketAddress}")
@@ -115,7 +122,7 @@ class IapTunnel(
         )
         while (!closed.get()) {
             val accepted = try {
-                bound.accept()
+                bound.acceptMatching(accepts, onRefused)
             } catch (error: Exception) {
                 if (!closed.get()) listener.onClosed(error)
                 return
@@ -123,10 +130,6 @@ class IapTunnel(
             if (closed.get()) {
                 safeClose(accepted)
                 return
-            }
-            if (!accepts(accepted)) {
-                safeClose(accepted)
-                continue
             }
             accepted.setSoLinger(true, 0)
             socket = accepted
