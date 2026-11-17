@@ -131,6 +131,10 @@ public class DashApp extends Application implements Feed.Sink, SharedPreferences
         AdbFirewall.apply(prefs);   // the unit's ADB off the Wi-Fi unless Network ADB is on
         AdbFirewall.watchScreen(this, prefs);
         stockCameraFallback();      // revoking the camera permission restarts the app, so this catches it
+        registerReceiver(new android.content.BroadcastReceiver() {
+            // the car waking: catch a Home or permission change before the first Drive
+            @Override public void onReceive(android.content.Context c, android.content.Intent i) { stockCameraFallback(); }
+        }, new android.content.IntentFilter(android.content.Intent.ACTION_SCREEN_ON));
         watchLogger();
         new Thread(new Runnable() {
             @Override public void run() { CarPacks.removeLegacy(DashApp.this); }
@@ -393,6 +397,8 @@ public class DashApp extends Application implements Feed.Sink, SharedPreferences
                 }
             }
             if (code == 16) onFrontCam(car.frontCamRequest);
+            if (stockFallbackOpen && !lastFrontCam && !demo
+                    && (car.speedKmh() > CAMERA_OFF_KMH || car.gear == CarState.GEAR_P)) closeStockFallback();
             if (!demo) Updater.Status.gear(this, car.gear == CarState.GEAR_P);   // opens a held install screen in Park
             if (code == 9 && !demo) saveLights(data);
             if (staleRecovering) {                 // live data again after a stall
@@ -610,22 +616,72 @@ public class DashApp extends Application implements Feed.Sink, SharedPreferences
     private void onFrontCam(boolean want) {
         if (want == lastFrontCam) return;
         lastFrontCam = want;
-        if (demo || !Launch.isDefaultHome(this)) return;
+        if (demo) return;
+        // the stock camera this Drive opened after the in-dash camera failed: the flag's drop closes it,
+        // as on the stock-camera path (Codex)
+        if (!want && stockFallbackOpen) { closeStockFallback(); return; }
+        // another Home (the stock dash) opens the stock camera itself: it only has to be switched on
+        if (!Launch.isDefaultHome(this)) { stockCameraFallback(); return; }
         // the in-dash camera (DashActivity) owns the flag when it is on. With another screen in front
         // (Settings, setup, CarPlay's or Android Auto's own screen) the dash can't see the flag, and
         // it drops again after a few seconds: bring the dash forward to open its camera (audit D1).
         if (prefs.getBoolean("dash_camera", false)) {
-            if (cameraAllowed()) {
+            if (dashCanShowCamera()) {
                 if (want && !dashResumed) Launch.dashCamera(this);
                 return;
             }
-            // camera permission refused: the dash can't show it, so the stock camera screen opens (audit #2b)
+            // the dash can't show it (no camera permission, or can't come forward): the stock camera
+            // screen opens instead, switched back on first if unit setup turned it off
+            if (UnitSetup.stockCameraOff(this)) { stockCameraFallback(); return; }
         } else if (!prefs.getBoolean("auto_camera", false)) return;
         long since = SystemClock.elapsedRealtime() - lastCameraActionMs;
         long delay = since >= CAMERA_DEBOUNCE_MS ? 0 : CAMERA_DEBOUNCE_MS - since;
         cameraWanted = want;
         main.removeCallbacks(cameraAction);     // only the pending camera action, nothing else on main
         main.postDelayed(cameraAction, delay);
+        cameraPending = true;
+    }
+
+    /**
+     * The dash can show the camera itself on this Drive: it has the camera permission and is in
+     * front, or may bring itself forward over another app.
+     */
+    private boolean dashCanShowCamera() {
+        return cameraAllowed() && (dashResumed || Launch.canOpenOverApps(this));
+    }
+
+    /**
+     * The in-dash camera failed (anything but another app taking the camera): in Drive, the stock
+     * camera screen opens instead, switched back on first if unit setup turned it off. It stays on,
+     * so the next Drive has a camera even if the dash's fails again; the in-dash camera is still
+     * tried first then.
+     */
+    void dashCameraProblem(boolean otherApp, boolean auto) {
+        // [auto]: the camera the Drive flag opened, which stays up after the flag drops until
+        // CAMERA_OFF_KMH or Park (DashActivity.followFrontCam), so a failure then still needs one (Codex)
+        if (otherApp || demo || !(lastFrontCam || auto)) return;
+        stockFallbackOpen = true;
+        // a close still waiting out the debounce (an earlier fallback's) must not close this one (Codex)
+        if (cameraPending && !cameraWanted) { main.removeCallbacks(cameraAction); cameraPending = false; }
+        if (UnitSetup.stockCameraOff(this)) restoreStockCamera(true);
+        else Launch.camera(this);
+    }
+
+    /** Speed past which, or Park, the automatic camera closes (DashActivity, and the stock fallback). */
+    static final int CAMERA_OFF_KMH = 15;
+
+    /**
+     * The stock camera screen is open in place of the failed in-dash one, so it gets the in-dash
+     * camera's close: the Drive flag dropping, or once the flag is down, CAMERA_OFF_KMH or Park.
+     */
+    private boolean stockFallbackOpen;
+
+    private void closeStockFallback() {
+        stockFallbackOpen = false;
+        long since = SystemClock.elapsedRealtime() - lastCameraActionMs;
+        cameraWanted = false;
+        main.removeCallbacks(cameraAction);
+        main.postDelayed(cameraAction, since >= CAMERA_DEBOUNCE_MS ? 0 : CAMERA_DEBOUNCE_MS - since);
         cameraPending = true;
     }
 
@@ -636,27 +692,44 @@ public class DashApp extends Application implements Feed.Sink, SharedPreferences
     }
 
     /**
-     * The in-dash camera is on but Android refuses Binnacle the camera: if unit setup switched the
-     * stock camera screen off, it comes back, so Drive still shows a camera (audit #2b).
+     * Unit setup may have switched the stock camera screen off, and nothing else opens a camera on
+     * Drive then. It may stay off only while the dash takes over (UnitSetup.dashTakesOverCamera:
+     * camera in the dash on and allowed, Binnacle as Home, Display over other apps), and comes back
+     * otherwise (audit #2b, 17 Nov audit #5). Checked at start, at each screen-on and Drive flag.
      */
     void stockCameraFallback() {
-        if (demo || !prefs.getBoolean("dash_camera", false) || cameraAllowed() || !UnitSetup.stockCameraOff(this)) return;
+        if (demo || UnitSetup.dashTakesOverCamera(this) || !UnitSetup.stockCameraOff(this)) return;
+        restoreStockCamera(false);
+    }
+
+    /**
+     * Switches the stock camera screen back on (root, off the main thread); then opens it if the car
+     * is in Drive, which a Drive flag that came while it was off couldn't (Codex). [anyway]: open it
+     * even though the dash could show the camera (the dash's own camera just failed).
+     */
+    private void restoreStockCamera(final boolean anyway) {
+        if (stockCameraRestoring) return;
+        stockCameraRestoring = true;
         new Thread(new Runnable() {
             @Override public void run() {
-                if (!UnitSetup.restoreStockCamera(DashApp.this)) {
-                    android.util.Log.w("binnacle", "camera permission refused and the stock camera is still off");
-                    return;
-                }
-                // a Drive flag that came while the stock camera was still off opened nothing: open it now (Codex)
+                final boolean ok = UnitSetup.restoreStockCamera(DashApp.this);
                 main.post(new Runnable() {
                     @Override public void run() {
-                        if (lastFrontCam && !demo && Launch.isDefaultHome(DashApp.this)
-                                && prefs.getBoolean("dash_camera", false) && !cameraAllowed()) Launch.camera(DashApp.this);
+                        stockCameraRestoring = false;
+                        if (!ok) {
+                            android.util.Log.w("binnacle", "the dash can't show the camera and the stock camera is still off");
+                            return;
+                        }
+                        if (demo) return;
+                        if (anyway ? stockFallbackOpen : lastFrontCam && !UnitSetup.dashTakesOverCamera(DashApp.this)) Launch.camera(DashApp.this);
                     }
                 });
             }
         }, "stock-camera").start();
     }
+
+    /** Main thread only: a restore is running. */
+    private boolean stockCameraRestoring;
 
     private boolean cameraWanted, cameraPending;
     private final Runnable cameraAction = new Runnable() {

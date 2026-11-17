@@ -238,6 +238,7 @@ public class HubActivity extends Activity {
 
     @Override protected void onResume() {
         super.onResume();
+        DashApp.get(this).stockCameraFallback();   // back from Android's Home or overlay screens
         if (textScaleBuilt != Style.textScale) { recreate(); return; }   // text size changed: rebuild at the new size
         if (lightBuilt != Style.light) { recreate(); return; }           // theme changed meanwhile (Auto)
         if (tab == 1 || tab == 2 || tab == CAR_TAB) showTab(tab);   // 2: back from the over-apps switch                      // CarPlay layout / Home app may have changed meanwhile
@@ -1189,6 +1190,11 @@ public class HubActivity extends Activity {
             b.setOnClickListener(new View.OnClickListener() {
                 @Override public void onClick(View v) {
                     final boolean want = !b.isSelected();
+                    if (want && ch == UnitSetup.Change.STOCK_CAMERA && !UnitSetup.dashTakesOverCamera(HubActivity.this)) {
+                        // nothing would open a camera on Drive
+                        Toast.makeText(HubActivity.this, "Needs the dash camera on, Binnacle as Home and Display over other apps", Toast.LENGTH_LONG).show();
+                        return;
+                    }
                     b.setEnabled(false);
                     b.setText("Working…");
                     new Thread(new Runnable() {
