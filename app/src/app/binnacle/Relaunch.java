@@ -16,5 +16,9 @@ public final class Relaunch extends BroadcastReceiver {
     @Override public void onReceive(Context c, Intent intent) {
         if (!Intent.ACTION_MY_PACKAGE_REPLACED.equals(intent.getAction())) return;
         Launch.dash(c);
+        // the last step of an in-app update: say it finished (owner, 17 Nov: no feedback before)
+        if (Updater.takeDashUpdated(c)) {
+            android.widget.Toast.makeText(c, "Binnacle updated", android.widget.Toast.LENGTH_LONG).show();
+        }
     }
 }

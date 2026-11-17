@@ -114,6 +114,8 @@
 >   matrix the phone's stream declares, for GPUs that treat every decoded picture as BT.601 TV
 >   range (light-mode whites and pastels clipped); falls back to direct rendering without the
 >   extension, or with the `video_colour_conversion` preference set to false
+> - Labelled "CarPlay" (was "xcertplay"), so Android's update screen and the app list name it
+>   the way the dash does
 
 ## Features
 

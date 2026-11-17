@@ -126,7 +126,6 @@ public class HubActivity extends Activity {
         setContentView(root);
 
         showTab(state != null ? state.getInt("tab", 0) : 0);
-        hubShown = this;
         tabViews.get(tab).requestFocus();
     }
 
@@ -232,15 +231,19 @@ public class HubActivity extends Activity {
         super.onStop();
     }
 
+    @Override protected void onDestroy() {
+        if (stageRedraw != null && Updater.onStage == stageRedraw) Updater.onStage = null;
+        super.onDestroy();
+    }
+
     @Override protected void onResume() {
         super.onResume();
         if (textScaleBuilt != Style.textScale) { recreate(); return; }   // text size changed: rebuild at the new size
         if (lightBuilt != Style.light) { recreate(); return; }           // theme changed meanwhile (Auto)
         if (tab == 1 || tab == 2 || tab == CAR_TAB) showTab(tab);   // 2: back from the over-apps switch                      // CarPlay layout / Home app may have changed meanwhile
         else if (resumePendingUpdate()) { /* back from the install switch: keep the page, the download shows on its button */ }
-        // back from the uninstaller: logger state. Not while an update downloads (e.g. the dash's
-        // part, started as Android's installer closed): that would swap out its button and bar
-        else if (tab >= 4 && !Updater.installing()) showTab(tab);
+        // back from the uninstaller: logger state (a rebuilt Updates card redraws from Updater.stage)
+        else if (tab >= 4) showTab(tab);
     }
 
     /** The Car tab: car model, driving side, car images, tyres, range. */
@@ -1346,156 +1349,168 @@ public class HubActivity extends Activity {
     /**
      * Updates: checks this project's latest GitHub release on a tap (never by itself) and, if it is
      * newer, downloads it into Android's installer, which asks before it installs (Updater). One
-     * button and one question for the whole release (owner, 8 Nov): Binnacle's CarPlay support
-     * (the xcertplay package, part of Binnacle) goes first when it is installed and older, then
-     * the dash, which restarts. Only in Park.
+     * button and one question for the whole release (owner, 8 Nov): Binnacle's CarPlay app goes
+     * first when it is installed and older, then the dash, which restarts. The button shows each
+     * step, including while Android's own screens are up (owner, 17 Nov). Only in Park.
      */
     private View updateCard() {
         // Play Protect: Google's scan prompt on apps from outside the Play Store (owner, 8 Nov)
         LinearLayout card = card("Updates", "Binnacle " + versionName() + " · checks GitHub over Wi-Fi when you tap. "
                 + "If Google Play Protect asks, tap Install anyway.");
-        final TextView b = chip(Updater.installing() ? "Downloading…" : "Check for updates");
-        b.setEnabled(!Updater.installing());
-        updateButton = b;
+        final TextView b = chip("Check for updates");
         b.setOnClickListener(new View.OnClickListener() {
-            @Override public void onClick(View v) {
-                b.setEnabled(false);
-                b.setText("Checking…");
-                new Thread(new Runnable() {
-                    @Override public void run() {
-                        Updater.Release found = null;
-                        String err = null;
-                        try {
-                            found = Updater.check();
-                        } catch (Exception e) {
-                            err = e.getMessage();
-                        }
-                        final Updater.Release r = found;
-                        final String problem = err;
-                        main.post(new Runnable() {
-                            @Override public void run() {
-                                b.setEnabled(true);
-                                if (r == null) {
-                                    b.setText("Check for updates");
-                                    Toast.makeText(HubActivity.this, "Couldn't check for updates: " + problem
-                                            + "\nIs the dash on Wi-Fi?", Toast.LENGTH_LONG).show();
-                                    return;
-                                }
-                                boolean dash = r.versionCode > Updater.installedCode(HubActivity.this);
-                                int cpHave = Updater.installedCode(HubActivity.this, true);
-                                boolean carplay = r.carplay != null && cpHave > 0 && r.carplay.versionCode > cpHave;
-                                if (!dash && !carplay) { b.setText("Up to date"); return; }
-                                b.setText("Update to " + r.versionName);
-                                b.setOnClickListener(new View.OnClickListener() {
-                                    @Override public void onClick(View v) { offerUpdate(r, b); }
-                                });
-                                offerUpdate(r, b);
-                            }
-                        });
-                    }
-                }, "update-check").start();
-            }
+            // every tap reads the release info again: a release published since the last check
+            // would otherwise fail its checksum on every retry
+            @Override public void onClick(View v) { check(b); }
         });
-        card.addView(b, new LinearLayout.LayoutParams(dp(260), dp(BUTTON_DP)));
+        card.addView(b, new LinearLayout.LayoutParams(dp(340), dp(BUTTON_DP)));
         // download progress (owner, 8 Nov: a counting number alone was hard to read)
-        ProgressBar bar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+        final ProgressBar bar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
         bar.setMax(1000);
         bar.setProgressTintList(android.content.res.ColorStateList.valueOf(Style.ACCENT));
         bar.setProgressBackgroundTintList(android.content.res.ColorStateList.valueOf(Style.LINE));
-        bar.setVisibility(View.GONE);
-        LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(dp(260), dp(10));
+        bar.setIndeterminateTintList(android.content.res.ColorStateList.valueOf(Style.ACCENT));
+        LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(dp(340), dp(10));
         blp.topMargin = dp(8);
         card.addView(bar, blp);
-        updateBar = bar;
+        updateButton = b;
+        // the card follows Updater's stage, so a rebuilt card (or the dash's part, started by
+        // Updater after CarPlay installed) still shows where the update is
+        Runnable redraw = new Runnable() {
+            @Override public void run() {
+                if (updateButton != b) return;   // an older card
+                String stage = Updater.stage;
+                if (stage == null) {
+                    b.setEnabled(true);
+                    b.setText(offered == null ? "Check for updates"
+                            : needsUpdate(offered) ? "Update to " + offered.versionName : "Up to date");
+                    bar.setVisibility(View.GONE);
+                    return;
+                }
+                b.setText(stage);
+                // while Android's screen is up the button stays live: if it was left without an
+                // answer (Home pressed), a tap offers the update again
+                b.setEnabled(Updater.stageProgress < 0);
+                bar.setIndeterminate(Updater.stageProgress < 0);
+                if (Updater.stageProgress >= 0) bar.setProgress(Updater.stageProgress);
+                bar.setVisibility(View.VISIBLE);
+            }
+        };
+        stageRedraw = redraw;
+        Updater.onStage = redraw;
+        redraw.run();
         return card;
     }
 
+    /** This screen's Updates card redraw, cleared from Updater when the screen goes. */
+    private Runnable stageRedraw;
+
+    /** The release found by the last check (kept while the screen is rebuilt). */
+    private static Updater.Release offered;
+
+    /** True if the release is newer than the dash or than the installed CarPlay app. */
+    private boolean needsUpdate(Updater.Release r) {
+        return r.versionCode > Updater.installedCode(this) || carplayNeedsUpdate(r);
+    }
+
+    private boolean carplayNeedsUpdate(Updater.Release r) {
+        int cpHave = Updater.installedCode(this, true);
+        return r.carplay != null && cpHave > 0 && r.carplay.versionCode > cpHave;
+    }
+
+    /** Reads the latest release's info, then asks if it is newer. */
+    private void check(final TextView b) {
+        b.setEnabled(false);
+        b.setText("Checking…");
+        new Thread(new Runnable() {
+            @Override public void run() {
+                Updater.Release found = null;
+                String err = null;
+                try {
+                    found = Updater.check();
+                } catch (Exception e) {
+                    err = e.getMessage();
+                }
+                final Updater.Release r = found;
+                final String problem = err;
+                main.post(new Runnable() {
+                    @Override public void run() {
+                        if (isFinishing() || isDestroyed()) {   // left (or rebuilt) meanwhile: keep the result only
+                            if (r != null) offered = r;
+                            return;
+                        }
+                        if (r == null) {
+                            Toast.makeText(HubActivity.this, "Couldn't check for updates: " + problem
+                                    + "\nIs the dash on Wi-Fi?", Toast.LENGTH_LONG).show();
+                        } else {
+                            offered = r;
+                        }
+                        if (Updater.onStage != null) Updater.onStage.run();
+                        if (r != null && needsUpdate(r)) offerUpdate(r);
+                    }
+                });
+            }
+        }, "update-check").start();
+    }
+
     /**
-     * One question for the whole release (owner, 8 Nov), then CarPlay support first if it is
-     * older (the dash keeps running) and the dash last (it restarts and reopens). Android still
-     * shows its own install screen for each package. b shows progress.
+     * One question for the whole release (owner, 8 Nov), then CarPlay first if it is older (the
+     * dash keeps running) and the dash last (it restarts and reopens). Android still shows its own
+     * install screen for each package, so the question says so (owner, 17 Nov).
      */
-    private void offerUpdate(final Updater.Release r, final TextView b) {
-        // just the question: what changed is on the GitHub release page
-        BinnacleDialog.show(this, "Update Binnacle to " + r.versionName + "?",
-                "See the release page for update details.",
+    private void offerUpdate(final Updater.Release r) {
+        boolean dash = r.versionCode > Updater.installedCode(this);
+        boolean carplay = carplayNeedsUpdate(r);
+        String body = dash && carplay ? "Android asks twice: CarPlay first, then Binnacle."
+                : carplay ? "This updates CarPlay." : "See the release page for details.";
+        BinnacleDialog.show(this, "Update Binnacle to " + r.versionName + "?", body,
                 new String[]{"Not now", "Update"}, true, new BinnacleDialog.Choice() {
                     @Override public void chosen(int index) {
-                        if (index == 1) beginUpdate(r, b);
+                        if (index == 1) beginUpdate(r);
                     }
                 });
     }
 
-    /** The release's parts in order: CarPlay support (if installed and older), then the dash (if newer). */
-    private void beginUpdate(Updater.Release r, TextView b) {
+    /** The release's parts in order: CarPlay (if installed and older), then the dash (if newer). */
+    private void beginUpdate(Updater.Release r) {
         boolean dash = r.versionCode > Updater.installedCode(this);
-        int cpHave = Updater.installedCode(this, true);
-        boolean carplay = r.carplay != null && cpHave > 0 && r.carplay.versionCode > cpHave;
-        dashAfterCarPlay = carplay && dash ? r : null;
-        Updater.afterCarPlay = carplay && dash ? new Runnable() {
-            @Override public void run() { carplayInstalled(); }
-        } : null;
-        updateSteps = carplay && dash ? 2 : 1;
-        if (carplay) startUpdate(r, b, true);
-        else if (dash) startUpdate(r, b, false);
+        boolean carplay = carplayNeedsUpdate(r);
+        if (carplay) startUpdate(r, true, dash);
+        else if (dash) startUpdate(r, false, false);
     }
-
-    /** The dash's part, waiting for CarPlay support to finish installing (Updater.Status reports it). */
-    private static Updater.Release dashAfterCarPlay;
-
-    /** CarPlay support installed: carry on with the dash if it is next (main thread, from Updater.Status). */
-    private static void carplayInstalled() {
-        Updater.Release r = dashAfterCarPlay;
-        dashAfterCarPlay = null;
-        HubActivity hub = hubShown;
-        if (r != null && hub != null && hub.updateButton != null) hub.startUpdate(r, hub.updateButton, false);
-    }
-
-    /** The settings screen in front now, if any (for carplayInstalled). */
-    private static HubActivity hubShown;
 
     /**
      * An update waiting on Android's "Install unknown apps" switch; it resumes on return (onResume).
-     * Static so it outlives this screen being rebuilt meanwhile (theme or text size changed); the
-     * rebuilt Updates card's buttons show the download.
+     * Static so it outlives this screen being rebuilt meanwhile (theme or text size changed).
      */
     private static Updater.Release pendingUpdate;
-    private static boolean pendingCarplay;
-    /** The Updates card's button and download bar on screen now; set by updateCard(). */
+    private static boolean pendingCarplay, pendingDashNext;
+    /** The Updates card's button on screen now; set by updateCard(). */
     private TextView updateButton;
-    private ProgressBar updateBar;
-    /** Parts in this update (CarPlay support and the dash: 2), for "1 of 2" on the button. */
-    private static int updateSteps = 1;
 
     /** Back from Android's install switch: carry on with the update if it is now on. True if one was waiting. */
     private boolean resumePendingUpdate() {
         final Updater.Release r = pendingUpdate;
-        final TextView b = updateButton;
-        final boolean carplay = pendingCarplay;
-        if (r == null || b == null) return false;
+        if (r == null || updateButton == null) return false;
         pendingUpdate = null;
         if (!Updater.allowedToInstall(this)) return true;
-        // a rebuilt card's button has no update listener yet: the retry after a failed download needs one
-        b.setText("Update to " + r.versionName);
-        b.setOnClickListener(new View.OnClickListener() {
-            @Override public void onClick(View v) { offerUpdate(r, b); }
-        });
-        startUpdate(r, b, carplay);
+        startUpdate(r, pendingCarplay, pendingDashNext);
         return true;
     }
 
-    private void startUpdate(final Updater.Release r, final TextView b, final boolean carplay) {
-        final String again = "Update to " + r.versionName;
-        final DashApp app = DashApp.get(this);
+    private void startUpdate(Updater.Release r, boolean carplay, boolean dashNext) {
+        DashApp app = DashApp.get(this);
         if (app.car.gear != CarState.GEAR_P) {   // Park only, not just "not D or R": Neutral or no car data aren't safe
             Toast.makeText(this, "Update in Park: installing restarts the dash", Toast.LENGTH_LONG).show();
             return;
         }
+        if (Updater.installing()) return;   // a download is already running
         if (!Updater.allowedToInstall(this)) {
             // straight to Android's switch (owner, 8 Nov: fewer stops); the update carries on by
             // itself on return (onResume), so no second tap and the page keeps its place
             pendingUpdate = r;
             pendingCarplay = carplay;
+            pendingDashNext = dashNext;
             Toast.makeText(this, "Turn on \"Allow from this source\", then go back", Toast.LENGTH_LONG).show();
             try {
                 startActivity(new Intent("android.settings.MANAGE_UNKNOWN_APP_SOURCES",
@@ -1507,41 +1522,7 @@ public class HubActivity extends Activity {
             }
             return;
         }
-        final String step = updateSteps > 1 ? (carplay ? " 1 of 2" : " 2 of 2") : "";
-        final long total = Math.max(1, (carplay ? r.carplay : r).size);
-        final ProgressBar bar = updateBar;
-        b.setEnabled(false);
-        b.setText("Downloading" + step + "…");
-        if (bar != null) { bar.setProgress(0); bar.setVisibility(View.VISIBLE); }
-        new Thread(new Runnable() {
-            @Override public void run() {
-                String err = null;
-                try {
-                    Updater.install(app, r, carplay, new Updater.Progress() {
-                        int shown = -1;
-                        @Override public void onProgress(final long bytes) {
-                            final int now = (int) Math.min(1000, bytes * 1000 / total);
-                            if (now / 5 == shown / 5) return;   // every half percent is plenty
-                            shown = now;
-                            main.post(new Runnable() {
-                                @Override public void run() { if (bar != null) bar.setProgress(now); }
-                            });
-                        }
-                    });
-                } catch (Exception e) {
-                    err = e.getMessage();
-                }
-                final String problem = err;
-                main.post(new Runnable() {
-                    @Override public void run() {
-                        b.setEnabled(true);
-                        b.setText(problem == null ? "Installing" + step + "…" : again);
-                        if (bar != null) bar.setVisibility(View.GONE);
-                        if (problem != null) Toast.makeText(app, "Couldn't update: " + problem, Toast.LENGTH_LONG).show();
-                    }
-                });
-            }
-        }, "update").start();
+        Updater.start(this, r, carplay, dashNext, false);
     }
 
     /** About: who made it and where it lives; the button opens the full About pop-up. */
