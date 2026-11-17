@@ -233,7 +233,9 @@ public class DashApp extends Application implements Feed.Sink, SharedPreferences
         // No stock CAN app (emulator / other device) -> demo, so the UI is never just blank. With the
         // app installed it is always the live feed, which retries until the service answers.
         demo = prefs.getBoolean("demo", false) || !CanFeed.installed(this);
-        feed = demo ? new DemoFeed(this) : new CanFeed(this, this);
+        if (demo) feed = new DemoFeed(this);
+        else if (CanAppCheck.allowed(this, prefs)) feed = new CanFeed(this, this);
+        else feed = untestedCanApp;   // a CAN app build not known to number its methods as expected
         // Never let values from the previous feed (e.g. simulated ones) pass as live readings.
         car.reset();
         efficiency.reset();                    // demo kilometres never count towards the real drive
@@ -252,6 +254,12 @@ public class DashApp extends Application implements Feed.Sink, SharedPreferences
         for (Listener l : listeners) l.onCarChanged(-1);
         feed.start();
     }
+
+    /** Stands in for the CAN feed on an untested CAN app build: never binds, only says why. */
+    private final Feed untestedCanApp = new Feed() {
+        @Override public void start() { onStatus(CanAppCheck.PROBLEM); }
+        @Override public void stop() {}
+    };
 
     /**
      * Fires STALE_MS after the last live message while the car was moving (re-armed by every
@@ -594,7 +602,7 @@ public class DashApp extends Application implements Feed.Sink, SharedPreferences
     @Override public void onSharedPreferenceChanged(SharedPreferences sp, String key) {
         if (RUNTIME_KEYS.contains(key)) return;
         readDrawPrefs();
-        if ("demo".equals(key)) startFeed();
+        if ("demo".equals(key) || CanAppCheck.ALLOWED_KEY.equals(key)) startFeed();
         if ("text_size".equals(key)) applyTextSize();
         if ("autopilot_rainbow".equals(key)) rainbowRoad = prefs.getBoolean(key, false);
         if ("theme".equals(key)) updateTheme(true);

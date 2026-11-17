@@ -311,7 +311,7 @@ public class HubActivity extends Activity {
             // this one tab shows everything setup changed and which unit and software it is
             case UNIT_TAB: content.addView(cards(
                     stack(unitSetupCard()),
-                    stack(thisUnitCard(), networkAdbCard()))); break;
+                    stack(thisUnitCard(), canAppCard(), networkAdbCard()))); break;
             // two independent columns: in a two-column grid each row is as tall as its taller cell,
             // which left a gap under the short cards (owner, 8 Nov); developer switches at the bottom
             default: content.addView(cards(
@@ -1214,6 +1214,29 @@ public class HubActivity extends Activity {
             row.addView(b, new LinearLayout.LayoutParams(dp(110), dp(40)));
             rows.addView(row);
         }
+    }
+
+    /**
+     * The stock CAN app build (17 Nov audit #8): a build Binnacle wasn't tested with gets car data
+     * only after Allow, remembered for that version (CanAppCheck).
+     */
+    private View canAppCard() {
+        final String version = CanAppCheck.version(this);
+        if (version == null) return null;
+        if (CanAppCheck.allowed(this, prefs)) {
+            return infoCard("CAN app", version + (CanAppCheck.known(version) ? " · tested" : " · allowed by you"));
+        }
+        LinearLayout card = card("CAN app", version + " · not tested yet. Car data starts once allowed.");
+        final TextView b = chip("Allow");
+        b.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                prefs.edit().putString(CanAppCheck.ALLOWED_KEY, version).apply();   // DashApp subscribes
+                b.setEnabled(false);
+                b.setText("Allowed");
+            }
+        });
+        card.addView(b, new LinearLayout.LayoutParams(dp(150), dp(BUTTON_DP)));
+        return card;
     }
 
     /**

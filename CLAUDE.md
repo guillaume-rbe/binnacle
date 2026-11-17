@@ -11,6 +11,7 @@ A read-only replacement instrument cluster / dashboard app (plus tooling) for th
 ## How we read car data — READ ONLY
 - Bind the **exported** service `com.xbs.canapp` (action `com.xbs.canapp.action.mcuservice`). AIDL: `com.mcu.iinterface.aidl.IMcuService` (helper `com.mcu.iinterface.McuManager`). Call `regPropIdList(Messenger, int[] codes)`; data arrives on the Messenger as `Message`s where `msg.what` = code and `msg.getData()` = a `Bundle` of fields. Call `unregPropIdList(Messenger)` to stop.
 - Permission `com.xbs.permission.READ_CAN_DATABASE` is `protectionLevel="normal"`, so **any app** (our own signing key) can receive the data. No platform signature needed.
+- The transactions go by number (1 = `regPropIdList`, 2 = `unregPropIdList`), which only holds for a CAN app build whose `IMcuService` lists its methods in that order. `CanAppCheck` subscribes only on a build in its `KNOWN` list (by version name: every build reports versionCode 1; the owner's is `202211121648v1.0`), or one the user allowed in Apps → Unit → CAN app (owner's choice, 17 Nov). Add a build to `KNOWN` once a user on it confirms car data shows correctly.
 - Field map: **docs/FIELD_MAP.md**.
 
 ## READ-ONLY RULE (hard requirement)
