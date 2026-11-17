@@ -7,15 +7,16 @@ import android.os.Build
 import android.util.Log
 import com.shilapi.xcertplay.airplay.AirPlayConfig
 import com.shilapi.xcertplay.airplay.AirPlayIdentity
-import java.io.BufferedReader
+import java.io.BufferedInputStream
 import java.io.Closeable
 import java.io.IOException
-import java.io.InputStreamReader
+import java.io.InputStream
 import java.net.Inet4Address
 import java.net.Inet6Address
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.Socket
+import java.net.SocketTimeoutException
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
@@ -44,6 +45,34 @@ sealed interface CarPlayBonjourEvent {
 
 /** Pure protocol values shared by the Android runtime and JVM tests. */
 object CarPlayBonjourProtocol {
+    /** The longest status line a probe reads; anything longer is not an AirPlay reply. */
+    const val MAX_STATUS_LINE_BYTES = 512
+
+    /**
+     * Reads one status line from a probed service: at most [maxBytes] bytes before the line feed
+     * (a carriage return counts), ASCII, returned without its line ending; null when the stream ends
+     * first. [beforeRead] runs before each byte (the caller sets the socket's time left there when it
+     * would have to wait, so the whole line has one deadline, not one per read).
+     */
+    fun readStatusLine(
+        input: InputStream,
+        maxBytes: Int = MAX_STATUS_LINE_BYTES,
+        beforeRead: () -> Unit = {},
+    ): String? {
+        val line = ByteArray(maxBytes)
+        var length = 0
+        while (true) {
+            beforeRead()
+            val next = input.read()
+            if (next < 0) return if (length == 0) null else String(line, 0, length, StandardCharsets.US_ASCII)
+            if (next == '\n'.code) break
+            if (length == maxBytes) throw IOException("AirPlay control probe status line too long")
+            line[length++] = next.toByte()
+        }
+        if (length > 0 && line[length - 1] == '\r'.code.toByte()) length--
+        return String(line, 0, length, StandardCharsets.US_ASCII)
+    }
+
     fun airPlayTxtRecords(
         config: AirPlayConfig,
         identity: AirPlayIdentity,
@@ -438,11 +467,16 @@ class CarPlayBonjour(
             val output = socket.getOutputStream()
             output.write(request.toByteArray(StandardCharsets.US_ASCII))
             output.flush()
-            val reader = BufferedReader(
-                InputStreamReader(socket.getInputStream(), StandardCharsets.US_ASCII),
-            )
-            return reader.readLine()
-                ?: throw IOException("AirPlay control probe returned no status line")
+            // one deadline for the whole line and a length cap: a peer that trickles bytes, or never
+            // sends a line ending, can neither hold the probe nor run the app out of memory
+            val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(READ_TIMEOUT_MILLIS.toLong())
+            val input = BufferedInputStream(socket.getInputStream(), CarPlayBonjourProtocol.MAX_STATUS_LINE_BYTES)
+            return CarPlayBonjourProtocol.readStatusLine(input) {
+                if (input.available() > 0) return@readStatusLine   // already here: no wait, no syscall
+                val left = TimeUnit.NANOSECONDS.toMillis(deadline - System.nanoTime())
+                if (left <= 0) throw SocketTimeoutException("AirPlay control probe timed out")
+                socket.soTimeout = left.toInt()
+            } ?: throw IOException("AirPlay control probe returned no status line")
         } finally {
             synchronized(lifecycleLock) {
                 if (activeSocket === socket) activeSocket = null

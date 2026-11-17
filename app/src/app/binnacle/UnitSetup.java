@@ -113,7 +113,7 @@ final class UnitSetup {
             if (!applies(c) || untested() || blocked(st)) return false;
             // only when Binnacle shows the camera instead: dash camera on, Binnacle is Home (Codex),
             // and the dash's camera has shown a picture on this unit at least once
-            if (this == STOCK_CAMERA) return DashApp.get(c).prefs().getBoolean("dash_camera", false) && Launch.isDefaultHome(c)
+            if (this == STOCK_CAMERA) return dashTakesOverCamera(c)
                     && DashApp.get(c).prefs().getBoolean(CameraPane.SEEN_KEY, false);
             return true;
         }
@@ -224,6 +224,17 @@ final class UnitSetup {
         } catch (Exception e) {
             return false;
         }
+    }
+
+    /**
+     * The dash can open the camera on Drive in place of the stock camera screen: its camera is on and
+     * allowed, Binnacle is the Home app, and it may bring itself forward over other apps. The stock
+     * camera screen is only switched off while this holds (17 Nov audit #5).
+     */
+    static boolean dashTakesOverCamera(Context c) {
+        DashApp app = DashApp.get(c);
+        return app.prefs().getBoolean("dash_camera", false) && Launch.isDefaultHome(c)
+                && Launch.canOpenOverApps(c) && app.cameraAllowed();
     }
 
     /** EngineerMode is on this unit (the one way to switch the unit's ADB on the first time). */

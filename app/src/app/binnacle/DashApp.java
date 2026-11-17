@@ -28,8 +28,10 @@ public class DashApp extends Application implements Feed.Sink, SharedPreferences
      * MCU reset), and the last speed and gear must not stay on screen as if live. Logger captures
      * 28-31 Oct (~45,600 speed messages in D/R while moving): gap between any two messages median
      * 0.14 s, p99.9 0.98 s, longest 2.6 s (speed alone pauses up to ~3 s cruising, ~6 s crawling,
-     * so it re-arms on any code), so 8 s is ~3x the worst real gap. Not checked while stopped,
-     * when the car may legitimately have nothing new to say.
+     * so it re-arms on any code), so 8 s is ~3x the worst real gap. Armed whenever the speed is
+     * above 0 outside Park: in D/R as measured, and also while the gear is still unknown after a
+     * reset (until the next code 11). Stopped, the car may legitimately have nothing new to say:
+     * then the GPS tells (gpsMotion).
      */
     static final long STALE_MS = 8000;
     static final String STALE_PROBLEM = "No car data, reconnecting";
@@ -131,6 +133,10 @@ public class DashApp extends Application implements Feed.Sink, SharedPreferences
         AdbFirewall.apply(prefs);   // the unit's ADB off the Wi-Fi unless Network ADB is on
         AdbFirewall.watchScreen(this, prefs);
         stockCameraFallback();      // revoking the camera permission restarts the app, so this catches it
+        registerReceiver(new android.content.BroadcastReceiver() {
+            // the car waking: catch a Home or permission change before the first Drive
+            @Override public void onReceive(android.content.Context c, android.content.Intent i) { stockCameraFallback(); }
+        }, new android.content.IntentFilter(android.content.Intent.ACTION_SCREEN_ON));
         watchLogger();
         new Thread(new Runnable() {
             @Override public void run() { CarPacks.removeLegacy(DashApp.this); }
@@ -227,7 +233,29 @@ public class DashApp extends Application implements Feed.Sink, SharedPreferences
         @Override public void onHeading() {
             for (Listener l : listeners) l.onCarChanged(HEADING_CHANGED);
         }
+        @Override public void onFix(long atMs, float speedMs) {
+            gpsMotion.fix(atMs, speedMs);
+            // the feed went quiet while stopped (red light, Park, a wake) and the car now drives off:
+            // GPS says driving for a few seconds, the screen is on (not a sleeping car on a ferry or a
+            // trailer) and no car message came for STALE_MS (17 Nov audit #7)
+            long now = android.os.SystemClock.elapsedRealtime();
+            if (liveFeed() && !staleRecovering && now - lastMessageMs >= STALE_MS && gpsMotion.moving(now)
+                    && screenOn()) {
+                onStale("with the GPS saying driving");
+            }
+        }
     });
+    private final GpsMotion gpsMotion = new GpsMotion();
+    /** When the CAN feed last sent anything (or was started), elapsed ms. Main thread. */
+    private long lastMessageMs = android.os.SystemClock.elapsedRealtime();
+
+    /** The live CAN feed is in use (not the demo). */
+    private boolean liveFeed() { return !demo && feed instanceof CanFeed; }
+
+    private boolean screenOn() {
+        android.os.PowerManager pm = (android.os.PowerManager) getSystemService(POWER_SERVICE);
+        return pm == null || pm.isInteractive();
+    }
 
     /** GPS heading for the compass; starts once location is granted (also retried from the dash). */
     public Compass compass() { return compass; }
@@ -241,6 +269,7 @@ public class DashApp extends Application implements Feed.Sink, SharedPreferences
         if (demo) feed = new DemoFeed(this);
         else if (CanAppCheck.allowed(this, prefs)) feed = new CanFeed(this, this);
         else feed = untestedCanApp;   // a CAN app build not known to number its methods as expected
+        lastMessageMs = android.os.SystemClock.elapsedRealtime();   // give a new feed STALE_MS to speak
         // Never let values from the previous feed (e.g. simulated ones) pass as live readings.
         car.reset();
         efficiency.reset();                    // demo kilometres never count towards the real drive
@@ -267,8 +296,9 @@ public class DashApp extends Application implements Feed.Sink, SharedPreferences
     };
 
     /**
-     * Fires STALE_MS after the last live message while the car was moving (re-armed by every
-     * message in onData). Clears the screen like a lost feed, then subscribes afresh: the old
+     * Fires STALE_MS after the last live message while the speed was above 0 outside Park (re-armed
+     * by every message in onData); the GPS check (Compass sink) does the same for a feed that went
+     * quiet while stopped. Clears the screen like a lost feed, then subscribes afresh: the old
      * registration is dropped (unregister) and a new one made (register), the same two calls as
      * always. The watchdog itself re-arms only once data with the car moving comes back; until any
      * data comes back, staleRetry subscribes again with a growing pause (audit D5: one retry, then
@@ -276,16 +306,21 @@ public class DashApp extends Application implements Feed.Sink, SharedPreferences
      */
     private final Runnable stalled = new Runnable() {
         @Override public void run() {
-            if (demo || !(feed instanceof CanFeed) || !car.moving() || car.speed <= 0) return;
-            android.util.Log.w("binnacle", "no CAN data for " + STALE_MS + " ms while moving: subscribing again");
-            staleRecovering = true;
-            onStatus(STALE_PROBLEM);
-            resubscribe();
-            staleRetryMs = STALE_MS;
-            main.removeCallbacks(staleRetry);
-            main.postDelayed(staleRetry, staleRetryMs);
+            if (!liveFeed() || car.speed <= 0 || car.gear == CarState.GEAR_P) return;
+            onStale("while moving");
         }
     };
+
+    /** The feed went silent: clear the screen, say so and subscribe again (with growing pauses). */
+    private void onStale(String why) {
+        android.util.Log.w("binnacle", "no CAN data for " + STALE_MS + " ms " + why + ": subscribing again");
+        staleRecovering = true;
+        onStatus(STALE_PROBLEM);
+        resubscribe();
+        staleRetryMs = STALE_MS;
+        main.removeCallbacks(staleRetry);
+        main.postDelayed(staleRetry, staleRetryMs);
+    }
 
     /** Longest pause between new subscriptions while the feed stays silent. */
     static final long STALE_RETRY_MAX_MS = 60_000;
@@ -300,7 +335,7 @@ public class DashApp extends Application implements Feed.Sink, SharedPreferences
     /** Still no data since the watchdog fired: subscribe again, waiting twice as long each time. */
     private final Runnable staleRetry = new Runnable() {
         @Override public void run() {
-            if (demo || !(feed instanceof CanFeed) || !staleRecovering) return;
+            if (!liveFeed() || !staleRecovering) return;
             android.util.Log.w("binnacle", "still no CAN data: subscribing again");
             resubscribe();
             staleRetryMs = Math.min(staleRetryMs * 2, STALE_RETRY_MAX_MS);
@@ -406,6 +441,8 @@ public class DashApp extends Application implements Feed.Sink, SharedPreferences
                 }
             }
             if (code == 16) onFrontCam(car.frontCamRequest);
+            if (stockFallbackOpen && !lastFrontCam && !demo
+                    && (car.speedKmh() > CAMERA_OFF_KMH || car.gear == CarState.GEAR_P)) closeStockFallback();
             if (!demo) Updater.Status.gear(this, car.gear == CarState.GEAR_P);   // opens a held install screen in Park
             if (code == 9 && !demo) saveLights(data);
             if (staleRecovering) {                 // live data again after a stall
@@ -418,10 +455,11 @@ public class DashApp extends Application implements Feed.Sink, SharedPreferences
             return;
         } finally {
             // feed watchdog: any message, even one that fails to decode, shows the feed is alive.
-            // Armed only while the car is moving in D/R (the timer checks again when it fires).
+            // Armed while the speed is above 0 outside Park (the timer checks again when it fires).
             if (!demo) {
+                lastMessageMs = android.os.SystemClock.elapsedRealtime();
                 main.removeCallbacks(stalled);
-                if (car.moving() && car.speed > 0) main.postDelayed(stalled, STALE_MS);
+                if (car.speed > 0 && car.gear != CarState.GEAR_P) main.postDelayed(stalled, STALE_MS);
             }
         }
         if (code == 18) updateTheme(false);        // screen brightness: Auto theme follows the car's display
@@ -623,22 +661,72 @@ public class DashApp extends Application implements Feed.Sink, SharedPreferences
     private void onFrontCam(boolean want) {
         if (want == lastFrontCam) return;
         lastFrontCam = want;
-        if (demo || !Launch.isDefaultHome(this)) return;
+        if (demo) return;
+        // the stock camera this Drive opened after the in-dash camera failed: the flag's drop closes it,
+        // as on the stock-camera path (Codex)
+        if (!want && stockFallbackOpen) { closeStockFallback(); return; }
+        // another Home (the stock dash) opens the stock camera itself: it only has to be switched on
+        if (!Launch.isDefaultHome(this)) { stockCameraFallback(); return; }
         // the in-dash camera (DashActivity) owns the flag when it is on. With another screen in front
         // (Settings, setup, CarPlay's or Android Auto's own screen) the dash can't see the flag, and
         // it drops again after a few seconds: bring the dash forward to open its camera (audit D1).
         if (prefs.getBoolean("dash_camera", false)) {
-            if (cameraAllowed()) {
+            if (dashCanShowCamera()) {
                 if (want && !dashResumed) Launch.dashCamera(this);
                 return;
             }
-            // camera permission refused: the dash can't show it, so the stock camera screen opens (audit #2b)
+            // the dash can't show it (no camera permission, or can't come forward): the stock camera
+            // screen opens instead, switched back on first if unit setup turned it off
+            if (UnitSetup.stockCameraOff(this)) { stockCameraFallback(); return; }
         } else if (!prefs.getBoolean("auto_camera", false)) return;
         long since = SystemClock.elapsedRealtime() - lastCameraActionMs;
         long delay = since >= CAMERA_DEBOUNCE_MS ? 0 : CAMERA_DEBOUNCE_MS - since;
         cameraWanted = want;
         main.removeCallbacks(cameraAction);     // only the pending camera action, nothing else on main
         main.postDelayed(cameraAction, delay);
+        cameraPending = true;
+    }
+
+    /**
+     * The dash can show the camera itself on this Drive: it has the camera permission and is in
+     * front, or may bring itself forward over another app.
+     */
+    private boolean dashCanShowCamera() {
+        return cameraAllowed() && (dashResumed || Launch.canOpenOverApps(this));
+    }
+
+    /**
+     * The in-dash camera failed (anything but another app taking the camera): in Drive, the stock
+     * camera screen opens instead, switched back on first if unit setup turned it off. It stays on,
+     * so the next Drive has a camera even if the dash's fails again; the in-dash camera is still
+     * tried first then.
+     */
+    void dashCameraProblem(boolean otherApp, boolean auto) {
+        // [auto]: the camera the Drive flag opened, which stays up after the flag drops until
+        // CAMERA_OFF_KMH or Park (DashActivity.followFrontCam), so a failure then still needs one (Codex)
+        if (otherApp || demo || !(lastFrontCam || auto)) return;
+        stockFallbackOpen = true;
+        // a close still waiting out the debounce (an earlier fallback's) must not close this one (Codex)
+        if (cameraPending && !cameraWanted) { main.removeCallbacks(cameraAction); cameraPending = false; }
+        if (UnitSetup.stockCameraOff(this)) restoreStockCamera(true);
+        else Launch.camera(this);
+    }
+
+    /** Speed past which, or Park, the automatic camera closes (DashActivity, and the stock fallback). */
+    static final int CAMERA_OFF_KMH = 15;
+
+    /**
+     * The stock camera screen is open in place of the failed in-dash one, so it gets the in-dash
+     * camera's close: the Drive flag dropping, or once the flag is down, CAMERA_OFF_KMH or Park.
+     */
+    private boolean stockFallbackOpen;
+
+    private void closeStockFallback() {
+        stockFallbackOpen = false;
+        long since = SystemClock.elapsedRealtime() - lastCameraActionMs;
+        cameraWanted = false;
+        main.removeCallbacks(cameraAction);
+        main.postDelayed(cameraAction, since >= CAMERA_DEBOUNCE_MS ? 0 : CAMERA_DEBOUNCE_MS - since);
         cameraPending = true;
     }
 
@@ -649,27 +737,44 @@ public class DashApp extends Application implements Feed.Sink, SharedPreferences
     }
 
     /**
-     * The in-dash camera is on but Android refuses Binnacle the camera: if unit setup switched the
-     * stock camera screen off, it comes back, so Drive still shows a camera (audit #2b).
+     * Unit setup may have switched the stock camera screen off, and nothing else opens a camera on
+     * Drive then. It may stay off only while the dash takes over (UnitSetup.dashTakesOverCamera:
+     * camera in the dash on and allowed, Binnacle as Home, Display over other apps), and comes back
+     * otherwise (audit #2b, 17 Nov audit #5). Checked at start, at each screen-on and Drive flag.
      */
     void stockCameraFallback() {
-        if (demo || !prefs.getBoolean("dash_camera", false) || cameraAllowed() || !UnitSetup.stockCameraOff(this)) return;
+        if (demo || UnitSetup.dashTakesOverCamera(this) || !UnitSetup.stockCameraOff(this)) return;
+        restoreStockCamera(false);
+    }
+
+    /**
+     * Switches the stock camera screen back on (root, off the main thread); then opens it if the car
+     * is in Drive, which a Drive flag that came while it was off couldn't (Codex). [anyway]: open it
+     * even though the dash could show the camera (the dash's own camera just failed).
+     */
+    private void restoreStockCamera(final boolean anyway) {
+        if (stockCameraRestoring) return;
+        stockCameraRestoring = true;
         new Thread(new Runnable() {
             @Override public void run() {
-                if (!UnitSetup.restoreStockCamera(DashApp.this)) {
-                    android.util.Log.w("binnacle", "camera permission refused and the stock camera is still off");
-                    return;
-                }
-                // a Drive flag that came while the stock camera was still off opened nothing: open it now (Codex)
+                final boolean ok = UnitSetup.restoreStockCamera(DashApp.this);
                 main.post(new Runnable() {
                     @Override public void run() {
-                        if (lastFrontCam && !demo && Launch.isDefaultHome(DashApp.this)
-                                && prefs.getBoolean("dash_camera", false) && !cameraAllowed()) Launch.camera(DashApp.this);
+                        stockCameraRestoring = false;
+                        if (!ok) {
+                            android.util.Log.w("binnacle", "the dash can't show the camera and the stock camera is still off");
+                            return;
+                        }
+                        if (demo) return;
+                        if (anyway ? stockFallbackOpen : lastFrontCam && !UnitSetup.dashTakesOverCamera(DashApp.this)) Launch.camera(DashApp.this);
                     }
                 });
             }
         }, "stock-camera").start();
     }
+
+    /** Main thread only: a restore is running. */
+    private boolean stockCameraRestoring;
 
     private boolean cameraWanted, cameraPending;
     private final Runnable cameraAction = new Runnable() {

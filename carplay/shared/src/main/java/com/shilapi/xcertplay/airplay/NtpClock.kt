@@ -16,7 +16,10 @@ import java.util.concurrent.atomic.AtomicBoolean
  * transmit stamps. The resulting offset and round-trip time steer a local monotonic clock onto
  * the phone's media-clock domain, which /feedback reports.
  */
-class NtpClock : Closeable {
+class NtpClock(
+    /** Timing packets are answered and used only from sources this takes (the CarPlay hotspot). */
+    private val allowedSource: (InetAddress) -> Boolean = { true },
+) : Closeable {
     private val running = AtomicBoolean(false)
     private val socketLock = Any()
     private val clockLock = Any()
@@ -107,7 +110,7 @@ class NtpClock : Closeable {
             }
             val message = packet.data.copyOf(packet.length)
             val address = packet.address
-            if (message.size >= NTP_PACKET_BYTES && address != null) {
+            if (message.size >= NTP_PACKET_BYTES && address != null && allowedSource(address)) {
                 handleMessage(message, InetSocketAddress(address, packet.port))
             }
         }
