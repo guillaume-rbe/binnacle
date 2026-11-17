@@ -164,7 +164,12 @@ public class DashApp extends Application implements Feed.Sink, SharedPreferences
         pkgs.addAction(android.content.Intent.ACTION_PACKAGE_REPLACED);
         pkgs.addDataScheme("package");
         registerReceiver(new android.content.BroadcastReceiver() {
-            @Override public void onReceive(android.content.Context c, android.content.Intent i) { checkLogger(); }
+            @Override public void onReceive(android.content.Context c, android.content.Intent i) {
+                checkLogger();
+                // the CAN app installed, updated or removed: pick the feed again (CanAppCheck)
+                android.net.Uri u = i.getData();
+                if (u != null && CanFeed.SVC_PKG.equals(u.getSchemeSpecificPart())) startFeed();
+            }
         }, pkgs);
         // only the logger (same signing key) can send its state
         registerReceiver(new android.content.BroadcastReceiver() {
@@ -261,7 +266,9 @@ public class DashApp extends Application implements Feed.Sink, SharedPreferences
         // No stock CAN app (emulator / other device) -> demo, so the UI is never just blank. With the
         // app installed it is always the live feed, which retries until the service answers.
         demo = prefs.getBoolean("demo", false) || !CanFeed.installed(this);
-        feed = demo ? new DemoFeed(this) : new CanFeed(this, this);
+        if (demo) feed = new DemoFeed(this);
+        else if (CanAppCheck.allowed(this, prefs)) feed = new CanFeed(this, this);
+        else feed = untestedCanApp;   // a CAN app build not known to number its methods as expected
         lastMessageMs = android.os.SystemClock.elapsedRealtime();   // give a new feed STALE_MS to speak
         // Never let values from the previous feed (e.g. simulated ones) pass as live readings.
         car.reset();
@@ -281,6 +288,12 @@ public class DashApp extends Application implements Feed.Sink, SharedPreferences
         for (Listener l : listeners) l.onCarChanged(-1);
         feed.start();
     }
+
+    /** Stands in for the CAN feed on an untested CAN app build: never binds, only says why. */
+    private final Feed untestedCanApp = new Feed() {
+        @Override public void start() { onStatus(CanAppCheck.PROBLEM); }
+        @Override public void stop() {}
+    };
 
     /**
      * Fires STALE_MS after the last live message while the speed was above 0 outside Park (re-armed
@@ -632,7 +645,7 @@ public class DashApp extends Application implements Feed.Sink, SharedPreferences
     @Override public void onSharedPreferenceChanged(SharedPreferences sp, String key) {
         if (RUNTIME_KEYS.contains(key)) return;
         readDrawPrefs();
-        if ("demo".equals(key)) startFeed();
+        if ("demo".equals(key) || (CanAppCheck.ALLOWED_KEY.equals(key) && !demo)) startFeed();
         if ("text_size".equals(key)) applyTextSize();
         if ("autopilot_rainbow".equals(key)) rainbowRoad = prefs.getBoolean(key, false);
         if ("theme".equals(key)) updateTheme(true);
