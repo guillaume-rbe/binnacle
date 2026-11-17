@@ -216,8 +216,13 @@ final class Updater {
         return was;
     }
 
-    /** An install ended (failed, cancelled or done): nothing follows. */
+    /**
+     * An install ended (failed, cancelled or done): nothing follows. The session the stage was
+     * waiting on is abandoned too, so an install screen left open (Home pressed, then a retry whose
+     * download failed) can't install CarPlay without its Binnacle hand-off.
+     */
     private static void finished(Context c) {
+        Status.dropCurrent(c);
         saveNext(c, null);
         prefs(c).edit().remove(DASH_UPDATING).apply();
         show(null, 0);
@@ -522,6 +527,14 @@ final class Updater {
             } catch (RuntimeException e) {
                 // already gone
             }
+        }
+
+        /** Abandons the session the stage waits on, if any (already finished: nothing happens). */
+        static void dropCurrent(Context c) {
+            int id = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getInt(CURRENT, -1);
+            if (id < 0) return;
+            c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().remove(CURRENT).apply();
+            abandon(c, id);
         }
 
         /** A held or written session is gone: the update stops. */
