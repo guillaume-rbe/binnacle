@@ -46,7 +46,8 @@
 >   unit's Bluetooth never tells the CAN app either way)
 > - Call microphone for a dash-mounted mic: road-rumble high-pass, automatic gain, and a
 >   half-duplex echo suppressor driven by what is actually being played (applied after the gain
->   stages so they can't lift the echo); its levels go to the session log
+>   stages so they can't lift the echo); its levels go to the session log. Its strength (Off /
+>   Light / Normal) and far-end threshold are in Settings → Audio → Microphone (issue #175)
 > - Calls to the car's own hands-free: when the car is connected to the head unit's Android
 >   Bluetooth as a hands-free device, CarPlay call audio goes to the car over Bluetooth (car mic
 >   and echo cancelling; the dash-mic clean-up is skipped). With the "CarPlay" calling account

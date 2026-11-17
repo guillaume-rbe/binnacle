@@ -807,6 +807,8 @@ internal object CarPlaySession {
                 advancedAudioChannelMapping = settings.advancedAudioChannelMapping,
                 mainMediaAudioBufferDurationMs = settings.mainMediaAudioBufferDurationMs,
                 microphoneGainPercent = settings.microphoneGainPercent,
+                callEchoStrength = settings.callEchoStrength,
+                callEchoThreshold = settings.callEchoThreshold,
                 mediaMetricsMonitor = mediaMetricsMonitor,
                 onClosed = { outputs?.close() },
                 mediaTap = outputs,

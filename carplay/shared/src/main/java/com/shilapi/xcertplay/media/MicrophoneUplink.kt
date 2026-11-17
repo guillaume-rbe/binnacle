@@ -23,6 +23,9 @@ internal class MicrophoneUplink(
     microphoneGainPercent: Int,
     private val callMicCaptureDirectory: java.io.File? = null,
     private val debugLog: (String) -> Unit = {},
+    /** [CallEchoSettings] steps (CarPlay settings → Audio → Microphone). */
+    private val echoStrength: Int = CallEchoSettings.DEFAULT_STRENGTH,
+    private val echoThreshold: Int = CallEchoSettings.DEFAULT_THRESHOLD,
 ) : Closeable {
     private val microphoneGainPercent = MicrophoneGain.sanitize(microphoneGainPercent)
     private val running = AtomicBoolean(false)
@@ -97,6 +100,8 @@ internal class MicrophoneUplink(
             callAgc = Pcm16VoiceAgc()
             FarEndActivity.reset() // no stale playback levels from an earlier call
             echoSuppressor = CallEchoSuppressor(
+                farActiveDb = CallEchoSettings.farActiveDb(echoThreshold),
+                suppressDb = CallEchoSettings.suppressDb(echoStrength),
                 log = {
                     Log.i(TAG, it)
                     debugLog(it)

@@ -59,6 +59,31 @@ internal object FarEndActivity {
 }
 
 /**
+ * User choices for [CallEchoSuppressor] (CarPlay settings → Audio → Microphone, issue #175): how
+ * much the microphone is turned down while the far end talks, and how loud the far end must be
+ * to count as talking. Stored as slider steps; the defaults are the values the suppressor always
+ * used, so nothing changes for anyone who doesn't touch them. A noisy line can sit above the
+ * -55 dB threshold even when nobody talks, which holds the microphone down (16 Nov, cellular).
+ */
+object CallEchoSettings {
+    /** Attenuation per step: Off, Light, Normal. */
+    val STRENGTH_DB: List<Double> = listOf(0.0, -20.0, -45.0)
+    const val DEFAULT_STRENGTH = 2
+
+    /** Far-end level that counts as talking, per step. */
+    val THRESHOLD_DB: List<Double> = listOf(-55.0, -45.0, -35.0)
+    const val DEFAULT_THRESHOLD = 0
+
+    fun strength(step: Int): Int = step.coerceIn(0, STRENGTH_DB.size - 1)
+    fun threshold(step: Int): Int = step.coerceIn(0, THRESHOLD_DB.size - 1)
+    fun suppressDb(strengthStep: Int): Double = STRENGTH_DB[strength(strengthStep)]
+    fun farActiveDb(thresholdStep: Int): Double = THRESHOLD_DB[threshold(thresholdStep)]
+
+    /** "-20 dB" style label for a level, the same in every language. */
+    fun dbLabel(db: Double): String = String.format(java.util.Locale.US, "%.0f dB", db)
+}
+
+/**
  * Echo suppressor for call microphone audio (16-bit mono PCM, processed in place).
  *
  * Half-duplex: while the far end is playing (any playback above [farActiveDb] in the last
@@ -70,6 +95,10 @@ internal object FarEndActivity {
  * In the call chain, [update] runs on the captured level (before any gain) and [apply] runs last,
  * after the user gain and AGC: applied earlier, the AGC (holding a high gain for a quiet driver)
  * lifted the suppressed echo back up by ~20 dB and the far end heard it (2 Nov test).
+ *
+ * At the full (default) strength the gain stages are also skipped while suppressing (see
+ * [skipsGain]), as before #175. A milder setting keeps them running, with the AGC held, so the
+ * microphone is turned down by exactly [suppressDb] and doesn't jump when suppression ends.
  */
 internal class CallEchoSuppressor(
     private val farEndLevel: (windowMs: Long) -> Double = { FarEndActivity.recentMaxDb(it) },
@@ -86,6 +115,9 @@ internal class CallEchoSuppressor(
     /** True when the last block was being suppressed (lets AGC hold its gain). */
     var suppressing = false
         private set
+
+    /** Whether the user gain and AGC are left out while [suppressing] (full strength only). */
+    val skipsGain: Boolean = suppressDb <= FULL_SUPPRESS_DB
 
     /** Decide the suppression for this block from its captured (pre-gain) level. */
     fun update(buffer: ByteArray, length: Int) {
@@ -121,6 +153,11 @@ internal class CallEchoSuppressor(
     fun process(buffer: ByteArray, length: Int) {
         update(buffer, length)
         apply(buffer, length)
+    }
+
+    private companion object {
+        /** The suppressor's original depth; from here down the gain stages are skipped. */
+        const val FULL_SUPPRESS_DB = -45.0
     }
 
     private fun rmsDb(buffer: ByteArray, length: Int): Double {
